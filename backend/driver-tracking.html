@@ -261,8 +261,8 @@
   <!-- ── Load Info Card ──────────────────────────────────────────────────── -->
   <div class="card" id="load-card">
     <p class="card-title">Your Load</p>
-    <div id="load-number" class="load-number">Loading…</div>
-    <div id="load-desc"   class="load-desc">Please wait</div>
+    <div id="load-number" class="load-number">Your Load</div>
+    <div id="load-desc"   class="load-desc">Loading details…</div>
 
     <div class="route-row">
       <div class="route-dot pickup"></div>
@@ -357,42 +357,53 @@
 
     // ── Fetch load details — decode from URL first, then localStorage, then API ──
     function loadLoadInfo() {
-
-      // 1. Try decoding load data embedded in the URL (?d=base64json)
-      var dParam = params.get('d');
-      if (dParam) {
-        try {
-          var decoded = JSON.parse(atob(decodeURIComponent(dParam)));
-          if (decoded && decoded.loadNumber) {
-            populateLoad(decoded);
-            return;
-          }
-        } catch(e) {}
-      }
-
-      // 2. Try localStorage (same device as dispatcher)
-      var stored = JSON.parse(localStorage.getItem('cmp_loads') || '[]');
-      var found  = null;
-      for (var i = 0; i < stored.length; i++) {
-        if ((TOKEN && stored[i].trackingToken === TOKEN) ||
-            (LOAD_ID && stored[i].id === LOAD_ID)) {
-          found = stored[i]; break;
+      try {
+        // 1. Try decoding load data embedded in the URL (?d=base64json)
+        var dParam = params.get('d');
+        if (dParam) {
+          try {
+            var decoded = JSON.parse(atob(decodeURIComponent(dParam)));
+            if (decoded && decoded.loadNumber) {
+              populateLoad(decoded);
+              return;
+            }
+          } catch(e) {}
         }
-      }
-      if (found) { populateLoad(found); return; }
 
-      // 3. Try backend API
-      if (isLive()) {
-        fetch(API_BASE + '/track/' + TOKEN)
-          .then(function(r) { return r.ok ? r.json() : r.json().then(function(d){ throw new Error(d.error||'Load not found.'); }); })
-          .then(function(d) { populateLoad(d); })
-          .catch(function(err) { showError('Could not load shipment details: ' + err.message); document.getElementById('btn-start').disabled = true; });
-        return;
-      }
+        // 2. Try localStorage (same device as dispatcher)
+        var stored = JSON.parse(localStorage.getItem('cmp_loads') || '[]');
+        var found  = null;
+        for (var i = 0; i < stored.length; i++) {
+          if ((TOKEN && stored[i].trackingToken === TOKEN) ||
+              (LOAD_ID && stored[i].id === LOAD_ID)) {
+            found = stored[i]; break;
+          }
+        }
+        if (found) { populateLoad(found); return; }
 
-      // 4. Nothing found — show helpful error
-      showError('No load data found. Please use the tracking link sent by your dispatcher.');
-      document.getElementById('btn-start').disabled = true;
+        // 3. Try backend API
+        if (isLive()) {
+          fetch(API_BASE + '/track/' + TOKEN)
+            .then(function(r) { return r.ok ? r.json() : r.json().then(function(d){ throw new Error(d.error||'Load not found.'); }); })
+            .then(function(d) { populateLoad(d); })
+            .catch(function(err) {
+              document.getElementById('load-number').textContent = 'Load Not Found';
+              document.getElementById('load-desc').textContent   = err.message;
+              document.getElementById('btn-start').disabled = true;
+            });
+          return;
+        }
+
+        // 4. Nothing found
+        document.getElementById('load-number').textContent = 'Invalid Link';
+        document.getElementById('load-desc').textContent   = 'Please use the tracking link sent by your dispatcher. This link may be expired or incorrect.';
+        document.getElementById('btn-start').disabled = true;
+
+      } catch(e) {
+        document.getElementById('load-number').textContent = 'Error';
+        document.getElementById('load-desc').textContent   = e.message;
+        document.getElementById('btn-start').disabled = true;
+      }
     }
 
     function populateLoad(data) {
