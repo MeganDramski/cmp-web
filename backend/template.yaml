@@ -1,0 +1,355 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: CMP Tracking Backend – API Gateway + Lambda + DynamoDB
+
+# ─────────────────────────────────────────────────────────────────
+# Globals
+# ─────────────────────────────────────────────────────────────────
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 15
+    MemorySize: 256
+    Environment:
+      Variables:
+        USERS_TABLE:     !Ref UsersTable
+        LOADS_TABLE:     !Ref LoadsTable
+        LOCATIONS_TABLE: !Ref LocationsTable
+        JWT_SECRET:      !Ref JwtSecret
+        SES_FROM_EMAIL:  !Ref SesFromEmail
+        TRACKING_BASE_URL: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+
+Parameters:
+  JwtSecret:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /cmp-tracking/jwt-secret
+
+  SesFromEmail:
+    Type: String
+    Default: "no-reply@yourdomain.com"
+    Description: >
+      SES-verified sender address used for dispatcher & customer emails.
+      Must be verified in Amazon SES before deploying.
+
+# ─────────────────────────────────────────────────────────────────
+# DynamoDB Tables
+# ─────────────────────────────────────────────────────────────────
+Resources:
+
+  # Users table  (PK = email)
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: cmp-users
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: email
+          KeyType: HASH
+
+  # Loads table  (PK = id)
+  LoadsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: cmp-loads
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: trackingToken
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: TrackingTokenIndex
+          KeySchema:
+            - AttributeName: trackingToken
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  # Locations table  (PK = loadId, SK = timestamp)
+  LocationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: cmp-locations
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: loadId
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: loadId
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+
+# ─────────────────────────────────────────────────────────────────
+# Shared IAM Role for all Lambdas
+# ─────────────────────────────────────────────────────────────────
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: cmp-tracking-lambda-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt UsersTable.Arn
+                  - !GetAtt LoadsTable.Arn
+                  - !Sub "${LoadsTable.Arn}/index/*"
+                  - !GetAtt LocationsTable.Arn
+        - PolicyName: SESAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource: "*"
+        - PolicyName: SNSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: "*"
+
+# ─────────────────────────────────────────────────────────────────
+# API Gateway (HTTP API – lower latency than REST API)
+# ─────────────────────────────────────────────────────────────────
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: prod
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+        AllowMethods:
+          - GET
+          - POST
+          - PATCH
+          - DELETE
+          - OPTIONS
+
+# ─────────────────────────────────────────────────────────────────
+# Lambda Functions
+# ─────────────────────────────────────────────────────────────────
+
+  # POST /users/register
+  RegisterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-register
+      CodeUri: src/
+      Handler: handlers/register.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /users/register
+            Method: POST
+
+  # POST /users/login
+  LoginFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-login
+      CodeUri: src/
+      Handler: handlers/login.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /users/login
+            Method: POST
+
+  # GET /loads  (dispatcher – all loads)
+  GetLoadsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-get-loads
+      CodeUri: src/
+      Handler: handlers/getLoads.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /loads
+            Method: GET
+
+  # POST /loads  (dispatcher – create load)
+  CreateLoadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-create-load
+      CodeUri: src/
+      Handler: handlers/createLoad.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /loads
+            Method: POST
+
+  # PATCH /loads/{id}/status
+  UpdateLoadStatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-update-load-status
+      CodeUri: src/
+      Handler: handlers/updateLoadStatus.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /loads/{id}/status
+            Method: PATCH
+
+  # POST /locations  (driver – push GPS fix)
+  PostLocationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-post-location
+      CodeUri: src/
+      Handler: handlers/postLocation.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /locations
+            Method: POST
+
+  # GET /loads/{id}/location  (latest location for a load)
+  GetLocationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-get-location
+      CodeUri: src/
+      Handler: handlers/getLocation.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /loads/{id}/location
+            Method: GET
+
+  # GET /track/{token}  (public – customer tracking, no auth)
+  TrackByTokenFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-track-by-token
+      CodeUri: src/
+      Handler: handlers/trackByToken.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /track/{token}
+            Method: GET
+
+  # POST /loads/{id}/send-driver-link  (dispatcher – SMS driver with browser tracking link)
+  SendDriverLinkFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-send-driver-link
+      CodeUri: src/
+      Handler: handlers/sendDriverLink.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /loads/{id}/send-driver-link
+            Method: POST
+
+  # POST /track/{token}/start  (public – driver taps Start Tracking in browser)
+  StartTrackingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-start-tracking
+      CodeUri: src/
+      Handler: handlers/startTracking.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /track/{token}/start
+            Method: POST
+
+  # POST /track/{token}/location  (public – driver browser posts GPS, no auth needed)
+  PostLocationPublicFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-post-location-public
+      CodeUri: src/
+      Handler: handlers/postLocationPublic.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /track/{token}/location
+            Method: POST
+
+# ─────────────────────────────────────────────────────────────────
+# Outputs
+# ─────────────────────────────────────────────────────────────────
+Outputs:
+  ApiBaseUrl:
+    Description: "API Gateway base URL – paste this into AWSConfig.swift"
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  UsersTableName:
+    Value: !Ref UsersTable
+  LoadsTableName:
+    Value: !Ref LoadsTable
+  LocationsTableName:
+    Value: !Ref LocationsTable

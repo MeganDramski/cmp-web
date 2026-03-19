@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1a1a2e" />
+  <title>CMP Freight – Track Your Shipment</title>
+  <link rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --blue:  #007AFF;
+      --green: #34C759;
+      --bg:    #0f0f1a;
+      --card:  #1c1c2e;
+      --border:#2c2c3e;
+      --text:  #ffffff;
+      --muted: #8e8ea0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px 16px 40px;
+    }
+    .logo {
+      font-size: 13px; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 20px;
+    }
+    .card {
+      width: 100%; max-width: 480px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 20px;
+      margin-bottom: 14px;
+    }
+    .card-title {
+      font-size: 11px; font-weight: 600; letter-spacing: 1px;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+    }
+    h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+    .desc { color: var(--muted); font-size: 14px; margin-bottom: 14px; }
+    .row { display:flex; align-items:flex-start; gap:12px; margin-bottom:10px; }
+    .dot { width:10px; height:10px; border-radius:50%; margin-top:4px; flex-shrink:0; }
+    .dot.blue  { background: var(--blue); }
+    .dot.green { background: var(--green); }
+    .label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+    .addr  { font-size:14px; line-height:1.4; }
+
+    .status-pill {
+      display:inline-flex; align-items:center; gap:6px;
+      padding:5px 14px; border-radius:20px;
+      font-size:13px; font-weight:600;
+      background: rgba(52,199,89,0.15); color: var(--green);
+      margin-top:12px;
+    }
+
+    #map {
+      width:100%; height:260px;
+      border-radius:14px; overflow:hidden;
+      margin-bottom:14px;
+    }
+
+    .stat-grid {
+      display:grid; grid-template-columns:1fr 1fr; gap:12px;
+    }
+    .stat-val  { font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; }
+    .stat-unit { font-size:11px; color:var(--muted); margin-top:2px; }
+
+    .pulse {
+      display:inline-block; width:8px; height:8px;
+      border-radius:50%; background:var(--green);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:0.4; transform:scale(1.4); }
+    }
+
+    .refresh-note {
+      font-size:12px; color:var(--muted); text-align:center;
+      margin-top:8px;
+    }
+    .error-banner {
+      width:100%; max-width:480px;
+      background:rgba(255,59,48,.15); border:1px solid rgba(255,59,48,.3);
+      color:#FF3B30; padding:12px 16px; border-radius:12px;
+      font-size:13px; margin-bottom:12px; display:none;
+    }
+    .error-banner.visible { display:block; }
+  </style>
+</head>
+<body>
+
+  <p class="logo">CMP Freight</p>
+
+  <div id="error-banner" class="error-banner"></div>
+
+  <!-- ── Shipment Info ──────────────────────────────────────────────────── -->
+  <div class="card">
+    <p class="card-title">Your Shipment</p>
+    <h1 id="load-number">Loading…</h1>
+    <p class="desc" id="load-desc"></p>
+
+    <div class="row">
+      <div class="dot blue"></div>
+      <div>
+        <div class="label">Pickup</div>
+        <div class="addr" id="pickup">—</div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="dot green"></div>
+      <div>
+        <div class="label">Destination</div>
+        <div class="addr" id="delivery">—</div>
+      </div>
+    </div>
+
+    <div class="status-pill">
+      <span class="pulse"></span>
+      <span id="status-text">In Transit</span>
+    </div>
+  </div>
+
+  <!-- ── Live Map ───────────────────────────────────────────────────────── -->
+  <div id="map"></div>
+
+  <!-- ── Live Stats ────────────────────────────────────────────────────── -->
+  <div class="card">
+    <p class="card-title">Live Location</p>
+    <div class="stat-grid">
+      <div>
+        <div class="stat-val" id="stat-speed">—</div>
+        <div class="stat-unit">mph</div>
+      </div>
+      <div>
+        <div class="stat-val" id="stat-updated">—</div>
+        <div class="stat-unit">Last update</div>
+      </div>
+      <div>
+        <div class="stat-val" id="stat-lat">—</div>
+        <div class="stat-unit">Latitude</div>
+      </div>
+      <div>
+        <div class="stat-val" id="stat-lng">—</div>
+        <div class="stat-unit">Longitude</div>
+      </div>
+    </div>
+    <p class="refresh-note">📡 Updates every 30 seconds</p>
+  </div>
+
+  <!-- ── Delivery Info ─────────────────────────────────────────────────── -->
+  <div class="card">
+    <p class="card-title">Estimated Delivery</p>
+    <div style="font-size:20px;font-weight:600;" id="est-delivery">—</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">
+      Subject to road conditions
+    </div>
+  </div>
+
+  <script>
+    const params  = new URLSearchParams(location.search);
+    const TOKEN   = params.get("token");
+    const API_BASE = (window.CMP_API_BASE || location.origin);
+    const REFRESH_MS = 30000;
+
+    let map, driverMarker;
+
+    (async function init() {
+      if (!TOKEN) {
+        showError("Invalid tracking link.");
+        return;
+      }
+      initMap();
+      await fetchAndRender();
+      setInterval(fetchAndRender, REFRESH_MS);
+    })();
+
+    function initMap() {
+      map = L.map("map", { zoomControl: true, attributionControl: false })
+             .setView([39.5, -98.35], 4);
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        maxZoom: 19,
+      }).addTo(map);
+    }
+
+    async function fetchAndRender() {
+      try {
+        const res = await fetch(`${API_BASE}/track/${TOKEN}`);
+        if (!res.ok) throw new Error((await res.json()).error || "Not found.");
+        const data = await res.json();
+
+        document.getElementById("load-number").textContent = data.loadNumber || "—";
+        document.getElementById("load-desc").textContent   = data.description || "";
+        document.getElementById("pickup").textContent      = data.pickupAddress || "—";
+        document.getElementById("delivery").textContent    = data.deliveryAddress || "—";
+        document.getElementById("status-text").textContent = data.status || "In Transit";
+
+        if (data.deliveryDate) {
+          document.getElementById("est-delivery").textContent =
+            new Date(data.deliveryDate).toLocaleString(undefined,
+              { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" });
+        }
+
+        if (data.lastLocation) {
+          const loc = data.lastLocation;
+          const lat = loc.latitude;
+          const lng = loc.longitude;
+
+          // Update stats
+          document.getElementById("stat-lat").textContent   = lat.toFixed(5);
+          document.getElementById("stat-lng").textContent   = lng.toFixed(5);
+          document.getElementById("stat-speed").textContent =
+            loc.speed != null ? Math.round(loc.speed) : "0";
+          document.getElementById("stat-updated").textContent =
+            loc.timestamp ? new Date(loc.timestamp).toLocaleTimeString() : "—";
+
+          // Update map marker
+          const truckIcon = L.divIcon({
+            html: `<div style="font-size:26px;line-height:1;">🚛</div>`,
+            className: "",
+            iconSize: [30, 30],
+            iconAnchor: [15, 15],
+          });
+
+          if (!driverMarker) {
+            driverMarker = L.marker([lat, lng], { icon: truckIcon }).addTo(map);
+            map.setView([lat, lng], 10);
+          } else {
+            driverMarker.setLatLng([lat, lng]);
+            map.panTo([lat, lng]);
+          }
+        }
+      } catch (err) {
+        showError("Could not load tracking data: " + err.message);
+      }
+    }
+
+    function showError(msg) {
+      const el = document.getElementById("error-banner");
+      el.textContent = msg;
+      el.classList.add("visible");
+    }
+  </script>
+</body>
+</html>

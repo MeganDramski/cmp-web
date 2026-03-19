@@ -1,0 +1,38 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivefile
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Node / Lambda
+backend/src/node_modules/
+backend/src/.env
+backend/.aws-sam/
+
+# SAM build artifacts
+backend/.aws-sam/
+
+# Secrets — never commit these
+*.pem
+*.key
+samconfig.toml

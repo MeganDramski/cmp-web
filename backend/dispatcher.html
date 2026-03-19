@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CMP Freight - Dispatcher Portal</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--blue:#007AFF;--green:#34C759;--orange:#FF9500;--red:#FF3B30;--bg:#0f0f1a;--surface:#1c1c2e;--s2:#252538;--border:#2c2c3e;--text:#fff;--muted:#8e8ea0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* SCREENS */
+#auth-screen{display:none;min-height:100vh;align-items:center;justify-content:center;padding:20px}
+#auth-screen.on{display:flex}
+#app-screen{display:none;flex-direction:column;min-height:100vh}
+#app-screen.on{display:flex}
+
+/* AUTH */
+.acard{width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:32px 28px}
+.alogo{text-align:center;margin-bottom:24px}
+.alogo .ico{width:68px;height:68px;background:rgba(0,122,255,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 10px}
+.alogo h1{font-size:21px;font-weight:700}
+.alogo p{font-size:13px;color:var(--muted);margin-top:3px}
+.atabs{display:flex;background:var(--s2);border-radius:10px;padding:3px;margin-bottom:20px}
+.atab{flex:1;padding:8px;text-align:center;font-size:14px;font-weight:600;cursor:pointer;border-radius:8px;color:var(--muted);border:none;background:none;transition:all .2s}
+.atab.on{background:var(--blue);color:#fff}
+.aform{display:none}.aform.on{display:block}
+.aerr{background:rgba(255,59,48,.12);border:1px solid rgba(255,59,48,.3);color:#FF3B30;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:12px;display:none}
+.anote{text-align:center;margin-top:14px;font-size:12px;color:var(--muted)}
+
+/* FORM ELEMENTS */
+.fg{margin-bottom:13px}
+.fg label{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.fg input,.fg select,.fg textarea{width:100%;padding:10px 13px;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;outline:none;font-family:inherit}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--blue)}
+.fg select option{background:var(--s2)}
+.fg textarea{resize:vertical;min-height:68px}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:480px){.frow{grid-template-columns:1fr}}
+.ftitle{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:16px 0 9px}
+.ftitle:first-child{margin-top:0}
+.fnote{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.5}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 18px;border-radius:11px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:var(--s2);color:var(--text);transition:opacity .15s}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-p{background:var(--blue);color:#fff}
+.btn-r{background:var(--red);color:#fff}
+.btn-full{width:100%}
+.btn-sm{padding:6px 13px;font-size:13px}
+.btn-outline{background:transparent;border:1px solid var(--border)}
+
+/* NAV */
+.nav{display:flex;align-items:center;gap:10px;padding:0 16px;height:52px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;position:sticky;top:0;z-index:100}
+.brand{font-weight:700;font-size:15px;display:flex;align-items:center;gap:6px}
+.spacer{flex:1}
+.uchip{display:flex;align-items:center;gap:6px;padding:4px 11px;background:var(--s2);border-radius:20px;font-size:13px;color:var(--muted)}
+.uchip strong{color:var(--text)}
+
+/* LAYOUT */
+.layout{display:flex;flex:1;overflow:hidden;height:calc(100vh - 52px)}
+
+/* LIST PANEL */
+#lp{width:370px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.ltop{padding:13px 13px 0;background:var(--surface);border-bottom:1px solid var(--border)}
+.srow{display:flex;gap:8px;padding-bottom:11px;overflow-x:auto}
+.srow::-webkit-scrollbar{display:none}
+.sc{flex-shrink:0;width:80px;height:80px;background:var(--s2);border-radius:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;border:2px solid transparent}
+.sc.on{border-color:var(--blue)}
+.sc-i{font-size:17px}.sc-n{font-size:20px;font-weight:700}.sc-l{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.sr{display:flex;gap:8px;padding:9px 0}
+.sw{flex:1;position:relative}
+.sw input{width:100%;padding:8px 12px 8px 30px;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;outline:none}
+.sw input:focus{border-color:var(--blue)}
+.si{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:13px;pointer-events:none}
+#ll{flex:1;overflow-y:auto}
+.lr{padding:12px 13px;border-bottom:1px solid var(--border);cursor:pointer}
+.lr:hover{background:var(--s2)}
+.lr.on{background:rgba(0,122,255,.08);border-left:3px solid var(--blue)}
+.lrt{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}
+.lrn{font-weight:700;font-size:14px}
+.lrd{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
+.lrm{display:flex;flex-wrap:wrap;gap:7px;font-size:11px;color:var(--muted)}
+.empty-list{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:44px 20px;text-align:center;color:var(--muted);gap:9px}
+.empty-list .ei{font-size:44px}
+.empty-list h3{font-size:16px;font-weight:600;color:var(--text)}
+
+/* BADGE */
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.bPending{background:rgba(142,142,160,.18);color:#aeaec0}
+.bAssigned{background:rgba(0,122,255,.18);color:var(--blue)}
+.bInTransit{background:rgba(255,149,0,.18);color:var(--orange)}
+.bDelivered{background:rgba(52,199,89,.18);color:var(--green)}
+.bCancelled{background:rgba(255,59,48,.18);color:var(--red)}
+
+/* DETAIL PANEL */
+#dp{flex:1;overflow-y:auto;background:var(--bg)}
+.dph{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;color:var(--muted);text-align:center;padding:32px}
+.dph .di{font-size:52px}
+.dph h3{font-size:17px;color:var(--text)}
+#dc{padding:22px;display:none}
+.dhdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px}
+.dhdr h2{font-size:21px;font-weight:700}
+.dhdr-sub{font-size:13px;color:var(--muted);margin-top:2px}
+.sec{background:var(--surface);border:1px solid var(--border);border-radius:13px;margin-bottom:12px;overflow:hidden}
+.sec-h{padding:8px 15px;background:var(--s2);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border-bottom:1px solid var(--border)}
+.dr{display:flex;align-items:flex-start;justify-content:space-between;padding:10px 15px;border-bottom:1px solid var(--border);gap:10px}
+.dr:last-child{border-bottom:none}
+.drl{font-size:13px;color:var(--muted);flex-shrink:0;min-width:105px}
+.drv{font-size:13px;text-align:right;word-break:break-word;max-width:60%}
+.drv a{color:var(--blue)}
+.ssel{background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:5px 9px;font-size:13px;font-weight:600;outline:none;cursor:pointer}
+.lbox{display:flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:8px 11px;font-size:11px;color:var(--muted);word-break:break-all}
+.lbox .lt{flex:1;font-family:monospace}
+.cbtn{background:none;border:none;cursor:pointer;color:var(--blue);font-size:15px;flex-shrink:0}
+.togrow{display:flex;align-items:center;justify-content:space-between;padding:11px 15px;border-bottom:1px solid var(--border);gap:10px}
+.togl{font-size:13px}.togl small{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+.tog{position:relative;width:42px;height:24px;flex-shrink:0}
+.tog input{opacity:0;width:0;height:0}
+.togs{position:absolute;inset:0;background:var(--border);border-radius:12px;cursor:pointer;transition:background .2s}
+.togs::before{content:"";position:absolute;width:18px;height:18px;border-radius:50%;left:3px;bottom:3px;background:#fff;transition:transform .2s}
+.tog input:checked+.togs{background:var(--green)}
+.tog input:checked+.togs::before{transform:translateX(18px)}
+.swrap{padding:11px 15px 14px}
+
+/* DRIVER PICKER inside detail */
+.driver-picker{padding:12px 15px;border-bottom:1px solid var(--border)}
+.driver-picker label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px}
+.driver-picker select{width:100%;padding:9px 12px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:13px;outline:none}
+.driver-picker select:focus{border-color:var(--blue)}
+.driver-picker .dp-note{font-size:11px;color:var(--muted);margin-top:5px}
+
+/* MODAL */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);z-index:200;display:none;align-items:flex-end;justify-content:center}
+.ov.on{display:flex}
+@media(min-width:600px){.ov{align-items:center}}
+.modal{width:100%;max-width:540px;background:var(--surface);border-radius:20px 20px 0 0;max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
+@media(min-width:600px){.modal{border-radius:20px;max-height:88vh}}
+.mhdr{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.mhdr h2{font-size:17px;font-weight:700}
+.mclose{background:var(--s2);border:none;color:var(--muted);width:28px;height:28px;border-radius:50%;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.mbody{flex:1;overflow-y:auto;padding:18px}
+.mftr{padding:13px 18px;border-top:1px solid var(--border);display:flex;gap:9px;flex-shrink:0}
+.merr{background:rgba(255,59,48,.12);border:1px solid rgba(255,59,48,.3);color:#FF3B30;border-radius:9px;padding:9px 13px;font-size:13px;margin-bottom:12px;display:none}
+
+/* Driver picker in modal */
+.driver-option{display:flex;align-items:center;gap:10px;padding:10px 13px;border:1px solid var(--border);border-radius:10px;cursor:pointer;margin-bottom:7px;transition:border-color .15s}
+.driver-option:hover{border-color:var(--blue)}
+.driver-option.sel{border-color:var(--blue);background:rgba(0,122,255,.08)}
+.driver-option .dav{width:36px;height:36px;background:rgba(0,122,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.driver-option .dinfo{flex:1}
+.driver-option .dname{font-weight:600;font-size:14px}
+.driver-option .dphone{font-size:12px;color:var(--muted);margin-top:1px}
+.driver-option .dcheck{font-size:18px;color:var(--blue)}
+.manual-toggle{font-size:12px;color:var(--blue);cursor:pointer;margin-top:5px;display:inline-block}
+
+/* TOAST */
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:11px;padding:9px 18px;font-size:13px;font-weight:500;z-index:999;opacity:0;pointer-events:none;transition:opacity .3s;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+#toast.on{opacity:1;pointer-events:auto}
+
+/* SPINNER */
+.spin{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* MOBILE */
+@media(max-width:799px){
+  #lp{width:100%;border-right:none}
+  #dp{position:fixed;inset:52px 0 0;z-index:50;display:none}
+  #dp.on{display:block;overflow-y:auto}
+  .back-btn{display:inline-flex !important}
+}
+@media(min-width:800px){
+  .back-btn{display:none !important}
+}
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="auth-screen">
+  <div class="acard">
+    <div class="alogo">
+      <div class="ico">🚛</div>
+      <h1>CMP Freight</h1>
+      <p>Dispatcher Portal</p>
+    </div>
+    <div class="atabs">
+      <button class="atab on" id="tab-in">Sign In</button>
+      <button class="atab" id="tab-up">Create Account</button>
+    </div>
+    <div class="aerr" id="aerr"></div>
+    <div class="aform on" id="form-in">
+      <div class="fg"><label>Email</label><input type="email" id="si-email" placeholder="dispatcher@cmpfreight.com"/></div>
+      <div class="fg"><label>Password</label><input type="password" id="si-pw" placeholder="Password"/></div>
+      <button class="btn btn-p btn-full" id="btn-in">Sign In</button>
+    </div>
+    <div class="aform" id="form-up">
+      <div class="fg"><label>Full Name</label><input type="text" id="reg-name" placeholder="Jane Dispatcher"/></div>
+      <div class="fg"><label>Email</label><input type="email" id="reg-email" placeholder="dispatcher@cmpfreight.com"/></div>
+      <div class="fg"><label>Phone (optional)</label><input type="tel" id="reg-phone" placeholder="+1 312 555 0100"/></div>
+      <div class="fg"><label>Password (min 6 chars)</label><input type="password" id="reg-pw" placeholder="Password"/></div>
+      <button class="btn btn-p btn-full" id="btn-up">Create Account</button>
+    </div>
+    <p class="anote">Dispatcher accounts only. Drivers use the SMS link.</p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app-screen">
+  <nav class="nav">
+    <div class="brand">🚛 CMP Freight</div>
+    <div class="spacer"></div>
+    <div class="uchip"><span>👤</span><strong id="nav-name">Dispatcher</strong></div>
+    <button class="btn btn-sm" id="btn-out">Sign Out</button>
+    <button class="btn btn-p btn-sm" id="btn-new">+ New Load</button>
+  </nav>
+  <div class="layout">
+    <!-- List panel -->
+    <div id="lp">
+      <div class="ltop">
+        <div class="srow">
+          <div class="sc on" id="sc-all"><span class="sc-i">📋</span><span class="sc-n" id="cn-all">0</span><span class="sc-l">All</span></div>
+          <div class="sc" id="sc-it"><span class="sc-i">🚛</span><span class="sc-n" id="cn-it">0</span><span class="sc-l">Active</span></div>
+          <div class="sc" id="sc-as"><span class="sc-i">👤</span><span class="sc-n" id="cn-as">0</span><span class="sc-l">Assigned</span></div>
+          <div class="sc" id="sc-pe"><span class="sc-i">⏰</span><span class="sc-n" id="cn-pe">0</span><span class="sc-l">Pending</span></div>
+          <div class="sc" id="sc-de"><span class="sc-i">✅</span><span class="sc-n" id="cn-de">0</span><span class="sc-l">Delivered</span></div>
+        </div>
+        <div class="sr">
+          <div class="sw"><span class="si">🔍</span><input type="search" id="q" placeholder="Search loads, customers, drivers…"/></div>
+          <button class="btn btn-sm" id="btn-rf">🔄</button>
+        </div>
+      </div>
+      <div id="ll"></div>
+    </div>
+    <!-- Detail panel -->
+    <div id="dp">
+      <div class="dph" id="dph">
+        <div class="di">📋</div>
+        <h3>Select a Load</h3>
+        <p>Click any load to view details, assign a driver,<br>update status, or send a tracking link.</p>
+        <button class="btn btn-p" id="btn-new2">+ Create First Load</button>
+      </div>
+      <div id="dc"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD LOAD MODAL -->
+<div class="ov" id="modal-ov">
+  <div class="modal">
+    <div class="mhdr"><h2>New Load</h2><button class="mclose" id="m-close">✕</button></div>
+    <div class="mbody">
+      <div class="merr" id="merr"></div>
+      <div class="ftitle">Load Info</div>
+      <div class="frow">
+        <div class="fg"><label>Load Number</label><input type="text" id="al-num" placeholder="CMP-2026-0042"/></div>
+        <div class="fg"><label>Weight (lbs)</label><input type="number" id="al-wt" placeholder="38000"/></div>
+      </div>
+      <div class="fg"><label>Description</label><input type="text" id="al-desc" placeholder="Electronics - 48 pallets"/></div>
+      <div class="ftitle">Addresses &amp; Dates</div>
+      <div class="fg"><label>Pickup Address *</label><input type="text" id="al-pu" placeholder="123 Warehouse Blvd, Chicago, IL 60601"/></div>
+      <div class="fg"><label>Delivery Address *</label><input type="text" id="al-de" placeholder="456 Distribution Ave, Dallas, TX 75201"/></div>
+      <div class="frow">
+        <div class="fg"><label>Pickup Date</label><input type="datetime-local" id="al-pd"/></div>
+        <div class="fg"><label>Est. Delivery</label><input type="datetime-local" id="al-dd"/></div>
+      </div>
+
+      <div class="ftitle">Assign Driver</div>
+      <div id="driver-picker-list">
+        <p style="color:var(--muted);font-size:13px;text-align:center;padding:10px 0">Loading drivers…</p>
+      </div>
+      <span class="manual-toggle" id="toggle-manual">+ Enter manually instead</span>
+      <div id="manual-driver" style="display:none;margin-top:10px">
+        <div class="frow">
+          <div class="fg"><label>Driver Name</label><input type="text" id="al-dn" placeholder="John Smith"/></div>
+          <div class="fg"><label>Driver Cell</label><input type="tel" id="al-dp" placeholder="+1 312 555 0101"/></div>
+        </div>
+      </div>
+      <p class="fnote">📱 Driver receives an SMS with a browser tracking link — no app needed.</p>
+
+      <div class="ftitle">Customer</div>
+      <div class="fg"><label>Customer Name *</label><input type="text" id="al-cn" placeholder="Acme Corp"/></div>
+      <div class="frow">
+        <div class="fg"><label>Customer Email *</label><input type="email" id="al-ce" placeholder="logistics@acme.com"/></div>
+        <div class="fg"><label>Customer Phone</label><input type="tel" id="al-cp" placeholder="+1 312 555 0100"/></div>
+      </div>
+      <div class="sec" style="margin-top:11px">
+        <div class="togrow" style="border-bottom:none">
+          <div class="togl">📧 Email customer when driver starts<small>Customer gets a live tracking link by email.</small></div>
+          <label class="tog"><input type="checkbox" id="al-nfy" checked/><span class="togs"></span></label>
+        </div>
+      </div>
+      <div class="ftitle">Notes</div>
+      <div class="fg"><textarea id="al-notes" placeholder="Handle with care…"></textarea></div>
+    </div>
+    <div class="mftr">
+      <button class="btn" style="flex:1" id="m-cancel">Cancel</button>
+      <button class="btn btn-p" style="flex:2" id="btn-save">Save Load</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+var API = (function(){ var p=new URLSearchParams(location.search); return p.get('api')||'REPLACE_WITH_YOUR_API_GATEWAY_URL'; })();
+var loads=[], drivers=[], session=null, selId=null, filt=null, notifyOn=true;
+var selectedDriverId=null; // for modal driver picker
+
+function isLive(){ return API && API.indexOf('REPLACE_WITH')===-1; }
+function uid(){ return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0,v=c=='x'?r:(r&0x3|0x8);return v.toString(16);}); }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmt(iso){ if(!iso)return '--'; return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+function bc(s){ return 'badge b'+(s||'Pending').replace(/\s/g,''); }
+function ah(){ var h={'Content-Type':'application/json'}; if(session&&session.token&&session.token!=='local')h['Authorization']='Bearer '+session.token; return h; }
+
+/* TOAST */
+var _tt;
+function toast(m,d){ var e=document.getElementById('toast'); e.textContent=m; e.classList.add('on'); clearTimeout(_tt); _tt=setTimeout(function(){e.classList.remove('on');},d||3200); }
+
+/* SHA-256 (works everywhere) */
+function sha256(str){
+  function rr(v,a){return(v>>>a)|(v<<(32-a));}
+  var K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  var bytes=[]; for(var i=0;i<str.length;i++){var c=str.charCodeAt(i);if(c<128)bytes.push(c);else if(c<2048)bytes.push(192|(c>>6),128|(c&63));else bytes.push(224|(c>>12),128|((c>>6)&63),128|(c&63));}
+  var L=bytes.length; bytes.push(0x80); while(bytes.length%64!==56)bytes.push(0);
+  var bits=L*8; bytes.push(0,0,0,0,(bits>>>24)&255,(bits>>>16)&255,(bits>>>8)&255,bits&255);
+  for(var blk=0;blk<bytes.length;blk+=64){
+    var w=[]; for(i=0;i<16;i++)w[i]=(bytes[blk+i*4]<<24)|(bytes[blk+i*4+1]<<16)|(bytes[blk+i*4+2]<<8)|bytes[blk+i*4+3];
+    for(i=16;i<64;i++){var s0=rr(w[i-15],7)^rr(w[i-15],18)^(w[i-15]>>>3),s1=rr(w[i-2],17)^rr(w[i-2],19)^(w[i-2]>>>10);w[i]=(w[i-16]+s0+w[i-7]+s1)>>>0;}
+    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(i=0;i<64;i++){var S1=rr(e,6)^rr(e,11)^rr(e,25),ch=(e&f)^(~e&g),t1=(h+S1+ch+K[i]+w[i])>>>0,S0=rr(a,2)^rr(a,13)^rr(a,22),maj=(a&b)^(a&c)^(b&c),t2=(S0+maj)>>>0;h=g;g=f;f=e;e=(d+t1)>>>0;d=c;c=b;b=a;a=(t1+t2)>>>0;}
+    H[0]=(H[0]+a)>>>0;H[1]=(H[1]+b)>>>0;H[2]=(H[2]+c)>>>0;H[3]=(H[3]+d)>>>0;H[4]=(H[4]+e)>>>0;H[5]=(H[5]+f)>>>0;H[6]=(H[6]+g)>>>0;H[7]=(H[7]+h)>>>0;
+  }
+  var hex=''; for(i=0;i<8;i++)hex+=('00000000'+H[i].toString(16)).slice(-8); return hex;
+}
+
+/* AUTH UI */
+function showAuth(){ document.getElementById('app-screen').classList.remove('on'); document.getElementById('auth-screen').classList.add('on'); }
+function showApp(){  document.getElementById('auth-screen').classList.remove('on'); document.getElementById('app-screen').classList.add('on'); }
+function aerr(m){ var e=document.getElementById('aerr'); e.textContent=m; e.style.display='block'; }
+function aclr(){   document.getElementById('aerr').style.display='none'; }
+
+document.getElementById('tab-in').addEventListener('click',function(){ document.getElementById('tab-in').classList.add('on'); document.getElementById('tab-up').classList.remove('on'); document.getElementById('form-in').classList.add('on'); document.getElementById('form-up').classList.remove('on'); aclr(); });
+document.getElementById('tab-up').addEventListener('click',function(){ document.getElementById('tab-up').classList.add('on'); document.getElementById('tab-in').classList.remove('on'); document.getElementById('form-up').classList.add('on'); document.getElementById('form-in').classList.remove('on'); aclr(); });
+
+/* SIGN IN */
+document.getElementById('btn-in').addEventListener('click', doSignIn);
+document.getElementById('si-pw').addEventListener('keydown',function(e){if(e.key==='Enter')doSignIn();});
+document.getElementById('si-email').addEventListener('keydown',function(e){if(e.key==='Enter')doSignIn();});
+
+function doSignIn(){
+  aclr();
+  var email=document.getElementById('si-email').value.trim();
+  var pass=document.getElementById('si-pw').value;
+  if(!email||!pass)return aerr('Email and password are required.');
+  var btn=document.getElementById('btn-in'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Signing in…';
+  if(!isLive()){
+    var accs=JSON.parse(localStorage.getItem('cmp_accounts')||'[]');
+    var h=sha256(pass), found=null;
+    for(var i=0;i<accs.length;i++){if(accs[i].email===email&&accs[i].passwordHash===h){found=accs[i];break;}}
+    if(!found){btn.disabled=false;btn.textContent='Sign In';return aerr('No account found for that email / password.');}
+    session={token:'local',user:{name:found.name,email:found.email,role:found.role}};
+    localStorage.setItem('cmp_session',JSON.stringify(session));
+    btn.disabled=false;btn.textContent='Sign In'; enterApp(); return;
+  }
+  fetch(API+'/users/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})})
+    .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
+    .then(function(res){if(!res.ok)throw new Error(res.d.error||'Sign-in failed.');if(res.d.user.role!=='dispatcher')throw new Error('Dispatcher accounts only.');session={token:res.d.token,user:res.d.user};localStorage.setItem('cmp_session',JSON.stringify(session));enterApp();})
+    .catch(function(e){aerr(e.message);})
+    .finally(function(){btn.disabled=false;btn.textContent='Sign In';});
+}
+
+/* REGISTER */
+document.getElementById('btn-up').addEventListener('click', doRegister);
+document.getElementById('reg-pw').addEventListener('keydown',function(e){if(e.key==='Enter')doRegister();});
+
+function doRegister(){
+  aclr();
+  var name=document.getElementById('reg-name').value.trim();
+  var email=document.getElementById('reg-email').value.trim();
+  var phone=document.getElementById('reg-phone').value.trim();
+  var pass=document.getElementById('reg-pw').value;
+  if(!name||!email||!pass)return aerr('Name, email, and password are required.');
+  if(pass.length<6)return aerr('Password must be at least 6 characters.');
+  var btn=document.getElementById('btn-up'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Creating…';
+  if(!isLive()){
+    var accs=JSON.parse(localStorage.getItem('cmp_accounts')||'[]');
+    for(var i=0;i<accs.length;i++){if(accs[i].email===email){btn.disabled=false;btn.textContent='Create Account';return aerr('An account with that email already exists.');}}
+    var h=sha256(pass);
+    accs.push({name:name,email:email,phone:phone,role:'dispatcher',passwordHash:h});
+    localStorage.setItem('cmp_accounts',JSON.stringify(accs));
+    session={token:'local',user:{name:name,email:email,role:'dispatcher'}};
+    localStorage.setItem('cmp_session',JSON.stringify(session));
+    btn.disabled=false;btn.textContent='Create Account'; enterApp(); return;
+  }
+  fetch(API+'/users/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,email:email,phone:phone,password:pass,role:'dispatcher'})})
+    .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
+    .then(function(res){if(!res.ok)throw new Error(res.d.error||'Registration failed.');return fetch(API+'/users/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})});})
+    .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
+    .then(function(res){if(!res.ok)throw new Error('Auto sign-in failed.');session={token:res.d.token,user:res.d.user};localStorage.setItem('cmp_session',JSON.stringify(session));enterApp();})
+    .catch(function(e){aerr(e.message);})
+    .finally(function(){btn.disabled=false;btn.textContent='Create Account';});
+}
+
+/* SIGN OUT */
+document.getElementById('btn-out').addEventListener('click',function(){
+  session=null;selId=null;loads=[];drivers=[];filt=null;
+  localStorage.removeItem('cmp_session');
+  document.getElementById('si-pw').value='';
+  showAuth();
+});
+
+/* ENTER APP */
+function enterApp(){
+  document.getElementById('nav-name').textContent=session.user.name||session.user.email;
+  showApp();
+  loadDrivers();
+  loadData();
+}
+
+/* LOAD DRIVERS */
+function loadDrivers(){
+  if(!isLive()){
+    var accs=JSON.parse(localStorage.getItem('cmp_accounts')||'[]');
+    drivers=accs.filter(function(a){return a.role==='driver';});
+    // Add sample drivers in demo mode so the picker isn't empty
+    if(drivers.length===0){
+      drivers=[
+        {email:'john@cmp.com',name:'John Smith',phone:'+13125550101',role:'driver'},
+        {email:'maria@cmp.com',name:'Maria Lopez',phone:'+13135550202',role:'driver'},
+        {email:'tom@cmp.com',name:'Tom Williams',phone:'+16125550303',role:'driver'}
+      ];
+    }
+    return;
+  }
+  fetch(API+'/users?role=driver',{headers:ah()})
+    .then(function(r){return r.ok?r.json():[];})
+    .then(function(d){drivers=Array.isArray(d)?d:[];})
+    .catch(function(){drivers=[];});
+}
+
+/* LOAD DATA */
+document.getElementById('btn-rf').addEventListener('click',loadData);
+function loadData(){
+  var btn=document.getElementById('btn-rf'); btn.textContent='⏳'; btn.disabled=true;
+  if(!isLive()){
+    var s=JSON.parse(localStorage.getItem('cmp_loads')||'[]');
+    loads=s.length?s:makeSamples();
+    if(!s.length)localStorage.setItem('cmp_loads',JSON.stringify(loads));
+    renderList(); btn.textContent='🔄'; btn.disabled=false; return;
+  }
+  fetch(API+'/loads',{headers:ah()})
+    .then(function(r){if(r.status===401){showAuth();throw new Error('unauth');}return r.json();})
+    .then(function(d){loads=Array.isArray(d)?d:[];renderList();})
+    .catch(function(e){if(e.message!=='unauth')toast('Could not load data: '+e.message);})
+    .finally(function(){btn.textContent='🔄';btn.disabled=false;});
+}
+
+/* FILTER */
+document.getElementById('sc-all').addEventListener('click',function(){setF(null);});
+document.getElementById('sc-it').addEventListener('click',function(){setF('In Transit');});
+document.getElementById('sc-as').addEventListener('click',function(){setF('Assigned');});
+document.getElementById('sc-pe').addEventListener('click',function(){setF('Pending');});
+document.getElementById('sc-de').addEventListener('click',function(){setF('Delivered');});
+document.getElementById('q').addEventListener('input',renderList);
+function setF(f){filt=f;renderList();}
+
+/* RENDER LIST */
+function renderList(){
+  var q=(document.getElementById('q').value||'').toLowerCase();
+  document.getElementById('cn-all').textContent=loads.length;
+  document.getElementById('cn-it').textContent=loads.filter(function(l){return l.status==='In Transit';}).length;
+  document.getElementById('cn-as').textContent=loads.filter(function(l){return l.status==='Assigned';}).length;
+  document.getElementById('cn-pe').textContent=loads.filter(function(l){return l.status==='Pending';}).length;
+  document.getElementById('cn-de').textContent=loads.filter(function(l){return l.status==='Delivered';}).length;
+  ['sc-all','sc-it','sc-as','sc-pe','sc-de'].forEach(function(id){document.getElementById(id).classList.remove('on');});
+  var map={null:'sc-all','In Transit':'sc-it','Assigned':'sc-as','Pending':'sc-pe','Delivered':'sc-de'};
+  var k=filt===null?'null':filt; if(map[k])document.getElementById(map[k]).classList.add('on');
+  var fl=loads.filter(function(l){
+    return (!filt||l.status===filt)&&
+           (!q||(l.loadNumber||'').toLowerCase().indexOf(q)>-1||(l.customerName||'').toLowerCase().indexOf(q)>-1||(l.assignedDriverName||'').toLowerCase().indexOf(q)>-1||(l.description||'').toLowerCase().indexOf(q)>-1);
+  });
+  var el=document.getElementById('ll');
+  if(!fl.length){el.innerHTML='<div class="empty-list"><div class="ei">📦</div><h3>No Loads Found</h3><p>'+(loads.length===0?'Tap "+ New Load" to create your first load.':'Try adjusting your search or filter.')+'</p></div>';return;}
+  var html='';
+  for(var i=0;i<fl.length;i++){
+    var l=fl[i];
+    html+='<div class="lr'+(l.id===selId?' on':'')+'" data-id="'+esc(l.id)+'">'
+         +'<div class="lrt"><span class="lrn">'+esc(l.loadNumber)+'</span><span class="'+bc(l.status)+'">'+esc(l.status)+'</span></div>'
+         +'<div class="lrd">'+esc(l.description||'--')+'</div>'
+         +'<div class="lrm"><span>🏢 '+esc(l.customerName||'--')+'</span>'+(l.assignedDriverName?'<span>👤 '+esc(l.assignedDriverName)+'</span>':'')+'</div>'
+         +'</div>';
+  }
+  el.innerHTML=html;
+  el.querySelectorAll('.lr').forEach(function(r){r.addEventListener('click',function(){selLoad(this.dataset.id);});});
+}
+
+/* SELECT LOAD */
+function selLoad(id){
+  selId=id; renderList(); renderDetail();
+  if(window.innerWidth<800)document.getElementById('dp').classList.add('on');
+}
+
+/* RENDER DETAIL */
+function renderDetail(){
+  var load=null; for(var i=0;i<loads.length;i++){if(loads[i].id===selId){load=loads[i];break;}}
+  if(!load)return;
+  document.getElementById('dph').style.display='none';
+  var el=document.getElementById('dc'); el.style.display='block';
+  var base=isLive()?API:window.location.origin;
+  var dURL=base+'/driver-tracking.html?token='+esc(load.trackingToken)+'&loadId='+esc(load.id);
+  var cURL=base+'/track-shipment.html?token='+esc(load.trackingToken);
+  var sopts=['Pending','Assigned','In Transit','Delivered','Cancelled'].map(function(s){return '<option value="'+s+'"'+(s===load.status?' selected':'')+'>'+s+'</option>';}).join('');
+
+  // Driver assign section — dropdown of known drivers
+  var driverOpts='<option value="">-- Unassigned --</option>';
+  for(var i=0;i<drivers.length;i++){
+    var dr=drivers[i];
+    var sel=(load.assignedDriverId===dr.email||load.assignedDriverName===dr.name)?'selected':'';
+    driverOpts+='<option value="'+esc(dr.email)+'" '+sel+'>'+esc(dr.name)+(dr.phone?' ('+esc(dr.phone)+')':'')+'</option>';
+  }
+  // If current driver not in list, add them
+  if(load.assignedDriverName&&!drivers.find(function(d){return d.name===load.assignedDriverName;})){
+    driverOpts+='<option value="'+esc(load.assignedDriverId||load.assignedDriverName)+'" selected>'+esc(load.assignedDriverName)+(load.assignedDriverPhone?' ('+esc(load.assignedDriverPhone)+')':'')+'</option>';
+  }
+
+  var custPhone=load.customerPhone?'<div class="dr"><span class="drl">Phone</span><span class="drv"><a href="tel:'+esc(load.customerPhone)+'">'+esc(load.customerPhone)+'</a></span></div>':'';
+
+  var html=''
+    +'<button class="btn btn-sm back-btn" id="d-back">← Back</button>'
+    +'<div class="dhdr"><div><h2>'+esc(load.loadNumber)+'</h2><div class="dhdr-sub">'+esc(load.description||'')+'</div></div><span class="'+bc(load.status)+'">'+esc(load.status)+'</span></div>'
+
+    +'<div class="sec"><div class="sec-h">Load Details</div>'
+    +'<div class="dr"><span class="drl">Load #</span><span class="drv">'+esc(load.loadNumber)+'</span></div>'
+    +'<div class="dr"><span class="drl">Weight</span><span class="drv">'+(load.weight?Number(load.weight).toLocaleString()+' lbs':'--')+'</span></div>'
+    +'<div class="dr"><span class="drl">Pickup</span><span class="drv">'+esc(load.pickupAddress||'--')+'</span></div>'
+    +'<div class="dr"><span class="drl">Delivery</span><span class="drv">'+esc(load.deliveryAddress||'--')+'</span></div>'
+    +'<div class="dr"><span class="drl">Pickup Date</span><span class="drv">'+fmt(load.pickupDate)+'</span></div>'
+    +'<div class="dr"><span class="drl">Est. Delivery</span><span class="drv">'+fmt(load.deliveryDate)+'</span></div>'
+    +'<div class="dr"><span class="drl">Notes</span><span class="drv">'+(load.notes?esc(load.notes):'<em style="color:var(--muted)">None</em>')+'</span></div>'
+    +'</div>'
+
+    +'<div class="sec"><div class="sec-h">Status</div>'
+    +'<div class="dr"><span class="drl">Current Status</span><span class="drv"><select class="ssel" id="d-status">'+sopts+'</select></span></div>'
+    +'</div>'
+
+    // DRIVER ASSIGNMENT SECTION
+    +'<div class="sec"><div class="sec-h">Assigned Driver</div>'
+    +'<div class="driver-picker">'
+    +'<label>Select Driver</label>'
+    +'<select id="d-driver-sel">'+driverOpts+'</select>'
+    +'<div class="dp-note">Changing the driver here updates the load and auto-fills their phone number for the tracking link.</div>'
+    +'</div>'
+    +(load.assignedDriverName?
+        '<div class="dr"><span class="drl">Name</span><span class="drv">'+esc(load.assignedDriverName)+'</span></div>'
+       +(load.assignedDriverPhone?'<div class="dr"><span class="drl">Cell</span><span class="drv"><a href="tel:'+esc(load.assignedDriverPhone)+'">'+esc(load.assignedDriverPhone)+'</a></span></div>':'')
+      :'<div class="dr"><span class="drl" style="color:var(--muted);font-style:italic">No driver assigned</span></div>')
+    +'</div>'
+
+    +'<div class="sec"><div class="sec-h">Customer</div>'
+    +'<div class="dr"><span class="drl">Name</span><span class="drv">'+esc(load.customerName||'--')+'</span></div>'
+    +'<div class="dr"><span class="drl">Email</span><span class="drv"><a href="mailto:'+esc(load.customerEmail)+'">'+esc(load.customerEmail||'--')+'</a></span></div>'
+    +custPhone+'</div>'
+
+    +'<div class="sec"><div class="sec-h">Tracking Links</div>'
+    +'<div class="togrow"><div class="togl">📧 Email customer when driver starts<small>'+(load.customerEmail?'Will be sent to '+esc(load.customerEmail):'No customer email')+'</small></div>'
+    +'<label class="tog"><input type="checkbox" id="d-notify"'+(notifyOn?' checked':'')+'/><span class="togs"></span></label></div>'
+    +'<div style="padding:11px 15px;border-bottom:1px solid var(--border)"><div style="font-size:11px;color:var(--muted);margin-bottom:5px">🚛 Driver link:</div>'
+    +'<div class="lbox"><span class="lt">'+esc(dURL)+'</span><button class="cbtn" data-cp="'+esc(dURL)+'">⎘</button></div></div>'
+    +'<div style="padding:11px 15px;border-bottom:1px solid var(--border)"><div style="font-size:11px;color:var(--muted);margin-bottom:5px">📦 Customer tracking link:</div>'
+    +'<div class="lbox"><span class="lt">'+esc(cURL)+'</span><button class="cbtn" data-cp="'+esc(cURL)+'">⎘</button></div></div>'
+    +'<div class="swrap"><button class="btn btn-p btn-full" id="d-send"'+((!load.assignedDriverPhone&&!load.assignedDriverName)?' disabled':'')+'>📤 Send Details to Driver</button>'
+    +'<p style="font-size:11px;color:var(--muted);margin-top:7px;text-align:center">Sends the driver their load info + a link to start tracking. No app required.</p></div>'
+    +'</div>'
+
+    +'<div style="padding:6px 0 28px;text-align:center">'
+    +'<button class="btn btn-sm btn-outline" style="color:var(--red);border-color:var(--red)" id="d-del">🗑 Delete Load</button>'
+    +'</div>';
+
+  el.innerHTML=html;
+
+  // Wire events
+  document.getElementById('d-back').addEventListener('click',function(){document.getElementById('dp').classList.remove('on');selId=null;renderList();});
+  document.getElementById('d-status').addEventListener('change',function(){updStatus(selId,this.value);});
+  document.getElementById('d-notify').addEventListener('change',function(){notifyOn=this.checked;});
+  document.getElementById('d-send').addEventListener('click',function(){sendLink(selId);});
+  document.getElementById('d-del').addEventListener('click',function(){delLoad(selId);});
+  el.querySelectorAll('.cbtn').forEach(function(b){b.addEventListener('click',function(){copyText(this.dataset.cp);});});
+
+  // Driver assignment dropdown
+  document.getElementById('d-driver-sel').addEventListener('change',function(){
+    var driverId=this.value;
+    if(!driverId){
+      // Unassign
+      assignDriver(selId,null,null,null,null);
+    } else {
+      var dr=drivers.find(function(d){return d.email===driverId;});
+      if(dr){
+        assignDriver(selId,dr.email,dr.name,dr.email,dr.phone||null);
+      } else {
+        // Was a manually-entered driver id
+        for(var i=0;i<loads.length;i++){
+          if(loads[i].id===selId&&loads[i].assignedDriverId===driverId){
+            assignDriver(selId,driverId,loads[i].assignedDriverName,loads[i].assignedDriverEmail,loads[i].assignedDriverPhone);
+            break;
+          }
+        }
+      }
+    }
+  });
+}
+
+/* ASSIGN DRIVER */
+function assignDriver(loadId, driverId, driverName, driverEmail, driverPhone){
+  for(var i=0;i<loads.length;i++){
+    if(loads[i].id===loadId){
+      loads[i].assignedDriverId=driverId;
+      loads[i].assignedDriverName=driverName;
+      loads[i].assignedDriverEmail=driverEmail;
+      loads[i].assignedDriverPhone=driverPhone;
+      if(driverId&&loads[i].status==='Pending')loads[i].status='Assigned';
+      if(!driverId)loads[i].status='Pending';
+      break;
+    }
+  }
+  if(!isLive()){
+    localStorage.setItem('cmp_loads',JSON.stringify(loads));
+  } else {
+    // Patch driver fields on the load
+    fetch(API+'/loads/'+loadId+'/assign',{method:'PATCH',headers:ah(),body:JSON.stringify({assignedDriverId:driverId,assignedDriverName:driverName,assignedDriverEmail:driverEmail,assignedDriverPhone:driverPhone})})
+      .catch(function(e){toast('Assign error: '+e.message);});
+  }
+  renderList();
+  renderDetail();
+  toast(driverName?'👤 Driver assigned: '+driverName:'Driver unassigned');
+}
+
+/* UPDATE STATUS */
+function updStatus(id,s){
+  for(var i=0;i<loads.length;i++){if(loads[i].id===id){loads[i].status=s;break;}}
+  renderList(); renderDetail();
+  if(!isLive()){localStorage.setItem('cmp_loads',JSON.stringify(loads));toast('Status: '+s);return;}
+  fetch(API+'/loads/'+id+'/status',{method:'PATCH',headers:ah(),body:JSON.stringify({status:s})})
+    .then(function(){toast('Status: '+s);})
+    .catch(function(e){toast('Update error: '+e.message);});
+}
+
+/* SEND LINK */
+function sendLink(id){
+  var load=null; for(var i=0;i<loads.length;i++){if(loads[i].id===id){load=loads[i];break;}}
+  if(!load)return;
+
+  var dp=(load.assignedDriverPhone||'').replace(/[^\d+]/g,'');
+  var base=isLive()?API:window.location.origin;
+  var dURL=base+'/driver-tracking.html?token='+load.trackingToken+'&loadId='+load.id;
+
+  var msgText='Hi '+( load.assignedDriverName||'Driver')+',\n\n'
+    +'You have been assigned a new load by CMP Freight.\n\n'
+    +'LOAD #: '+load.loadNumber+'\n'
+    +'PICKUP: '+load.pickupAddress+'\n'
+    +'DELIVERY: '+load.deliveryAddress+'\n'
+    +(load.pickupDate?'DATE: '+new Date(load.pickupDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})+'\n':'')
+    +(load.notes?'NOTES: '+load.notes+'\n':'')
+    +'\nTap the link below to view your load details and START TRACKING when you are ready:\n'
+    +dURL
+    +'\n\nThis link works in any browser - no app required.';
+
+  var smsLink   = (dp ? 'sms:+'+dp.replace(/^\+/,'') : 'sms:') + '?body='+encodeURIComponent(msgText);
+  var emailLink = 'mailto:'+(load.assignedDriverEmail||'')+'?subject='+encodeURIComponent('CMP Freight - Load '+load.loadNumber)+'&body='+encodeURIComponent(msgText);
+  var waLink    = 'https://wa.me/'+(dp.replace(/^\+/,''))+('?text='+encodeURIComponent(msgText));
+
+  // Show send modal
+  var body = document.getElementById('send-modal-body');
+  body.innerHTML = ''
+    +'<div style="margin-bottom:14px">'
+    +'<div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Message Preview</div>'
+    +'<div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:13px;font-size:13px;line-height:1.6;white-space:pre-wrap;max-height:220px;overflow-y:auto">'+esc(msgText)+'</div>'
+    +'</div>'
+    +'<button class="btn btn-p btn-full" id="sm-copy" style="margin-bottom:10px">📋 Copy Message</button>'
+    +(dp
+      ? '<a class="btn btn-p btn-full" href="'+esc(smsLink)+'" style="margin-bottom:10px;background:#34C759">💬 Open in Messages (SMS)</a>'
+      : '<div style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:10px;padding:10px;background:var(--s2);border-radius:8px">⚠️ No phone number on file for this driver. Add one in the Assigned Driver section, or copy the message above.</div>'
+    )
+    +(load.assignedDriverEmail
+      ? '<a class="btn btn-full" href="'+esc(emailLink)+'" style="margin-bottom:10px">📧 Open in Email</a>'
+      : ''
+    )
+    +(dp
+      ? '<a class="btn btn-full" href="'+esc(waLink)+'" target="_blank" style="margin-bottom:10px;background:#25D366;color:#fff">💬 Open in WhatsApp</a>'
+      : ''
+    )
+    +'<div style="font-size:11px;color:var(--muted);text-align:center;margin-top:4px">On iPhone: "Open in Messages" sends directly. On desktop: copy the message and paste into your phone.</div>';
+
+  document.getElementById('send-modal-ov').classList.add('on');
+
+  document.getElementById('sm-copy').addEventListener('click',function(){
+    copyText(msgText);
+    this.textContent='✅ Copied!';
+    var self=this; setTimeout(function(){self.textContent='📋 Copy Message';},2000);
+  });
+
+  // If backend is live, also fire the real SMS lambda
+  if(isLive()){
+    fetch(API+'/loads/'+id+'/send-driver-link',{method:'POST',headers:ah(),body:JSON.stringify({driverPhone:load.assignedDriverPhone||'',dispatcherEmail:(session&&session.user?session.user.email:''),notifyCustomer:notifyOn})})
+      .then(function(r){if(r.ok)toast('\u2705 SMS sent via backend');})
+      .catch(function(){});
+  }
+}
+
+/* DELETE LOAD */
+function delLoad(id){
+  if(!confirm('Delete this load? Cannot be undone.'))return;
+  loads=loads.filter(function(l){return l.id!==id;}); selId=null;
+  document.getElementById('dph').style.display='';
+  document.getElementById('dc').style.display='none';
+  document.getElementById('dp').classList.remove('on');
+  renderList();
+  if(!isLive()){localStorage.setItem('cmp_loads',JSON.stringify(loads));toast('Deleted');return;}
+  fetch(API+'/loads/'+id,{method:'DELETE',headers:ah()}).then(function(){toast('Deleted');}).catch(function(e){toast('Error: '+e.message);});
+}
+
+/* COPY */
+function copyText(t){
+  navigator.clipboard?navigator.clipboard.writeText(t).then(function(){toast('📋 Copied!');}):(function(){var e=document.createElement('textarea');e.value=t;document.body.appendChild(e);e.select();document.execCommand('copy');document.body.removeChild(e);toast('📋 Copied!');})();
+}
+
+/* MODAL - ADD LOAD */
+document.getElementById('btn-new').addEventListener('click',openModal);
+document.getElementById('btn-new2').addEventListener('click',openModal);
+document.getElementById('m-close').addEventListener('click',closeModal);
+document.getElementById('m-cancel').addEventListener('click',closeModal);
+document.getElementById('send-modal-close').addEventListener('click',function(){ document.getElementById('send-modal-ov').classList.remove('on'); });
+document.getElementById('send-modal-ov').addEventListener('click',function(e){ if(e.target===this) document.getElementById('send-modal-ov').classList.remove('on'); });
+document.getElementById('btn-save').addEventListener('click',saveLoad);
+document.getElementById('modal-ov').addEventListener('click',function(e){if(e.target===this)closeModal();});
+document.getElementById('toggle-manual').addEventListener('click',function(){
+  var md=document.getElementById('manual-driver');
+  var showing=md.style.display!=='none';
+  md.style.display=showing?'none':'block';
+  this.textContent=showing?'+ Enter manually instead':'- Use driver picker instead';
+  if(showing)selectedDriverId=null;
+});
+
+function openModal(){
+  var now=new Date(),tom=new Date(now.getTime()+86400000);
+  var tl=function(d){return d.toISOString().slice(0,16);};
+  document.getElementById('al-pd').value=tl(now);
+  document.getElementById('al-dd').value=tl(tom);
+  ['al-num','al-wt','al-desc','al-pu','al-de','al-dn','al-dp','al-cn','al-ce','al-cp','al-notes'].forEach(function(id){document.getElementById(id).value='';});
+  document.getElementById('al-nfy').checked=true;
+  document.getElementById('merr').style.display='none';
+  document.getElementById('manual-driver').style.display='none';
+  document.getElementById('toggle-manual').textContent='+ Enter manually instead';
+  selectedDriverId=null;
+  renderDriverPicker();
+  document.getElementById('modal-ov').classList.add('on');
+}
+function closeModal(){ document.getElementById('modal-ov').classList.remove('on'); }
+
+function renderDriverPicker(){
+  var el=document.getElementById('driver-picker-list');
+  if(!drivers.length){
+    el.innerHTML='<p style="color:var(--muted);font-size:13px;text-align:center;padding:10px 0">No registered drivers yet. Enter manually below.</p>';
+    document.getElementById('manual-driver').style.display='block';
+    document.getElementById('toggle-manual').style.display='none';
+    return;
+  }
+  var html='';
+  for(var i=0;i<drivers.length;i++){
+    var d=drivers[i];
+    html+='<div class="driver-option" data-id="'+esc(d.email)+'" data-name="'+esc(d.name)+'" data-phone="'+esc(d.phone||'')+'">'
+         +'<div class="dav">🚛</div>'
+         +'<div class="dinfo"><div class="dname">'+esc(d.name)+'</div><div class="dphone">'+(d.phone?esc(d.phone):'No phone on file')+'</div></div>'
+         +'<span class="dcheck" style="display:none">✓</span>'
+         +'</div>';
+  }
+  el.innerHTML=html;
+  el.querySelectorAll('.driver-option').forEach(function(opt){
+    opt.addEventListener('click',function(){
+      el.querySelectorAll('.driver-option').forEach(function(o){o.classList.remove('sel');o.querySelector('.dcheck').style.display='none';});
+      this.classList.add('sel');
+      this.querySelector('.dcheck').style.display='';
+      selectedDriverId=this.dataset.id;
+    });
+  });
+}
+
+function saveLoad(){
+  var pu=document.getElementById('al-pu').value.trim();
+  var de=document.getElementById('al-de').value.trim();
+  var cn=document.getElementById('al-cn').value.trim();
+  var ce=document.getElementById('al-ce').value.trim();
+  if(!pu||!de||!cn||!ce){var e=document.getElementById('merr');e.textContent='Pickup, delivery, customer name and email are required.';e.style.display='block';return;}
+
+  // Resolve driver from picker or manual fields
+  var dId=null,dName=null,dEmail=null,dPhone=null;
+  if(selectedDriverId){
+    var dr=drivers.find(function(d){return d.email===selectedDriverId;});
+    if(dr){dId=dr.email;dName=dr.name;dEmail=dr.email;dPhone=dr.phone||null;}
+  } else {
+    dName=document.getElementById('al-dn').value.trim()||null;
+    dPhone=document.getElementById('al-dp').value.trim()||null;
+    if(dName)dId='D'+Math.floor(Math.random()*900+100);
+  }
+
+  var load={
+    id:uid(),
+    loadNumber:document.getElementById('al-num').value.trim()||('CMP-'+Date.now().toString().slice(-4)),
+    description:document.getElementById('al-desc').value.trim(),
+    weight:parseFloat(document.getElementById('al-wt').value)||0,
+    pickupAddress:pu,deliveryAddress:de,
+    pickupDate:document.getElementById('al-pd').value?new Date(document.getElementById('al-pd').value).toISOString():new Date().toISOString(),
+    deliveryDate:document.getElementById('al-dd').value?new Date(document.getElementById('al-dd').value).toISOString():new Date(Date.now()+86400000).toISOString(),
+    status:dId?'Assigned':'Pending',
+    assignedDriverId:dId,assignedDriverName:dName,assignedDriverEmail:dEmail,assignedDriverPhone:dPhone,
+    trackingToken:uid(),
+    customerName:cn,customerEmail:ce,
+    customerPhone:document.getElementById('al-cp').value.trim(),
+    dispatcherEmail:session&&session.user?session.user.email:null,
+    notifyCustomer:document.getElementById('al-nfy').checked,
+    notes:document.getElementById('al-notes').value.trim(),
+    createdAt:new Date().toISOString()
+  };
+
+  var btn=document.getElementById('btn-save');btn.disabled=true;btn.innerHTML='<span class="spin"></span> Saving…';
+  if(!isLive()){
+    loads.unshift(load);localStorage.setItem('cmp_loads',JSON.stringify(loads));
+    renderList();closeModal();selLoad(load.id);toast('Load '+load.loadNumber+' created');
+    btn.disabled=false;btn.textContent='Save Load';return;
+  }
+  fetch(API+'/loads',{method:'POST',headers:ah(),body:JSON.stringify(load)})
+    .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
+    .then(function(res){if(!res.ok)throw new Error(res.d.error||'Save failed');loads.unshift(res.d);renderList();closeModal();selLoad(res.d.id);toast('Load '+load.loadNumber+' created');})
+    .catch(function(e){var err=document.getElementById('merr');err.textContent=e.message;err.style.display='block';})
+    .finally(function(){btn.disabled=false;btn.textContent='Save Load';});
+}
+
+/* KEYBOARD */
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape')closeModal();
+  if((e.metaKey||e.ctrlKey)&&e.key==='n'&&session){e.preventDefault();openModal();}
+});
+
+/* SAMPLE DATA */
+function makeSamples(){
+  var n=new Date().toISOString(),t=new Date(Date.now()+86400000).toISOString();
+  return[
+    {id:uid(),loadNumber:'CMP-2026-0001',description:'Electronics - 48 pallets',weight:38000,pickupAddress:'123 Warehouse Blvd, Chicago, IL 60601',deliveryAddress:'456 Distribution Ave, Dallas, TX 75201',pickupDate:n,deliveryDate:t,status:'In Transit',assignedDriverId:'john@cmp.com',assignedDriverName:'John Smith',assignedDriverPhone:'+13125550101',trackingToken:uid(),customerName:'Acme Corp',customerEmail:'logistics@acme.com',customerPhone:'+13125550100',notifyCustomer:true,notes:'Handle with care.',createdAt:n},
+    {id:uid(),loadNumber:'CMP-2026-0002',description:'Auto Parts - 20 pallets',weight:22000,pickupAddress:'789 Parts St, Detroit, MI 48201',deliveryAddress:'321 Depot Rd, Nashville, TN 37201',pickupDate:n,deliveryDate:t,status:'Assigned',assignedDriverId:'maria@cmp.com',assignedDriverName:'Maria Lopez',assignedDriverPhone:'+13135550202',trackingToken:uid(),customerName:'Motor World',customerEmail:'orders@motorworld.com',customerPhone:'+13135550200',notifyCustomer:true,notes:'',createdAt:n},
+    {id:uid(),loadNumber:'CMP-2026-0003',description:'Frozen Foods - 36 pallets',weight:41000,pickupAddress:'555 Cold Ave, Minneapolis, MN 55401',deliveryAddress:'900 Fresh Blvd, Kansas City, MO 64101',pickupDate:t,deliveryDate:new Date(Date.now()+172800000).toISOString(),status:'Pending',assignedDriverId:null,assignedDriverName:null,assignedDriverPhone:null,trackingToken:uid(),customerName:'FreshMart',customerEmail:'supply@freshmart.com',customerPhone:'+16125550303',notifyCustomer:false,notes:'Reefer required.',createdAt:n}
+  ];
+}
+
+/* INIT */
+(function(){
+  var s=localStorage.getItem('cmp_session');
+  if(s){try{var p=JSON.parse(s);if(p&&p.user){session=p;enterApp();return;}}catch(e){}}
+  showAuth();
+})();
+</script>
+
+<!-- SEND TO DRIVER MODAL -->
+<div class="ov" id="send-modal-ov">
+  <div class="modal" style="max-width:480px">
+    <div class="mhdr">
+      <h2>📤 Send to Driver</h2>
+      <button class="mclose" id="send-modal-close">✕</button>
+    </div>
+    <div class="mbody" id="send-modal-body">
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

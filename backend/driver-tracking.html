@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#1a1a2e" />
+  <title>CMP Freight – Driver Tracking</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue:    #007AFF;
+      --green:   #34C759;
+      --orange:  #FF9500;
+      --red:     #FF3B30;
+      --bg:      #0f0f1a;
+      --card:    #1c1c2e;
+      --border:  #2c2c3e;
+      --text:    #ffffff;
+      --muted:   #8e8ea0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 40px;
+    }
+
+    .logo {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 400px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .load-number {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .load-desc {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+
+    .route-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .route-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-top: 4px;
+      flex-shrink: 0;
+    }
+
+    .route-dot.pickup   { background: var(--blue); }
+    .route-dot.delivery { background: var(--green); }
+
+    .route-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .route-address { font-size: 14px; line-height: 1.4; }
+
+    /* Status badge */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-top: 14px;
+    }
+    .status-badge.pending   { background: rgba(142,142,160,0.15); color: var(--muted); }
+    .status-badge.active    { background: rgba(52,199,89,0.15);   color: var(--green); }
+    .status-badge.stopped   { background: rgba(255,59,48,0.15);   color: var(--red); }
+
+    /* GPS card */
+    .gps-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .gps-item { }
+    .gps-val {
+      font-size: 20px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .gps-unit {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* Accuracy bar */
+    .accuracy-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .accuracy-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .accuracy-dot.good   { background: var(--green); }
+    .accuracy-dot.medium { background: var(--orange); }
+    .accuracy-dot.poor   { background: var(--red); }
+    .accuracy-text { font-size: 12px; color: var(--muted); }
+
+    /* Big button */
+    .btn {
+      width: 100%;
+      max-width: 400px;
+      padding: 20px;
+      border: none;
+      border-radius: 16px;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active { transform: scale(0.97); opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-start { background: var(--green); color: #fff; }
+    .btn-stop  { background: var(--red);   color: #fff; }
+    .btn-loading { background: var(--orange); color: #fff; }
+
+    /* Update log */
+    .log-item {
+      font-size: 12px;
+      color: var(--muted);
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+    }
+    .log-item:last-child { border-bottom: none; }
+    .log-time { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+
+    /* Error banner */
+    .error-banner {
+      width: 100%;
+      max-width: 400px;
+      background: rgba(255,59,48,0.15);
+      border: 1px solid rgba(255,59,48,0.3);
+      color: var(--red);
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 13px;
+      margin-bottom: 12px;
+      display: none;
+    }
+    .error-banner.visible { display: block; }
+
+    /* Success banner */
+    .success-banner {
+      width: 100%;
+      max-width: 400px;
+      background: rgba(52,199,89,0.15);
+      border: 1px solid rgba(52,199,89,0.3);
+      color: var(--green);
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 13px;
+      margin-bottom: 12px;
+      display: none;
+    }
+    .success-banner.visible { display: block; }
+
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .skeleton {
+      background: linear-gradient(90deg, var(--border) 25%, var(--card) 50%, var(--border) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 6px;
+      height: 16px;
+    }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+
+    #delivered-screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 16px;
+      padding: 40px 0;
+    }
+    .check-circle {
+      width: 80px; height: 80px;
+      background: rgba(52,199,89,0.15);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 40px;
+    }
+  </style>
+</head>
+<body>
+
+  <p class="logo">CMP Freight</p>
+
+  <div id="error-banner"   class="error-banner"></div>
+  <div id="success-banner" class="success-banner"></div>
+
+  <!-- ── Load Info Card ──────────────────────────────────────────────────── -->
+  <div class="card" id="load-card">
+    <p class="card-title">Your Load</p>
+    <div id="load-number" class="load-number">Loading…</div>
+    <div id="load-desc"   class="load-desc">Please wait</div>
+
+    <div class="route-row">
+      <div class="route-dot pickup"></div>
+      <div>
+        <div class="route-label">Pickup</div>
+        <div id="pickup-addr" class="route-address">—</div>
+      </div>
+    </div>
+    <div class="route-row">
+      <div class="route-dot delivery"></div>
+      <div>
+        <div class="route-label">Delivery</div>
+        <div id="delivery-addr" class="route-address">—</div>
+      </div>
+    </div>
+
+    <div id="status-badge" class="status-badge pending">⏳ Pending</div>
+  </div>
+
+  <!-- ── GPS Card ────────────────────────────────────────────────────────── -->
+  <div class="card" id="gps-card">
+    <p class="card-title">GPS</p>
+    <div class="gps-grid">
+      <div class="gps-item">
+        <div class="gps-val" id="gps-lat">—</div>
+        <div class="gps-unit">Latitude</div>
+      </div>
+      <div class="gps-item">
+        <div class="gps-val" id="gps-lng">—</div>
+        <div class="gps-unit">Longitude</div>
+      </div>
+      <div class="gps-item">
+        <div class="gps-val" id="gps-speed">—</div>
+        <div class="gps-unit">mph</div>
+      </div>
+      <div class="gps-item">
+        <div class="gps-val" id="gps-heading">—</div>
+        <div class="gps-unit">heading °</div>
+      </div>
+    </div>
+    <div class="accuracy-row">
+      <div class="accuracy-dot" id="acc-dot"></div>
+      <div class="accuracy-text" id="acc-text">Waiting for GPS…</div>
+    </div>
+  </div>
+
+  <!-- ── Delivered success screen ───────────────────────────────────────── -->
+  <div id="delivered-screen">
+    <div class="check-circle">✅</div>
+    <h2 style="font-size:22px;">Trip Complete</h2>
+    <p style="color:var(--muted);font-size:14px;">
+      Tracking has stopped. The dispatcher has been notified.<br>
+      You can close this tab.
+    </p>
+  </div>
+
+  <!-- ── Action Buttons ──────────────────────────────────────────────────── -->
+  <button id="btn-start"   class="btn btn-start"   onclick="startTracking()">🚛 Start Tracking</button>
+  <button id="btn-stop"    class="btn btn-stop"    onclick="stopTracking()"   style="display:none;">⏸ Pause Tracking</button>
+  <button id="btn-deliver" class="btn"             onclick="markDelivered()"  style="display:none;background:#34C759;color:#fff;">✅ Mark as Delivered</button>
+
+  <!-- ── Update Log ──────────────────────────────────────────────────────── -->
+  <div class="card" id="log-card" style="display:none;">
+    <p class="card-title">Updates sent</p>
+    <div id="log-list"></div>
+  </div>
+
+  <script>
+    const params   = new URLSearchParams(location.search);
+    const TOKEN    = params.get("token");
+    const LOAD_ID  = params.get("loadId");
+    const API_BASE = (window.CMP_API_BASE || "REPLACE_WITH_YOUR_API_GATEWAY_URL");
+    const UPDATE_INTERVAL_MS = 15000;
+
+    let watchId      = null;
+    let intervalId   = null;
+    let lastPosition = null;
+    let isTracking   = false;
+    let updateCount  = 0;
+    let loadData     = null;
+
+    function isLive() { return API_BASE && API_BASE.indexOf("REPLACE_WITH") === -1; }
+
+    (function init() {
+      if (!TOKEN && !LOAD_ID) {
+        showError("Invalid tracking link — no token found.");
+        document.getElementById("btn-start").disabled = true;
+        return;
+      }
+      loadLoadInfo();
+    })();
+
+    // ── Fetch load details — tries backend first, falls back to localStorage ──
+    function loadLoadInfo() {
+      // 1. Try to find in localStorage (dispatcher portal saves loads there)
+      var stored = JSON.parse(localStorage.getItem("cmp_loads") || "[]");
+      var found  = null;
+      for (var i = 0; i < stored.length; i++) {
+        if ((TOKEN && stored[i].trackingToken === TOKEN) ||
+            (LOAD_ID && stored[i].id === LOAD_ID)) {
+          found = stored[i]; break;
+        }
+      }
+
+      if (found) {
+        populateLoad(found);
+        return;
+      }
+
+      // 2. If backend configured, try the API
+      if (isLive()) {
+        fetch(API_BASE + "/track/" + TOKEN)
+          .then(function(r) { return r.ok ? r.json() : r.json().then(function(d){ throw new Error(d.error||"Load not found."); }); })
+          .then(function(d) { populateLoad(d); })
+          .catch(function(err) { showError("Could not load shipment details: " + err.message); document.getElementById("btn-start").disabled = true; });
+        return;
+      }
+
+      // 3. No backend, no localStorage match — show a helpful demo load
+      var demo = {
+        id: LOAD_ID || "demo",
+        loadNumber: "CMP-DEMO",
+        description: "Demo load — open dispatcher portal to create real loads",
+        pickupAddress: "123 Warehouse Blvd, Chicago, IL 60601",
+        deliveryAddress: "456 Distribution Ave, Dallas, TX 75201",
+        pickupDate: new Date().toISOString(),
+        deliveryDate: new Date(Date.now()+86400000).toISOString(),
+        weight: 38000,
+        customerName: "Demo Customer",
+        notes: "This is a demo. Create a real load in the dispatcher portal and use its tracking link.",
+        status: "Pending",
+        trackingToken: TOKEN || "demo",
+        assignedDriverName: "Driver",
+      };
+      populateLoad(demo);
+      showError("No matching load found in local storage. Showing demo data. Create a load in the dispatcher portal first.");
+    }
+
+    function populateLoad(data) {
+      loadData = data;
+      document.getElementById("load-number").textContent   = data.loadNumber || "—";
+      document.getElementById("load-desc").textContent     = data.description || "";
+      document.getElementById("pickup-addr").textContent   = data.pickupAddress || "—";
+      document.getElementById("delivery-addr").textContent = data.deliveryAddress || "—";
+
+      // Show extra details row if available
+      var extras = "";
+      if (data.weight)       extras += '<div style="font-size:13px;color:var(--muted);margin-top:6px">⚖️ ' + Number(data.weight).toLocaleString() + ' lbs</div>';
+      if (data.pickupDate)   extras += '<div style="font-size:13px;color:var(--muted);margin-top:4px">📅 Pickup: ' + new Date(data.pickupDate).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"}) + '</div>';
+      if (data.deliveryDate) extras += '<div style="font-size:13px;color:var(--muted);margin-top:4px">📅 Delivery by: ' + new Date(data.deliveryDate).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"}) + '</div>';
+      if (data.customerName) extras += '<div style="font-size:13px;color:var(--muted);margin-top:4px">🏢 Customer: ' + data.customerName + '</div>';
+      if (data.notes)        extras += '<div style="font-size:13px;color:var(--muted);margin-top:4px;padding:8px;background:rgba(255,255,255,.04);border-radius:8px">📝 ' + data.notes + '</div>';
+      if (extras) {
+        var extraDiv = document.createElement("div");
+        extraDiv.style.marginTop = "10px";
+        extraDiv.innerHTML = extras;
+        document.getElementById("load-card").appendChild(extraDiv);
+      }
+
+      var badge = document.getElementById("status-badge");
+      if (data.status === "In Transit") {
+        badge.className  = "status-badge active";
+        badge.textContent = "🚛 In Transit";
+        document.getElementById("btn-start").style.display = "none";
+        document.getElementById("btn-stop").style.display  = "flex";
+        isTracking = true;
+        startGPS(false);
+      } else if (data.status === "Delivered") {
+        badge.className  = "status-badge stopped";
+        badge.textContent = "✅ Delivered";
+        document.getElementById("btn-start").style.display  = "none";
+        document.getElementById("btn-deliver").style.display = "none";
+        document.getElementById("delivered-screen").style.display = "flex";
+      } else {
+        badge.textContent = "⏳ " + (data.status || "Pending");
+      }
+    }
+
+    // ── Start Tracking ────────────────────────────────────────────────────────
+    function startTracking() {
+      var btn = document.getElementById("btn-start");
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Starting…';
+      btn.className = "btn btn-loading";
+      clearError();
+
+      if (!navigator.geolocation) {
+        showError("Geolocation is not supported by this browser.");
+        resetStartButton(); return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        function(pos) {
+          lastPosition = pos;
+          updateGPSDisplay(pos);
+
+          // Update localStorage status
+          updateLocalStatus("In Transit");
+
+          if (isLive()) {
+            fetch(API_BASE + "/track/" + TOKEN + "/start", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                latitude:  pos.coords.latitude,
+                longitude: pos.coords.longitude,
+                dispatcherEmail: loadData ? loadData.dispatcherEmail || "" : "",
+                notifyCustomer:  loadData ? loadData.notifyCustomer  || false : false,
+              }),
+            }).catch(function() {});
+          }
+
+          isTracking = true;
+          document.getElementById("status-badge").className   = "status-badge active";
+          document.getElementById("status-badge").textContent = "🚛 In Transit";
+          btn.style.display = "none";
+          document.getElementById("btn-stop").style.display    = "flex";
+          document.getElementById("btn-deliver").style.display = "flex";
+          document.getElementById("log-card").style.display    = "block";
+          showSuccess("✅ Tracking started!");
+
+          postLocation(pos);
+          startGPS(true);
+        },
+        function(err) {
+          showError("GPS error: " + err.message + ". Please allow location access.");
+          resetStartButton();
+        },
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+      );
+    }
+
+    // ── Mark Delivered ────────────────────────────────────────────────────────
+    function markDelivered() {
+      if (!confirm("Mark this load as Delivered?")) return;
+      stopGPS();
+      isTracking = false;
+      updateLocalStatus("Delivered");
+
+      if (isLive()) {
+        fetch(API_BASE + "/loads/" + (loadData ? loadData.id : LOAD_ID) + "/status", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "Delivered" }),
+        }).catch(function() {});
+      }
+
+      document.getElementById("btn-stop").style.display    = "none";
+      document.getElementById("btn-deliver").style.display = "none";
+      document.getElementById("status-badge").className    = "status-badge stopped";
+      document.getElementById("status-badge").textContent  = "✅ Delivered";
+      document.getElementById("delivered-screen").style.display = "flex";
+      addLog("✅ Marked as Delivered");
+    }
+
+    function updateLocalStatus(newStatus) {
+      var stored = JSON.parse(localStorage.getItem("cmp_loads") || "[]");
+      for (var i = 0; i < stored.length; i++) {
+        if ((TOKEN && stored[i].trackingToken === TOKEN) || (LOAD_ID && stored[i].id === LOAD_ID)) {
+          stored[i].status = newStatus; break;
+        }
+      }
+      localStorage.setItem("cmp_loads", JSON.stringify(stored));
+      if (loadData) loadData.status = newStatus;topGPS();
+      isTracking = false;
+      updateLocalStatus("Delivered");
+
+      if (isLive()) {
+        fetch(API_BASE + "/loads/" + (loadData ? loadData.id : LOAD_ID) + "/status", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "Delivered" }),
+        }).catch(function() {});
+      }
+
+      document.getElementById("btn-stop").style.display    = "none";
+      document.getElementById("btn-deliver").style.display = "none";
+      document.getElementById("status-badge").className    = "status-badge stopped";
+      document.getElementById("status-badge").textContent  = "✅ Delivered";
+      document.getElementById("delivered-screen").style.display = "flex";
+      addLog("✅ Marked as Delivered");
+    }
+
+    function updateLocalStatus(newStatus) {
+      var stored = JSON.parse(localStorage.getItem("cmp_loads") || "[]");
+      for (var i = 0; i < stored.length; i++) {
+        if ((TOKEN && stored[i].trackingToken === TOKEN) || (LOAD_ID && stored[i].id === LOAD_ID)) {
+          stored[i].status = newStatus; break;
+        }
+      }
+      localStorage.setItem("cmp_loads", JSON.stringify(stored));
+      if (loadData) loadData.status = newStatus;
+    }
+
+    // ── Stop Tracking ─────────────────────────────────────────────────────────
+    function stopTracking() {
+      isTracking = false;
+      stopGPS();
+      updateLocalStatus("Pending");
+      document.getElementById("btn-stop").style.display    = "none";
+      document.getElementById("btn-deliver").style.display = "none";
+      document.getElementById("btn-start").style.display   = "flex";
+      document.getElementById("status-badge").className    = "status-badge pending";
+      document.getElementById("status-badge").textContent  = "⏸ Paused";
+      resetStartButton();
+      addLog("⏸ Tracking paused");
+    }
+
+    // ── GPS Helpers ───────────────────────────────────────────────────────────
+    function startGPS(fresh) {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          lastPosition = pos;
+          updateGPSDisplay(pos);
+        },
+        (err) => { showError("GPS error: " + err.message); },
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+      );
+
+      // Post every UPDATE_INTERVAL_MS regardless of movement
+      intervalId = setInterval(async () => {
+        if (lastPosition && isTracking) {
+          await postLocation(lastPosition);
+        }
+      }, UPDATE_INTERVAL_MS);
+    }
+
+    function stopGPS() {
+      if (watchId != null)    { navigator.geolocation.clearWatch(watchId); watchId = null; }
+      if (intervalId != null) { clearInterval(intervalId); intervalId = null; }
+    }
+
+    function stopGPS() {
+      const c = pos.coords;
+      document.getElementById("gps-lat").textContent     = c.latitude.toFixed(5);
+      document.getElementById("gps-lng").textContent     = c.longitude.toFixed(5);
+      document.getElementById("gps-speed").textContent   =
+        c.speed != null ? (c.speed * 2.237).toFixed(1) : "0.0";
+      document.getElementById("gps-heading").textContent =
+        c.heading != null ? Math.round(c.heading) : "—";
+
+      const acc = c.accuracy;
+      const dot  = document.getElementById("acc-dot");
+      const text = document.getElementById("acc-text");
+      if (acc <= 20)       { dot.className = "accuracy-dot good";   text.textContent = `±${Math.round(acc)}m — Good signal`; }
+      else if (acc <= 100) { dot.className = "accuracy-dot medium"; text.textContent = `±${Math.round(acc)}m — Fair signal`; }
+      else                 { dot.className = "accuracy-dot poor";   text.textContent = `±${Math.round(acc)}m — Poor signal`; }
+    }
+
+    // ── POST location to API ──────────────────────────────────────────────────
+    function postLocation(pos) {
+      updateCount++;
+      addLog("📍 Location updated (" + updateCount + ")");
+      if (!isLive()) return;
+      var c = pos.coords;
+      fetch(API_BASE + "/track/" + TOKEN + "/location", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          latitude:  c.latitude,
+          longitude: c.longitude,
+          speed:     c.speed   != null ? c.speed * 2.237 : 0,
+          heading:   c.heading != null ? c.heading : 0,
+        }),
+      }).catch(function() { addLog("⚠️ Offline — will retry"); });
+    }
+
+    // ── Log helpers ───────────────────────────────────────────────────────────
+    function addLog(msg) {
+      const list = document.getElementById("log-list");
+      const now  = new Date().toLocaleTimeString();
+      const item = document.createElement("div");
+      item.className = "log-item";
+      item.innerHTML = `<span class="log-time">${now}</span><span>${msg}</span>`;
+      list.prepend(item);
+      // Keep last 20 entries
+      while (list.children.length > 20) list.removeChild(list.lastChild);
+    }
+
+    // ── Banner helpers ────────────────────────────────────────────────────────
+    function showError(msg) {
+      const el = document.getElementById("error-banner");
+      el.textContent = msg;
+      el.classList.add("visible");
+    }
+    function clearError() {
+      document.getElementById("error-banner").classList.remove("visible");
+    }
+    function showSuccess(msg) {
+      const el = document.getElementById("success-banner");
+      el.textContent = msg;
+      el.classList.add("visible");
+      setTimeout(() => el.classList.remove("visible"), 6000);
+    }
+
+    function resetStartButton() {
+      const btn = document.getElementById("btn-start");
+      btn.disabled  = false;
+      btn.className = "btn btn-start";
+      btn.textContent = "🚛 Start Tracking";
+    }
+
+    // Keep screen awake while tracking (Safari 16.4+)
+    var wakeLock = null;
+    document.getElementById("btn-start").addEventListener("click", function() {
+      if ("wakeLock" in navigator) {
+        navigator.wakeLock.request("screen").then(function(wl){ wakeLock=wl; }).catch(function(){});
+      }
+    });
+    document.addEventListener("visibilitychange", function() {
+      if (wakeLock !== null && document.visibilityState === "visible") {
+        navigator.wakeLock.request("screen").then(function(wl){ wakeLock=wl; }).catch(function(){});
+      }
+    });
+  </script>
+</body>
+</html>

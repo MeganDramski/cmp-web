@@ -1,0 +1,11 @@
+{
+  "name": "cmp-tracking-backend",
+  "version": "1.0.0",
+  "description": "CMP Tracking AWS Lambda backend",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/util-dynamodb": "^3.0.0",
+    "jsonwebtoken": "^9.0.0"
+  }
+}
