@@ -595,7 +595,7 @@ function renderDetail(){
     +'<div class="lbox"><span class="lt">'+esc(dURL)+'</span><button class="cbtn" data-cp="'+esc(dURL)+'">⎘</button></div></div>'
     +'<div style="padding:11px 15px;border-bottom:1px solid var(--border)"><div style="font-size:11px;color:var(--muted);margin-bottom:5px">📦 Customer tracking link:</div>'
     +'<div class="lbox"><span class="lt">'+esc(cURL)+'</span><button class="cbtn" data-cp="'+esc(cURL)+'">⎘</button></div></div>'
-    +'<div class="swrap"><button class="btn btn-p btn-full" id="d-send"'+((!load.assignedDriverPhone&&!load.assignedDriverName)?' disabled':'')+'>📤 Send Details to Driver</button>'
+    +'<div class="swrap"><button class="btn btn-p btn-full" id="d-send">📤 Send Details to Driver</button>'
     +'<p style="font-size:11px;color:var(--muted);margin-top:7px;text-align:center">Sends the driver their load info + a link to start tracking. No app required.</p></div>'
     +'</div>'
 
@@ -674,73 +674,80 @@ function updStatus(id,s){
 /* SEND LINK */
 function sendLink(id){
   var load=null; for(var i=0;i<loads.length;i++){if(loads[i].id===id){load=loads[i];break;}}
-  if(!load)return;
+  if(!load){ alert('Load not found.'); return; }
 
   var dp=(load.assignedDriverPhone||'').replace(/[^\d+]/g,'');
-  var base=isLive()?API:window.location.origin;
-  var loadPayload2 = {
-    id:load.id, loadNumber:load.loadNumber, description:load.description,
-    pickupAddress:load.pickupAddress, deliveryAddress:load.deliveryAddress,
-    pickupDate:load.pickupDate, deliveryDate:load.deliveryDate,
-    weight:load.weight, customerName:load.customerName,
-    customerEmail:load.customerEmail, dispatcherEmail:load.dispatcherEmail,
-    notifyCustomer:load.notifyCustomer, notes:load.notes,
-    assignedDriverName:load.assignedDriverName, status:load.status,
-    trackingToken:load.trackingToken
+  var base=window.location.origin;
+
+  // Safely encode load data into URL (unicode-safe btoa)
+  var payload={
+    id:load.id||'',loadNumber:load.loadNumber||'',description:load.description||'',
+    pickupAddress:load.pickupAddress||'',deliveryAddress:load.deliveryAddress||'',
+    pickupDate:load.pickupDate||'',deliveryDate:load.deliveryDate||'',
+    weight:load.weight||0,customerName:load.customerName||'',
+    customerEmail:load.customerEmail||'',dispatcherEmail:load.dispatcherEmail||'',
+    notifyCustomer:load.notifyCustomer||false,notes:load.notes||'',
+    assignedDriverName:load.assignedDriverName||'',status:load.status||'Pending',
+    trackingToken:load.trackingToken||''
   };
-  var dURL=base+'/driver-tracking.html?token='+load.trackingToken+'&loadId='+load.id+'&d='+encodeURIComponent(btoa(JSON.stringify(loadPayload2)));
+  var encoded='';
+  try{ encoded=btoa(unescape(encodeURIComponent(JSON.stringify(payload)))); }catch(e){ encoded=''; }
 
-  var msgText='Hi '+( load.assignedDriverName||'Driver')+',\n\n'
-    +'You have been assigned a new load by CMP Freight.\n\n'
-    +'LOAD #: '+load.loadNumber+'\n'
-    +'PICKUP: '+load.pickupAddress+'\n'
-    +'DELIVERY: '+load.deliveryAddress+'\n'
-    +(load.pickupDate?'DATE: '+new Date(load.pickupDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})+'\n':'')
+  var dURL=base+'/driver-tracking.html?token='+encodeURIComponent(load.trackingToken||'')
+          +'&loadId='+encodeURIComponent(load.id||'')
+          +(encoded?'&d='+encodeURIComponent(encoded):'');
+
+  var pickupStr=load.pickupDate?new Date(load.pickupDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+
+  var msgText='Hi '+(load.assignedDriverName||'Driver')+',\n\n'
+    +'You have a new load assigned by CMP Freight.\n\n'
+    +'LOAD #: '+(load.loadNumber||'--')+'\n'
+    +'PICKUP: '+(load.pickupAddress||'--')+'\n'
+    +'DELIVERY: '+(load.deliveryAddress||'--')+'\n'
+    +(pickupStr?'DATE: '+pickupStr+'\n':'')
     +(load.notes?'NOTES: '+load.notes+'\n':'')
-    +'\nTap the link below to view your load details and START TRACKING when you are ready:\n'
+    +'\nOpen this link to see your full load details and START TRACKING:\n'
     +dURL
-    +'\n\nThis link works in any browser - no app required.';
+    +'\n\nNo app needed - works in any browser.';
 
-  var smsLink   = (dp ? 'sms:+'+dp.replace(/^\+/,'') : 'sms:') + '?body='+encodeURIComponent(msgText);
-  var emailLink = 'mailto:'+(load.assignedDriverEmail||'')+'?subject='+encodeURIComponent('CMP Freight - Load '+load.loadNumber)+'&body='+encodeURIComponent(msgText);
-  var waLink    = 'https://wa.me/'+(dp.replace(/^\+/,''))+('?text='+encodeURIComponent(msgText));
+  var smsLink=(dp?'sms:+'+dp.replace(/^\+/,''):'sms:')+('?body='+encodeURIComponent(msgText));
+  var emailLink='mailto:'+(load.assignedDriverEmail||'')
+               +'?subject='+encodeURIComponent('CMP Load #'+(load.loadNumber||''))
+               +'&body='+encodeURIComponent(msgText);
+  var waLink=dp?'https://wa.me/'+dp.replace(/^\+/,'')+'?text='+encodeURIComponent(msgText):'';
 
-  // Show send modal
-  var body = document.getElementById('send-modal-body');
-  body.innerHTML = ''
+  var modalBody=document.getElementById('send-modal-body');
+  modalBody.innerHTML=''
     +'<div style="margin-bottom:14px">'
-    +'<div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Message Preview</div>'
-    +'<div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:13px;font-size:13px;line-height:1.6;white-space:pre-wrap;max-height:220px;overflow-y:auto">'+esc(msgText)+'</div>'
+    +'<div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Message Preview</div>'
+    +'<div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:13px;line-height:1.6;white-space:pre-wrap;max-height:200px;overflow-y:auto">'+esc(msgText)+'</div>'
     +'</div>'
-    +'<button class="btn btn-p btn-full" id="sm-copy" style="margin-bottom:10px">📋 Copy Message</button>'
+    +'<button class="btn btn-p btn-full" id="sm-copy" style="margin-bottom:10px">📋 Copy Message &amp; Link</button>'
     +(dp
-      ? '<a class="btn btn-p btn-full" href="'+esc(smsLink)+'" style="margin-bottom:10px;background:#34C759">💬 Open in Messages (SMS)</a>'
-      : '<div style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:10px;padding:10px;background:var(--s2);border-radius:8px">⚠️ No phone number on file for this driver. Add one in the Assigned Driver section, or copy the message above.</div>'
+      ?'<a class="btn btn-full" href="'+esc(smsLink)+'" style="margin-bottom:10px;background:#34C759;color:#fff;display:flex;align-items:center;justify-content:center">💬 Send via SMS / iMessage</a>'
+      :'<div style="background:var(--s2);border-radius:9px;padding:10px 13px;font-size:12px;color:var(--muted);margin-bottom:10px">No driver phone — add one to enable SMS.</div>'
     )
-    +(load.assignedDriverEmail
-      ? '<a class="btn btn-full" href="'+esc(emailLink)+'" style="margin-bottom:10px">📧 Open in Email</a>'
-      : ''
-    )
-    +(dp
-      ? '<a class="btn btn-full" href="'+esc(waLink)+'" target="_blank" style="margin-bottom:10px;background:#25D366;color:#fff">💬 Open in WhatsApp</a>'
-      : ''
-    )
-    +'<div style="font-size:11px;color:var(--muted);text-align:center;margin-top:4px">On iPhone: "Open in Messages" sends directly. On desktop: copy the message and paste into your phone.</div>';
+    +'<a class="btn btn-full" href="'+esc(emailLink)+'" style="margin-bottom:10px;display:flex;align-items:center;justify-content:center">📧 Send via Email</a>'
+    +(waLink?'<a class="btn btn-full" href="'+esc(waLink)+'" target="_blank" style="margin-bottom:10px;background:#25D366;color:#fff;display:flex;align-items:center;justify-content:center">💬 Send via WhatsApp</a>':'')
+    +'<div style="margin-top:8px"><div style="font-size:11px;color:var(--muted);margin-bottom:5px">Or copy just the tracking link:</div>'
+    +'<div style="display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:9px 12px">'
+    +'<span style="flex:1;font-family:monospace;font-size:10px;word-break:break-all;color:var(--muted);overflow:hidden;max-height:36px">'+esc(dURL.substring(0,100))+'...</span>'
+    +'<button class="btn btn-sm" id="sm-copy-link" style="flex-shrink:0">⎘</button>'
+    +'</div></div>'
+    +'<p style="font-size:11px;color:var(--muted);text-align:center;margin-top:10px">Driver opens the link on their phone → sees load info → taps Start Tracking → you get notified.</p>';
 
   document.getElementById('send-modal-ov').classList.add('on');
 
   document.getElementById('sm-copy').addEventListener('click',function(){
     copyText(msgText);
-    this.textContent='✅ Copied!';
-    var self=this; setTimeout(function(){self.textContent='📋 Copy Message';},2000);
+    this.textContent='Copied!';
+    var self=this; setTimeout(function(){self.innerHTML='📋 Copy Message &amp; Link';},2000);
   });
-
-  // If backend is live, also fire the real SMS lambda
-  if(isLive()){
-    fetch(API+'/loads/'+id+'/send-driver-link',{method:'POST',headers:ah(),body:JSON.stringify({driverPhone:load.assignedDriverPhone||'',dispatcherEmail:(session&&session.user?session.user.email:''),notifyCustomer:notifyOn})})
-      .then(function(r){if(r.ok)toast('\u2705 SMS sent via backend');})
-      .catch(function(){});
-  }
+  document.getElementById('sm-copy-link').addEventListener('click',function(){
+    copyText(dURL);
+    this.textContent='Copied!';
+    var self=this; setTimeout(function(){self.textContent='⎘';},2000);
+  });
 }
 
 /* DELETE LOAD */
