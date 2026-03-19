@@ -394,10 +394,14 @@
           return;
         }
 
-        // 4. Nothing found
-        document.getElementById('load-number').textContent = 'Invalid Link';
-        document.getElementById('load-desc').textContent   = 'Please use the tracking link sent by your dispatcher. This link may be expired or incorrect.';
+        // 4. Nothing found — show clear instructions
+        document.getElementById('load-number').textContent = 'No Load Found';
+        document.getElementById('load-desc').textContent   = '';
+        document.getElementById('pickup-addr').textContent  = 'Check your SMS or email for the tracking link sent by your dispatcher. The link must include your load data.';
+        document.getElementById('delivery-addr').textContent = '';
+        document.getElementById('status-badge').textContent  = '⚠️ Use link from dispatcher';
         document.getElementById('btn-start').disabled = true;
+        document.getElementById('btn-start').textContent = 'Waiting for valid link…';
 
       } catch(e) {
         document.getElementById('load-number').textContent = 'Error';

@@ -718,36 +718,39 @@ function sendLink(id){
 
   var modalBody=document.getElementById('send-modal-body');
   modalBody.innerHTML=''
-    +'<div style="margin-bottom:14px">'
-    +'<div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Message Preview</div>'
-    +'<div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:13px;line-height:1.6;white-space:pre-wrap;max-height:200px;overflow-y:auto">'+esc(msgText)+'</div>'
+    +'<div style="background:rgba(0,122,255,.1);border:2px solid var(--blue);border-radius:13px;padding:16px;margin-bottom:16px">'
+    +'<div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Driver Tracking Link</div>'
+    +'<div style="font-size:11px;color:var(--muted);margin-bottom:8px">Copy this link and send it to your driver. They open it on their phone to see load details and start tracking.</div>'
+    +'<div style="background:var(--bg);border-radius:9px;padding:10px;font-family:monospace;font-size:10px;color:var(--text);word-break:break-all;margin-bottom:10px;line-height:1.5">'+esc(dURL)+'</div>'
+    +'<button class="btn btn-p btn-full" id="sm-copy-link" style="font-size:15px;padding:13px">Copy Tracking Link</button>'
     +'</div>'
-    +'<button class="btn btn-p btn-full" id="sm-copy" style="margin-bottom:10px">📋 Copy Message &amp; Link</button>'
     +(dp
-      ?'<a class="btn btn-full" href="'+esc(smsLink)+'" style="margin-bottom:10px;background:#34C759;color:#fff;display:flex;align-items:center;justify-content:center">💬 Send via SMS / iMessage</a>'
-      :'<div style="background:var(--s2);border-radius:9px;padding:10px 13px;font-size:12px;color:var(--muted);margin-bottom:10px">No driver phone — add one to enable SMS.</div>'
+      ?'<a class="btn btn-full" href="'+esc(smsLink)+'" style="margin-bottom:10px;background:#34C759;color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;padding:13px">Send via SMS / iMessage</a>'
+      :'<div style="background:var(--s2);border-radius:9px;padding:10px 13px;font-size:12px;color:var(--muted);margin-bottom:10px">No driver phone number on file. Add one in the Assigned Driver section to enable SMS.</div>'
     )
-    +'<a class="btn btn-full" href="'+esc(emailLink)+'" style="margin-bottom:10px;display:flex;align-items:center;justify-content:center">📧 Send via Email</a>'
-    +(waLink?'<a class="btn btn-full" href="'+esc(waLink)+'" target="_blank" style="margin-bottom:10px;background:#25D366;color:#fff;display:flex;align-items:center;justify-content:center">💬 Send via WhatsApp</a>':'')
-    +'<div style="margin-top:8px"><div style="font-size:11px;color:var(--muted);margin-bottom:5px">Or copy just the tracking link:</div>'
-    +'<div style="display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:9px 12px">'
-    +'<span style="flex:1;font-family:monospace;font-size:10px;word-break:break-all;color:var(--muted);overflow:hidden;max-height:36px">'+esc(dURL.substring(0,100))+'...</span>'
-    +'<button class="btn btn-sm" id="sm-copy-link" style="flex-shrink:0">⎘</button>'
-    +'</div></div>'
-    +'<p style="font-size:11px;color:var(--muted);text-align:center;margin-top:10px">Driver opens the link on their phone → sees load info → taps Start Tracking → you get notified.</p>';
+    +'<a class="btn btn-full" href="'+esc(emailLink)+'" style="margin-bottom:10px;display:flex;align-items:center;justify-content:center;font-size:15px;padding:13px">Send via Email</a>'
+    +(waLink?'<a class="btn btn-full" href="'+esc(waLink)+'" target="_blank" style="margin-bottom:10px;background:#25D366;color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;padding:13px">Send via WhatsApp</a>':'')
+    +'<details style="margin-top:8px"><summary style="font-size:12px;color:var(--muted);cursor:pointer;padding:6px 0">Show full message text</summary>'
+    +'<div style="background:var(--s2);border-radius:10px;padding:12px;font-size:12px;line-height:1.6;white-space:pre-wrap;margin-top:8px;max-height:180px;overflow-y:auto">'+esc(msgText)+'</div>'
+    +'<button class="btn btn-full" id="sm-copy-msg" style="margin-top:8px">Copy Full Message</button>'
+    +'</details>'
+    +'<p style="font-size:11px;color:var(--muted);text-align:center;margin-top:12px">Driver opens link, sees load details, taps Start Tracking, you get notified by email.</p>';
 
   document.getElementById('send-modal-ov').classList.add('on');
 
-  document.getElementById('sm-copy').addEventListener('click',function(){
-    copyText(msgText);
-    this.textContent='Copied!';
-    var self=this; setTimeout(function(){self.innerHTML='📋 Copy Message &amp; Link';},2000);
-  });
   document.getElementById('sm-copy-link').addEventListener('click',function(){
     copyText(dURL);
     this.textContent='Copied!';
-    var self=this; setTimeout(function(){self.textContent='⎘';},2000);
+    var self=this; setTimeout(function(){self.textContent='Copy Tracking Link';},2500);
   });
+  modalBody.addEventListener('click',function(e){
+    if(e.target && e.target.id==='sm-copy-msg'){
+      copyText(msgText);
+      e.target.textContent='Copied!';
+      setTimeout(function(){e.target.textContent='Copy Full Message';},2500);
+    }
+  });
+
 }
 
 /* DELETE LOAD */
