@@ -535,6 +535,9 @@
       a.click();
       document.body.removeChild(a);
     }
+
+    // ── Mark Delivered ────────────────────────────────────────────────────────
+    function markDelivered() {
       if (!confirm("Mark this load as Delivered?")) return;
       stopGPS();
       isTracking = false;
