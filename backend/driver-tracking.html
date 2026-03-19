@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#1a1a2e" />
   <title>CMP Freight – Driver Tracking</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -130,6 +132,42 @@
       color: var(--muted);
       margin-top: 2px;
     }
+
+    /* Map */
+    #map {
+      width: 100%;
+      height: 260px;
+      border-radius: 14px;
+      margin-bottom: 14px;
+      overflow: hidden;
+      background: #1a1a2e;
+    }
+    .map-coords {
+      display: flex;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .map-coords span { font-variant-numeric: tabular-nums; }
+
+    /* Map */
+    #map {
+      width: 100%;
+      height: 260px;
+      border-radius: 14px;
+      margin-bottom: 14px;
+      overflow: hidden;
+      background: #1a1a2e;
+    }
+    .map-coords {
+      display: flex;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .map-coords span { font-variant-numeric: tabular-nums; }
 
     /* Accuracy bar */
     .accuracy-row {
@@ -282,26 +320,14 @@
     <div id="status-badge" class="status-badge pending">⏳ Pending</div>
   </div>
 
-  <!-- ── GPS Card ────────────────────────────────────────────────────────── -->
+  <!-- ── GPS / Map Card ──────────────────────────────────────────────────── -->
   <div class="card" id="gps-card">
-    <p class="card-title">GPS</p>
-    <div class="gps-grid">
-      <div class="gps-item">
-        <div class="gps-val" id="gps-lat">—</div>
-        <div class="gps-unit">Latitude</div>
-      </div>
-      <div class="gps-item">
-        <div class="gps-val" id="gps-lng">—</div>
-        <div class="gps-unit">Longitude</div>
-      </div>
-      <div class="gps-item">
-        <div class="gps-val" id="gps-speed">—</div>
-        <div class="gps-unit">mph</div>
-      </div>
-      <div class="gps-item">
-        <div class="gps-val" id="gps-heading">—</div>
-        <div class="gps-unit">heading °</div>
-      </div>
+    <p class="card-title">Live Location</p>
+    <div id="map"></div>
+    <div class="map-coords">
+      <span id="gps-lat">Lat —</span>
+      <span id="gps-lng">Lng —</span>
+      <span id="gps-speed"></span>
     </div>
     <div class="accuracy-row">
       <div class="accuracy-dot" id="acc-dot"></div>
@@ -445,6 +471,7 @@
         document.getElementById("btn-stop").style.display  = "flex";
         isTracking = true;
         startGPS(false);
+        // If permission was already denied, the watchPosition error handler will show the message
       } else if (data.status === "Delivered") {
         badge.className  = "status-badge stopped";
         badge.textContent = "✅ Delivered";
@@ -493,7 +520,11 @@
           startGPS(true);
         },
         function(err) {
-          showError('Could not get your location: ' + err.message + '\n\nMake sure location access is allowed for this site in your browser settings.');
+          if (err.code === 1) {
+            showError('denied');
+          } else {
+            showError('Could not get your location: ' + err.message);
+          }
           resetStartButton();
         },
         { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
@@ -601,7 +632,13 @@
           lastPosition = pos;
           updateGPSDisplay(pos);
         },
-        function(err) { showError("GPS error: " + err.message); },
+        function(err) {
+          if (err.code === 1) { // PERMISSION_DENIED
+            showError('denied');
+          } else {
+            showError("GPS error: " + err.message);
+          }
+        },
         { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
       );
 
@@ -617,14 +654,39 @@
       if (intervalId != null) { clearInterval(intervalId); intervalId = null; }
     }
 
+    // ── Map setup ─────────────────────────────────────────────────────────────
+    var map = null, mapMarker = null, mapCircle = null;
+
+    function initMap(lat, lng) {
+      if (map) return;
+      map = L.map('map', { zoomControl: true, attributionControl: false }).setView([lat, lng], 15);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19
+      }).addTo(map);
+      var truckIcon = L.divIcon({
+        html: '<div style="font-size:28px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">🚛</div>',
+        className: '',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+      mapMarker = L.marker([lat, lng], { icon: truckIcon }).addTo(map);
+      mapCircle = L.circle([lat, lng], { radius: 20, color: '#007AFF', fillColor: '#007AFF', fillOpacity: 0.15, weight: 2 }).addTo(map);
+    }
+
+    function updateMap(lat, lng, accuracy) {
+      if (!map) { initMap(lat, lng); return; }
+      mapMarker.setLatLng([lat, lng]);
+      mapCircle.setLatLng([lat, lng]);
+      mapCircle.setRadius(accuracy || 20);
+      map.panTo([lat, lng]);
+    }
+
     function updateGPSDisplay(pos) {
       var c = pos.coords;
-      document.getElementById("gps-lat").textContent     = c.latitude.toFixed(5);
-      document.getElementById("gps-lng").textContent     = c.longitude.toFixed(5);
-      document.getElementById("gps-speed").textContent   =
-        c.speed != null ? (c.speed * 2.237).toFixed(1) : "0.0";
-      document.getElementById("gps-heading").textContent =
-        c.heading != null ? Math.round(c.heading) : "—";
+      document.getElementById("gps-lat").textContent  = "Lat " + c.latitude.toFixed(5);
+      document.getElementById("gps-lng").textContent  = "Lng " + c.longitude.toFixed(5);
+      var spd = c.speed != null ? (c.speed * 2.237).toFixed(1) + " mph" : "";
+      document.getElementById("gps-speed").textContent = spd;
 
       var acc  = c.accuracy;
       var dot  = document.getElementById("acc-dot");
@@ -632,6 +694,8 @@
       if (acc <= 20)       { dot.className = "accuracy-dot good";   text.textContent = "±" + Math.round(acc) + "m — Good signal"; }
       else if (acc <= 100) { dot.className = "accuracy-dot medium"; text.textContent = "±" + Math.round(acc) + "m — Fair signal"; }
       else                 { dot.className = "accuracy-dot poor";   text.textContent = "±" + Math.round(acc) + "m — Poor signal"; }
+
+      updateMap(c.latitude, c.longitude, c.accuracy);
     }
 
     // ── POST location to API ──────────────────────────────────────────────────
@@ -667,7 +731,19 @@
     // ── Banner helpers ────────────────────────────────────────────────────────
     function showError(msg) {
       const el = document.getElementById("error-banner");
-      el.textContent = msg;
+      el.innerHTML = '';
+      // Detect permission denied and show actionable instructions
+      if (msg.toLowerCase().includes('denied') || msg.toLowerCase().includes('permission')) {
+        el.innerHTML =
+          '<strong>📍 Location access is blocked.</strong><br>' +
+          'To fix this:<br>' +
+          '1. Tap the <strong>🔒 lock icon</strong> in your browser address bar<br>' +
+          '2. Set <strong>Location</strong> to <strong>Allow</strong><br>' +
+          '3. Reload the page and tap <strong>Start Tracking</strong> again<br><br>' +
+          '<button onclick="location.reload()" style="background:#007AFF;color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:15px;font-weight:600;cursor:pointer;margin-top:4px;">🔄 Reload Page</button>';
+      } else {
+        el.textContent = msg;
+      }
       el.classList.add("visible");
     }
     function clearError() {
