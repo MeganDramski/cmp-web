@@ -316,12 +316,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   </div>
 </div>
 
+<script src="config.js"></script>
 <script>
-var API = (function(){ var p=new URLSearchParams(location.search); return p.get('api')||'REPLACE_WITH_YOUR_API_GATEWAY_URL'; })();
+var API = (function(){
+  var p = new URLSearchParams(location.search);
+  var fromUrl = p.get('api');
+  if (fromUrl) return fromUrl;
+  var fromCfg = window.CMP_API_BASE || '';
+  if (fromCfg && fromCfg !== '__API_BASE__') return fromCfg.replace(/\/$/, '');
+  return '';
+})();
 var loads=[], drivers=[], session=null, selId=null, filt=null, notifyOn=true;
 var selectedDriverId=null; // for modal driver picker
 
-function isLive(){ return API && API.indexOf('REPLACE_WITH')===-1; }
+function isLive(){ return !!API; }
+// Unicode-safe base64 helpers (handle any UTF-8 chars in addresses/notes)
+function b64enc(str){ try{ return btoa(unescape(encodeURIComponent(str))); }catch(e){ return ''; } }
+function b64dec(str){ try{ return decodeURIComponent(escape(atob(str))); }catch(e){ return ''; } }
 function uid(){ return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0,v=c=='x'?r:(r&0x3|0x8);return v.toString(16);}); }
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmt(iso){ if(!iso)return '--'; return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
@@ -534,7 +545,7 @@ function renderDetail(){
     assignedDriverName:load.assignedDriverName, status:load.status,
     trackingToken:load.trackingToken
   };
-  var dURL=base+'/driver-tracking.html?token='+esc(load.trackingToken)+'&loadId='+esc(load.id)+'&d='+encodeURIComponent(btoa(JSON.stringify(loadPayload)));
+  var dURL=base+'/driver-tracking.html?token='+esc(load.trackingToken)+'&loadId='+esc(load.id)+'&d='+encodeURIComponent(b64enc(JSON.stringify(loadPayload)));
   var cURL=base+'/track-shipment.html?token='+esc(load.trackingToken);
   var sopts=['Pending','Assigned','In Transit','Delivered','Cancelled'].map(function(s){return '<option value="'+s+'"'+(s===load.status?' selected':'')+'>'+s+'</option>';}).join('');
 

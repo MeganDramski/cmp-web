@@ -10,5 +10,5 @@
 enum AWSConfig {
     /// Base URL of your API Gateway stage.
     /// Example: "https://abc123def.execute-api.us-east-1.amazonaws.com/prod"
-    static let baseURL = "https://REPLACE_WITH_YOUR_API_GATEWAY_URL"
+    static let baseURL = "https://abc12xyz.execute-api.us-east-1.amazonaws.com/prod"
 }

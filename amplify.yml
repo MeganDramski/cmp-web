@@ -3,7 +3,18 @@ frontend:
   phases:
     build:
       commands:
-        - echo "Static site - no build step needed"
+        # Inject the real API Gateway URL into config.js so the tracking page
+        # knows where to call the backend, regardless of which domain hosts the HTML.
+        # Set CMP_API_BASE in Amplify Console → App settings → Environment variables.
+        # Example value: https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod
+        - |
+          if [ -n "$CMP_API_BASE" ]; then
+            sed -i "s|__API_BASE__|${CMP_API_BASE}|g" backend/config.js
+            echo "✅ CMP_API_BASE injected into config.js"
+          else
+            echo "⚠️  WARNING: CMP_API_BASE environment variable is not set."
+            echo "   The tracking page will show a config error until this is set in Amplify."
+          fi
   artifacts:
     baseDirectory: backend
     files:

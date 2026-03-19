@@ -330,11 +330,16 @@
     <div id="log-list"></div>
   </div>
 
+  <!-- Injects window.CMP_API_BASE – replaced with the real API Gateway URL at build time -->
+  <script src="config.js"></script>
   <script>
     const params   = new URLSearchParams(location.search);
     const TOKEN    = params.get("token");
     const LOAD_ID  = params.get("loadId");
-    const API_BASE = (window.CMP_API_BASE || "REPLACE_WITH_YOUR_API_GATEWAY_URL");
+    const _rawBase = window.CMP_API_BASE || "";
+    const API_BASE = (_rawBase && _rawBase !== "__API_BASE__")
+      ? _rawBase.replace(/\/$/, "")
+      : null;
     const UPDATE_INTERVAL_MS = 15000;
 
     let watchId      = null;
@@ -344,7 +349,7 @@
     let updateCount  = 0;
     let loadData     = null;
 
-    function isLive() { return API_BASE && API_BASE.indexOf("REPLACE_WITH") === -1; }
+    function isLive() { return !!API_BASE; }
 
     (function init() {
       if (!TOKEN && !LOAD_ID) {
@@ -362,7 +367,8 @@
         var dParam = params.get('d');
         if (dParam) {
           try {
-            var decoded = JSON.parse(atob(decodeURIComponent(dParam)));
+            // Unicode-safe decode: matches b64enc(JSON.stringify(...)) in dispatcher
+            var decoded = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(dParam)))));
             if (decoded && decoded.loadNumber) {
               populateLoad(decoded);
               return;
@@ -571,34 +577,6 @@
         }
       }
       localStorage.setItem("cmp_loads", JSON.stringify(stored));
-      if (loadData) loadData.status = newStatus;topGPS();
-      isTracking = false;
-      updateLocalStatus("Delivered");
-
-      if (isLive()) {
-        fetch(API_BASE + "/loads/" + (loadData ? loadData.id : LOAD_ID) + "/status", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "Delivered" }),
-        }).catch(function() {});
-      }
-
-      document.getElementById("btn-stop").style.display    = "none";
-      document.getElementById("btn-deliver").style.display = "none";
-      document.getElementById("status-badge").className    = "status-badge stopped";
-      document.getElementById("status-badge").textContent  = "✅ Delivered";
-      document.getElementById("delivered-screen").style.display = "flex";
-      addLog("✅ Marked as Delivered");
-    }
-
-    function updateLocalStatus(newStatus) {
-      var stored = JSON.parse(localStorage.getItem("cmp_loads") || "[]");
-      for (var i = 0; i < stored.length; i++) {
-        if ((TOKEN && stored[i].trackingToken === TOKEN) || (LOAD_ID && stored[i].id === LOAD_ID)) {
-          stored[i].status = newStatus; break;
-        }
-      }
-      localStorage.setItem("cmp_loads", JSON.stringify(stored));
       if (loadData) loadData.status = newStatus;
     }
 
@@ -619,18 +597,17 @@
     // ── GPS Helpers ───────────────────────────────────────────────────────────
     function startGPS(fresh) {
       watchId = navigator.geolocation.watchPosition(
-        (pos) => {
+        function(pos) {
           lastPosition = pos;
           updateGPSDisplay(pos);
         },
-        (err) => { showError("GPS error: " + err.message); },
+        function(err) { showError("GPS error: " + err.message); },
         { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
       );
 
-      // Post every UPDATE_INTERVAL_MS regardless of movement
-      intervalId = setInterval(async () => {
+      intervalId = setInterval(function() {
         if (lastPosition && isTracking) {
-          await postLocation(lastPosition);
+          postLocation(lastPosition);
         }
       }, UPDATE_INTERVAL_MS);
     }
@@ -640,8 +617,8 @@
       if (intervalId != null) { clearInterval(intervalId); intervalId = null; }
     }
 
-    function stopGPS() {
-      const c = pos.coords;
+    function updateGPSDisplay(pos) {
+      var c = pos.coords;
       document.getElementById("gps-lat").textContent     = c.latitude.toFixed(5);
       document.getElementById("gps-lng").textContent     = c.longitude.toFixed(5);
       document.getElementById("gps-speed").textContent   =
@@ -649,12 +626,12 @@
       document.getElementById("gps-heading").textContent =
         c.heading != null ? Math.round(c.heading) : "—";
 
-      const acc = c.accuracy;
-      const dot  = document.getElementById("acc-dot");
-      const text = document.getElementById("acc-text");
-      if (acc <= 20)       { dot.className = "accuracy-dot good";   text.textContent = `±${Math.round(acc)}m — Good signal`; }
-      else if (acc <= 100) { dot.className = "accuracy-dot medium"; text.textContent = `±${Math.round(acc)}m — Fair signal`; }
-      else                 { dot.className = "accuracy-dot poor";   text.textContent = `±${Math.round(acc)}m — Poor signal`; }
+      var acc  = c.accuracy;
+      var dot  = document.getElementById("acc-dot");
+      var text = document.getElementById("acc-text");
+      if (acc <= 20)       { dot.className = "accuracy-dot good";   text.textContent = "±" + Math.round(acc) + "m — Good signal"; }
+      else if (acc <= 100) { dot.className = "accuracy-dot medium"; text.textContent = "±" + Math.round(acc) + "m — Fair signal"; }
+      else                 { dot.className = "accuracy-dot poor";   text.textContent = "±" + Math.round(acc) + "m — Poor signal"; }
     }
 
     // ── POST location to API ──────────────────────────────────────────────────

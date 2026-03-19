@@ -8,6 +8,8 @@
   <link rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Injects window.CMP_API_BASE – replaced with the real API Gateway URL at build time -->
+  <script src="config.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -167,16 +169,42 @@
   </div>
 
   <script>
+    function showError(msg) {
+      const el = document.getElementById("error-banner");
+      el.textContent = msg;
+      el.classList.add("visible");
+      // Blank out "Loading…" so it doesn't look stuck
+      const ln = document.getElementById("load-number");
+      if (ln && ln.textContent === "Loading…") ln.textContent = "—";
+    }
+
     const params  = new URLSearchParams(location.search);
     const TOKEN   = params.get("token");
-    const API_BASE = (window.CMP_API_BASE || location.origin);
     const REFRESH_MS = 30000;
+
+    // CMP_API_BASE is set by config.js (injected at Amplify build time).
+    // If it still contains the placeholder the build step didn't run – warn loudly.
+    const _raw = window.CMP_API_BASE || "";
+    const API_BASE = (_raw && _raw !== "__API_BASE__")
+      ? _raw.replace(/\/$/, "")          // trim any trailing slash
+      : null;
 
     let map, driverMarker;
 
     (async function init() {
       if (!TOKEN) {
-        showError("Invalid tracking link.");
+        showError("Invalid tracking link – no token found in the URL.");
+        return;
+      }
+      if (!API_BASE) {
+        showError(
+          "Tracking is temporarily unavailable (configuration error). " +
+          "Please contact CMP Freight for assistance."
+        );
+        console.error(
+          "CMP: API base URL is not configured. " +
+          "Set the CMP_API_BASE environment variable in Amplify and redeploy."
+        );
         return;
       }
       initMap();
@@ -195,7 +223,14 @@
     async function fetchAndRender() {
       try {
         const res = await fetch(`${API_BASE}/track/${TOKEN}`);
-        if (!res.ok) throw new Error((await res.json()).error || "Not found.");
+        if (res.status === 404) {
+          showError("Shipment not found. The tracking link may be invalid or expired.");
+          return;
+        }
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          throw new Error(json.error || `Server error (${res.status})`);
+        }
         const data = await res.json();
 
         document.getElementById("load-number").textContent = data.loadNumber || "—";
@@ -242,12 +277,6 @@
       } catch (err) {
         showError("Could not load tracking data: " + err.message);
       }
-    }
-
-    function showError(msg) {
-      const el = document.getElementById("error-banner");
-      el.textContent = msg;
-      el.classList.add("visible");
     }
   </script>
 </body>
