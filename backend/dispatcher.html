@@ -524,7 +524,17 @@ function renderDetail(){
   document.getElementById('dph').style.display='none';
   var el=document.getElementById('dc'); el.style.display='block';
   var base=isLive()?API:window.location.origin;
-  var dURL=base+'/driver-tracking.html?token='+esc(load.trackingToken)+'&loadId='+esc(load.id);
+  var loadPayload = {
+    id:load.id, loadNumber:load.loadNumber, description:load.description,
+    pickupAddress:load.pickupAddress, deliveryAddress:load.deliveryAddress,
+    pickupDate:load.pickupDate, deliveryDate:load.deliveryDate,
+    weight:load.weight, customerName:load.customerName,
+    customerEmail:load.customerEmail, dispatcherEmail:load.dispatcherEmail,
+    notifyCustomer:load.notifyCustomer, notes:load.notes,
+    assignedDriverName:load.assignedDriverName, status:load.status,
+    trackingToken:load.trackingToken
+  };
+  var dURL=base+'/driver-tracking.html?token='+esc(load.trackingToken)+'&loadId='+esc(load.id)+'&d='+encodeURIComponent(btoa(JSON.stringify(loadPayload)));
   var cURL=base+'/track-shipment.html?token='+esc(load.trackingToken);
   var sopts=['Pending','Assigned','In Transit','Delivered','Cancelled'].map(function(s){return '<option value="'+s+'"'+(s===load.status?' selected':'')+'>'+s+'</option>';}).join('');
 
@@ -668,7 +678,17 @@ function sendLink(id){
 
   var dp=(load.assignedDriverPhone||'').replace(/[^\d+]/g,'');
   var base=isLive()?API:window.location.origin;
-  var dURL=base+'/driver-tracking.html?token='+load.trackingToken+'&loadId='+load.id;
+  var loadPayload2 = {
+    id:load.id, loadNumber:load.loadNumber, description:load.description,
+    pickupAddress:load.pickupAddress, deliveryAddress:load.deliveryAddress,
+    pickupDate:load.pickupDate, deliveryDate:load.deliveryDate,
+    weight:load.weight, customerName:load.customerName,
+    customerEmail:load.customerEmail, dispatcherEmail:load.dispatcherEmail,
+    notifyCustomer:load.notifyCustomer, notes:load.notes,
+    assignedDriverName:load.assignedDriverName, status:load.status,
+    trackingToken:load.trackingToken
+  };
+  var dURL=base+'/driver-tracking.html?token='+load.trackingToken+'&loadId='+load.id+'&d='+encodeURIComponent(btoa(JSON.stringify(loadPayload2)));
 
   var msgText='Hi '+( load.assignedDriverName||'Driver')+',\n\n'
     +'You have been assigned a new load by CMP Freight.\n\n'

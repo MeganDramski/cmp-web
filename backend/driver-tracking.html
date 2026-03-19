@@ -355,10 +355,23 @@
       loadLoadInfo();
     })();
 
-    // ── Fetch load details — tries backend first, falls back to localStorage ──
+    // ── Fetch load details — decode from URL first, then localStorage, then API ──
     function loadLoadInfo() {
-      // 1. Try to find in localStorage (dispatcher portal saves loads there)
-      var stored = JSON.parse(localStorage.getItem("cmp_loads") || "[]");
+
+      // 1. Try decoding load data embedded in the URL (?d=base64json)
+      var dParam = params.get('d');
+      if (dParam) {
+        try {
+          var decoded = JSON.parse(atob(decodeURIComponent(dParam)));
+          if (decoded && decoded.loadNumber) {
+            populateLoad(decoded);
+            return;
+          }
+        } catch(e) {}
+      }
+
+      // 2. Try localStorage (same device as dispatcher)
+      var stored = JSON.parse(localStorage.getItem('cmp_loads') || '[]');
       var found  = null;
       for (var i = 0; i < stored.length; i++) {
         if ((TOKEN && stored[i].trackingToken === TOKEN) ||
@@ -366,39 +379,20 @@
           found = stored[i]; break;
         }
       }
+      if (found) { populateLoad(found); return; }
 
-      if (found) {
-        populateLoad(found);
-        return;
-      }
-
-      // 2. If backend configured, try the API
+      // 3. Try backend API
       if (isLive()) {
-        fetch(API_BASE + "/track/" + TOKEN)
-          .then(function(r) { return r.ok ? r.json() : r.json().then(function(d){ throw new Error(d.error||"Load not found."); }); })
+        fetch(API_BASE + '/track/' + TOKEN)
+          .then(function(r) { return r.ok ? r.json() : r.json().then(function(d){ throw new Error(d.error||'Load not found.'); }); })
           .then(function(d) { populateLoad(d); })
-          .catch(function(err) { showError("Could not load shipment details: " + err.message); document.getElementById("btn-start").disabled = true; });
+          .catch(function(err) { showError('Could not load shipment details: ' + err.message); document.getElementById('btn-start').disabled = true; });
         return;
       }
 
-      // 3. No backend, no localStorage match — show a helpful demo load
-      var demo = {
-        id: LOAD_ID || "demo",
-        loadNumber: "CMP-DEMO",
-        description: "Demo load — open dispatcher portal to create real loads",
-        pickupAddress: "123 Warehouse Blvd, Chicago, IL 60601",
-        deliveryAddress: "456 Distribution Ave, Dallas, TX 75201",
-        pickupDate: new Date().toISOString(),
-        deliveryDate: new Date(Date.now()+86400000).toISOString(),
-        weight: 38000,
-        customerName: "Demo Customer",
-        notes: "This is a demo. Create a real load in the dispatcher portal and use its tracking link.",
-        status: "Pending",
-        trackingToken: TOKEN || "demo",
-        assignedDriverName: "Driver",
-      };
-      populateLoad(demo);
-      showError("No matching load found in local storage. Showing demo data. Create a load in the dispatcher portal first.");
+      // 4. Nothing found — show helpful error
+      showError('No load data found. Please use the tracking link sent by your dispatcher.');
+      document.getElementById('btn-start').disabled = true;
     }
 
     function populateLoad(data) {
@@ -443,14 +437,14 @@
 
     // ── Start Tracking ────────────────────────────────────────────────────────
     function startTracking() {
-      var btn = document.getElementById("btn-start");
+      var btn = document.getElementById('btn-start');
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span> Starting…';
-      btn.className = "btn btn-loading";
+      btn.className = 'btn btn-loading';
       clearError();
 
       if (!navigator.geolocation) {
-        showError("Geolocation is not supported by this browser.");
+        showError('Geolocation is not supported by this browser.');
         resetStartButton(); return;
       }
 
@@ -459,44 +453,77 @@
           lastPosition = pos;
           updateGPSDisplay(pos);
 
-          // Update localStorage status
-          updateLocalStatus("In Transit");
+          // Update status in URL-decoded load
+          updateLocalStatus('In Transit');
 
-          if (isLive()) {
-            fetch(API_BASE + "/track/" + TOKEN + "/start", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                latitude:  pos.coords.latitude,
-                longitude: pos.coords.longitude,
-                dispatcherEmail: loadData ? loadData.dispatcherEmail || "" : "",
-                notifyCustomer:  loadData ? loadData.notifyCustomer  || false : false,
-              }),
-            }).catch(function() {});
-          }
+          // Notify dispatcher
+          notifyDispatcher(pos);
 
           isTracking = true;
-          document.getElementById("status-badge").className   = "status-badge active";
-          document.getElementById("status-badge").textContent = "🚛 In Transit";
-          btn.style.display = "none";
-          document.getElementById("btn-stop").style.display    = "flex";
-          document.getElementById("btn-deliver").style.display = "flex";
-          document.getElementById("log-card").style.display    = "block";
-          showSuccess("✅ Tracking started!");
+          document.getElementById('status-badge').className   = 'status-badge active';
+          document.getElementById('status-badge').textContent = '🚛 In Transit';
+          btn.style.display = 'none';
+          document.getElementById('btn-stop').style.display    = 'flex';
+          document.getElementById('btn-deliver').style.display = 'flex';
+          document.getElementById('log-card').style.display    = 'block';
+          showSuccess('✅ Tracking started! Dispatcher has been notified.');
 
           postLocation(pos);
           startGPS(true);
         },
         function(err) {
-          showError("GPS error: " + err.message + ". Please allow location access.");
+          showError('Could not get your location: ' + err.message + '\n\nMake sure location access is allowed for this site in your browser settings.');
           resetStartButton();
         },
         { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
       );
     }
 
-    // ── Mark Delivered ────────────────────────────────────────────────────────
-    function markDelivered() {
+    // ── Notify Dispatcher ─────────────────────────────────────────────────────
+    function notifyDispatcher(pos) {
+      if (!loadData) return;
+
+      var mapsLink = 'https://maps.google.com/?q=' + pos.coords.latitude + ',' + pos.coords.longitude;
+      var subject  = 'Driver Started Tracking - Load ' + (loadData.loadNumber || '');
+      var body     = 'Your driver has started tracking for Load ' + (loadData.loadNumber || '') + '.\n\n'
+                   + 'Driver: ' + (loadData.assignedDriverName || 'Driver') + '\n'
+                   + 'Pickup: '   + (loadData.pickupAddress   || '--') + '\n'
+                   + 'Delivery: ' + (loadData.deliveryAddress || '--') + '\n\n'
+                   + 'Current location:\n' + mapsLink + '\n\n'
+                   + 'GPS: ' + pos.coords.latitude.toFixed(5) + ', ' + pos.coords.longitude.toFixed(5);
+
+      // Try backend first
+      if (isLive()) {
+        fetch(API_BASE + '/track/' + TOKEN + '/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            dispatcherEmail: loadData.dispatcherEmail || '',
+            notifyCustomer:  loadData.notifyCustomer  || false,
+          }),
+        }).catch(function() { openMailtoDispatcher(subject, body); });
+        return;
+      }
+
+      // No backend — open mailto so dispatcher gets an email
+      openMailtoDispatcher(subject, body);
+    }
+
+    function openMailtoDispatcher(subject, body) {
+      if (!loadData || !loadData.dispatcherEmail) return;
+      var link = 'mailto:' + loadData.dispatcherEmail
+               + '?subject=' + encodeURIComponent(subject)
+               + '&body='    + encodeURIComponent(body);
+      // Open silently — driver shouldn't have to do anything
+      var a = document.createElement('a');
+      a.href = link;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
       if (!confirm("Mark this load as Delivered?")) return;
       stopGPS();
       isTracking = false;
