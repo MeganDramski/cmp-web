@@ -303,6 +303,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 
 <div id="toast"></div>
 
+
+<!-- SEND TO DRIVER MODAL -->
+<div class="ov" id="send-modal-ov">
+  <div class="modal" style="max-width:480px">
+    <div class="mhdr">
+      <h2>📤 Send to Driver</h2>
+      <button class="mclose" id="send-modal-close">✕</button>
+    </div>
+    <div class="mbody" id="send-modal-body">
+    </div>
+  </div>
+</div>
+
 <script>
 var API = (function(){ var p=new URLSearchParams(location.search); return p.get('api')||'REPLACE_WITH_YOUR_API_GATEWAY_URL'; })();
 var loads=[], drivers=[], session=null, selId=null, filt=null, notifyOn=true;
@@ -862,17 +875,6 @@ function makeSamples(){
 })();
 </script>
 
-<!-- SEND TO DRIVER MODAL -->
-<div class="ov" id="send-modal-ov">
-  <div class="modal" style="max-width:480px">
-    <div class="mhdr">
-      <h2>📤 Send to Driver</h2>
-      <button class="mclose" id="send-modal-close">✕</button>
-    </div>
-    <div class="mbody" id="send-modal-body">
-    </div>
-  </div>
-</div>
 
 </body>
 </html>
