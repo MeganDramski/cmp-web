@@ -450,14 +450,6 @@ function loadDrivers(){
   if(!isLive()){
     var accs=JSON.parse(localStorage.getItem('cmp_accounts')||'[]');
     drivers=accs.filter(function(a){return a.role==='driver';});
-    // Add sample drivers in demo mode so the picker isn't empty
-    if(drivers.length===0){
-      drivers=[
-        {email:'john@cmp.com',name:'John Smith',phone:'+13125550101',role:'driver'},
-        {email:'maria@cmp.com',name:'Maria Lopez',phone:'+13135550202',role:'driver'},
-        {email:'tom@cmp.com',name:'Tom Williams',phone:'+16125550303',role:'driver'}
-      ];
-    }
     return;
   }
   fetch(API+'/users?role=driver',{headers:ah()})
