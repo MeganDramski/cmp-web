@@ -19,8 +19,22 @@ const sns = new SNSClient({});
 const ses = new SESClient({});
 
 const LOADS_TABLE  = process.env.LOADS_TABLE;
-const FROM_EMAIL   = process.env.SES_FROM_EMAIL;   // verified sender in SES
-const BASE_URL     = process.env.TRACKING_BASE_URL; // e.g. https://yourapi.execute-api.us-east-1.amazonaws.com/prod
+const FROM_EMAIL   = process.env.SES_FROM_EMAIL;
+// TRACKING_BASE_URL is built at runtime from the request so we avoid a
+// CloudFormation circular dependency between Lambda and API Gateway.
+function getBaseUrl(event) {
+  const domain  = event.requestContext?.domainName;
+  const stage   = event.requestContext?.stage;
+  if (domain && stage) return `https://${domain}/${stage}`;
+  return process.env.TRACKING_BASE_URL || '';
+}
+// CloudFormation circular dependency between Lambda and API Gateway.
+function getBaseUrl(event) {
+  const domain  = event.requestContext?.domainName;
+  const stage   = event.requestContext?.stage;
+  if (domain && stage) return `https://${domain}/${stage}`;
+  return process.env.TRACKING_BASE_URL || '';
+}
 
 exports.handler = async (event) => {
   try {
@@ -45,7 +59,7 @@ exports.handler = async (event) => {
 
     // ── 2. Build driver browser link ─────────────────────────────────────────
     // The link opens a plain HTML page — no app required
-    const driverLink = `${BASE_URL}/driver-tracking.html?token=${load.trackingToken}&loadId=${load.id}`;
+    const driverLink = `${getBaseUrl(event)}/driver-tracking.html?token=${load.trackingToken}&loadId=${load.id}`;
 
     // ── 3. SMS driver via SNS ────────────────────────────────────────────────
     const smsMessage =

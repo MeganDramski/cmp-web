@@ -393,7 +393,7 @@ function doSignIn(){
   fetch(API+'/users/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})})
     .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
     .then(function(res){if(!res.ok)throw new Error(res.d.error||'Sign-in failed.');if(res.d.user.role!=='dispatcher')throw new Error('Dispatcher accounts only.');session={token:res.d.token,user:res.d.user};localStorage.setItem('cmp_session',JSON.stringify(session));enterApp();})
-    .catch(function(e){aerr(e.message);})
+    .catch(function(e){aerr(e.message&&e.message!=='Failed to fetch'?e.message:'Cannot reach the server. The backend may not be deployed yet.');})
     .finally(function(){btn.disabled=false;btn.textContent='Sign In';});
 }
 
@@ -425,7 +425,7 @@ function doRegister(){
     .then(function(res){if(!res.ok)throw new Error(res.d.error||'Registration failed.');return fetch(API+'/users/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})});})
     .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
     .then(function(res){if(!res.ok)throw new Error('Auto sign-in failed.');session={token:res.d.token,user:res.d.user};localStorage.setItem('cmp_session',JSON.stringify(session));enterApp();})
-    .catch(function(e){aerr(e.message);})
+    .catch(function(e){aerr(e.message&&e.message!=='Failed to fetch'?e.message:'Cannot reach the server. The backend may not be deployed yet.');})
     .finally(function(){btn.disabled=false;btn.textContent='Create Account';});
 }
 
