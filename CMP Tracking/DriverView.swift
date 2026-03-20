@@ -142,25 +142,6 @@ struct DriverView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showLocationPrePrompt) {
-                LocationPermissionView {
-                    showLocationPrePrompt = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                        locationManager.requestPermission()
-                    }
-                }
-                .presentationDetents([.large])
-                .presentationDragIndicator(.hidden)
-            }
-            .safeAreaInset(edge: .top) {
-                if locationManager.authorizationStatus == .authorizedWhenInUse {
-                    AlwaysAllowBanner {
-                        if let url = URL(string: UIApplication.openSettingsURLString) {
-                            UIApplication.shared.open(url)
-                        }
-                    }
-                }
-            }
             .alert("Location Access Needed", isPresented: .constant(
                 locationManager.authorizationStatus == .denied
             )) {
