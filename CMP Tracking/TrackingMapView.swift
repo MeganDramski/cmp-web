@@ -14,15 +14,20 @@ import MapKit
 
 // MARK: - Road-Snapping MKMapView Wrapper
 
-/// UIViewRepresentable that wraps MKMapView so we can draw MKPolyline overlays
-/// (SwiftUI's Map doesn't support overlays in iOS 16 without MapKit for SwiftUI extras).
-/// Routes are fetched via MKDirections so the trail follows actual roads.
+/// UIViewRepresentable wrapping MKMapView with OSRM /match road-snapping.
+/// Mirrors the same approach used in the web pages (driver-tracking.html /
+/// track-shipment.html) so both platforms behave identically.
+///
+/// Strategy:
+///   1. Raw GPS trail is drawn immediately as an MKPolyline (no visual gap).
+///   2. A 2-second debounced URLSession call to the free OSRM /match API
+///      returns road-snapped GeoJSON geometry.
+///   3. The raw overlay is replaced with the snapped one.
+///   4. If OSRM fails (no network, timeout, no match) the raw line stays.
 struct RoadSnappingMapView: UIViewRepresentable {
     let annotations: [TrackAnnotation]
-    let rawTrail: [CLLocationCoordinate2D]   // raw GPS points (used as fallback)
+    let rawTrail: [CLLocationCoordinate2D]
     @Binding var region: MKCoordinateRegion
-    // Routed polyline segments are accumulated inside the Coordinator
-    // so they persist across SwiftUI re-renders.
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -38,90 +43,120 @@ struct RoadSnappingMapView: UIViewRepresentable {
     }
 
     func updateUIView(_ mv: MKMapView, context: Context) {
-        // ── Sync region (only when SwiftUI changes it, e.g. recenter tap) ──
-        let mvCenter = mv.region.center
-        let desired  = region.center
-        let latDiff  = abs(mvCenter.latitude  - desired.latitude)
-        let lngDiff  = abs(mvCenter.longitude - desired.longitude)
-        if latDiff > 0.0001 || lngDiff > 0.0001 {
+        let coordinator = context.coordinator
+
+        // ── Sync region only when SwiftUI explicitly moves it ────────────
+        let c = mv.region.center
+        let d = region.center
+        if abs(c.latitude - d.latitude) > 0.0001 || abs(c.longitude - d.longitude) > 0.0001 {
             mv.setRegion(region, animated: true)
         }
 
-        // ── Sync annotations ──────────────────────────────────────────────
+        // ── Sync truck annotation ────────────────────────────────────────
         mv.removeAnnotations(mv.annotations)
         for ann in annotations {
-            let pin = TrackPin(annotation: ann)
-            mv.addAnnotation(pin)
+            mv.addAnnotation(TrackPin(annotation: ann))
         }
 
-        // ── Append new raw GPS points and request routing ──────────────────
-        let coordinator = context.coordinator
-        let newPoints = rawTrail.dropFirst(coordinator.processedCount)
-        guard !newPoints.isEmpty else { return }
+        // ── Update raw trail overlay immediately ─────────────────────────
+        guard rawTrail.count >= 2 else { return }
 
-        if coordinator.processedCount == 0, let first = rawTrail.first {
-            // First point — just record it, nothing to route yet
-            coordinator.lastRouteEnd = first
-            coordinator.processedCount = rawTrail.count
-            return
-        }
+        // Replace raw overlay with latest points so there's never a gap
+        if let existing = coordinator.rawOverlay { mv.removeOverlay(existing) }
+        var coords = rawTrail
+        let rawPolyline = MKPolyline(coordinates: &coords, count: coords.count)
+        coordinator.rawOverlay = rawPolyline
+        mv.addOverlay(rawPolyline, level: .aboveRoads)
 
-        let startCoord = coordinator.lastRouteEnd ?? rawTrail[coordinator.processedCount - 1]
-        guard let endCoord = newPoints.last else { return }
-        coordinator.processedCount = rawTrail.count
-
-        // Request road-following route from last known point to new point
-        let request = MKDirections.Request()
-        request.transportType = .automobile
-        request.source = MKMapItem(placemark: MKPlacemark(coordinate: startCoord))
-        request.destination = MKMapItem(placemark: MKPlacemark(coordinate: endCoord))
-
-        let directions = MKDirections(request: request)
-        coordinator.pendingDirections.append(directions)
-        directions.calculate { response, error in
-            DispatchQueue.main.async {
-                coordinator.pendingDirections.removeAll { $0 === directions }
-                if let route = response?.routes.first {
-                    // Road-following polyline
-                    coordinator.lastRouteEnd = endCoord
-                    mv.addOverlay(route.polyline, level: .aboveRoads)
-                    coordinator.routedOverlays.append(route.polyline)
-                } else {
-                    // Routing failed (no network, over water, etc.) — draw straight segment
-                    var coords = [startCoord, endCoord]
-                    let fallback = MKPolyline(coordinates: &coords, count: 2)
-                    coordinator.lastRouteEnd = endCoord
-                    mv.addOverlay(fallback, level: .aboveRoads)
-                    coordinator.routedOverlays.append(fallback)
-                }
-            }
+        // ── Schedule debounced OSRM snap (2 s after last GPS update) ─────
+        coordinator.debounceTimer?.invalidate()
+        coordinator.debounceTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { _ in
+            coordinator.snapToRoads(rawTrail, mapView: mv)
         }
     }
 
-    // MARK: Coordinator
-    class Coordinator: NSObject, MKMapViewDelegate {
-        var processedCount = 0
-        var lastRouteEnd: CLLocationCoordinate2D?
-        var routedOverlays: [MKPolyline] = []
-        var pendingDirections: [MKDirections] = []
+    // MARK: - Coordinator
 
-        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
-            if let polyline = overlay as? MKPolyline {
-                let renderer = MKPolylineRenderer(polyline: polyline)
-                renderer.strokeColor = UIColor.systemBlue
-                renderer.lineWidth = 5
-                renderer.lineJoin = .round
-                renderer.lineCap = .round
-                renderer.alpha = 0.85
-                return renderer
+    class Coordinator: NSObject, MKMapViewDelegate {
+        var rawOverlay: MKPolyline?        // straight GPS trail (shown while snap is pending)
+        var snappedOverlay: MKPolyline?    // road-snapped result from OSRM
+        var debounceTimer: Timer?
+        var currentTask: URLSessionDataTask?
+
+        // MARK: OSRM snap
+        func snapToRoads(_ trail: [CLLocationCoordinate2D], mapView mv: MKMapView) {
+            guard trail.count >= 2 else { return }
+
+            // Sample down to ≤100 points (OSRM URL length limit)
+            var pts = trail
+            if pts.count > 100 {
+                let step = Double(pts.count) / 100.0
+                var sampled: [CLLocationCoordinate2D] = []
+                for i in 0..<100 { sampled.append(pts[Int(Double(i) * step)]) }
+                sampled[sampled.count - 1] = pts[pts.count - 1]
+                pts = sampled
             }
-            return MKOverlayRenderer(overlay: overlay)
+
+            let coordStr = pts.map { "\($0.longitude),\($0.latitude)" }.joined(separator: ";")
+            let urlStr = "https://router.project-osrm.org/match/v1/driving/\(coordStr)?overview=full&geometries=geojson&steps=false"
+            guard let url = URL(string: urlStr) else { return }
+
+            currentTask?.cancel()
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 10
+            currentTask = URLSession.shared.dataTask(with: request) { data, _, _ in
+                guard let data = data,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let matchings = json["matchings"] as? [[String: Any]], !matchings.isEmpty
+                else {
+                    // OSRM failed — raw trail already visible, nothing to do
+                    return
+                }
+
+                // Decode GeoJSON coordinates from all matchings
+                var roadCoords: [CLLocationCoordinate2D] = []
+                for matching in matchings {
+                    if let geometry = matching["geometry"] as? [String: Any],
+                       let coordsArray = geometry["coordinates"] as? [[Double]] {
+                        for c in coordsArray {
+                            guard c.count >= 2 else { continue }
+                            roadCoords.append(CLLocationCoordinate2D(latitude: c[1], longitude: c[0]))
+                        }
+                    }
+                }
+                guard roadCoords.count >= 2 else { return }
+
+                DispatchQueue.main.async {
+                    // Remove raw overlay, add snapped one
+                    if let raw = self.rawOverlay { mv.removeOverlay(raw) }
+                    if let old = self.snappedOverlay { mv.removeOverlay(old) }
+                    var snapped = roadCoords
+                    let snappedPolyline = MKPolyline(coordinates: &snapped, count: snapped.count)
+                    self.snappedOverlay = snappedPolyline
+                    self.rawOverlay = nil
+                    mv.addOverlay(snappedPolyline, level: .aboveRoads)
+                }
+            }
+            currentTask?.resume()
+        }
+
+        // MARK: MKMapViewDelegate
+        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            guard let polyline = overlay as? MKPolyline else {
+                return MKOverlayRenderer(overlay: overlay)
+            }
+            let r = MKPolylineRenderer(polyline: polyline)
+            r.strokeColor = UIColor.systemBlue
+            r.lineWidth   = 5
+            r.lineJoin    = .round
+            r.lineCap     = .round
+            r.alpha       = 0.85
+            return r
         }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
             guard let pin = annotation as? TrackPin else { return nil }
             let view = MKAnnotationView(annotation: pin, reuseIdentifier: "truck")
-            // Build a UIHostingController snapshot for the truck icon
             let host = UIHostingController(rootView:
                 TruckAnnotationView(speed: pin.trackAnnotation.speed,
                                     heading: pin.trackAnnotation.heading))
