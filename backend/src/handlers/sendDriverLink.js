@@ -1,18 +1,17 @@
-// sendDriverLink.js – sends SMS via Twilio + confirmation email via SES
+// sendDriverLink.js – sends SMS via AWS SNS + confirmation email via SES
 const { DynamoDBClient, GetItemCommand } = require("@aws-sdk/client-dynamodb");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
+const { SNSClient, PublishCommand } = require("@aws-sdk/client-sns");
 const { verifyToken, respond } = require("../utils/auth");
 
 const db  = new DynamoDBClient({ region: "us-east-1" });
 const ses = new SESClient({ region: "us-east-1" });
+const sns = new SNSClient({ region: "us-east-1" });
 
-const LOADS_TABLE  = process.env.LOADS_TABLE;
-const FROM_EMAIL   = process.env.SES_FROM_EMAIL;
-const TWILIO_SID   = process.env.TWILIO_ACCOUNT_SID;
-const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-const TWILIO_FROM  = process.env.TWILIO_FROM_NUMBER;
-const AMPLIFY_URL  = process.env.AMPLIFY_BASE_URL || "";
+const LOADS_TABLE = process.env.LOADS_TABLE;
+const FROM_EMAIL  = process.env.SES_FROM_EMAIL;
+const AMPLIFY_URL = process.env.AMPLIFY_BASE_URL || "";
 
 function buildLink(event, token, id) {
   const base = AMPLIFY_URL || (function() {
@@ -23,24 +22,26 @@ function buildLink(event, token, id) {
   return base + "/driver-tracking.html?token=" + token + "&loadId=" + id;
 }
 
-async function sendSMS(to, body) {
-  if (!TWILIO_SID || !TWILIO_TOKEN || !TWILIO_FROM) {
-    console.warn("Twilio not configured – skipping SMS");
-    return false;
-  }
-  const url  = "https://api.twilio.com/2010-04-01/Accounts/" + TWILIO_SID + "/Messages.json";
-  const auth = Buffer.from(TWILIO_SID + ":" + TWILIO_TOKEN).toString("base64");
-  const r = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Authorization": "Basic " + auth,
-      "Content-Type":  "application/x-www-form-urlencoded",
+async function sendSMS(to, message) {
+  const phone = to.replace(/[^\d+]/g, "");
+  // Ensure E.164 format (add +1 for US numbers if missing country code)
+  const e164 = phone.startsWith("+") ? phone : "+1" + phone;
+
+  const result = await sns.send(new PublishCommand({
+    PhoneNumber: e164,
+    Message: message,
+    MessageAttributes: {
+      "AWS.SNS.SMS.SMSType": {
+        DataType: "String",
+        StringValue: "Transactional", // higher delivery priority
+      },
+      "AWS.SNS.SMS.SenderID": {
+        DataType: "String",
+        StringValue: "CMPFreight",    // shown as sender name where supported
+      },
     },
-    body: new URLSearchParams({ To: to, From: TWILIO_FROM, Body: body }).toString(),
-  });
-  const d = await r.json();
-  if (!r.ok) throw new Error("Twilio error: " + d.message);
-  console.log("SMS sent:", d.sid);
+  }));
+  console.log("SNS SMS sent, MessageId:", result.MessageId);
   return true;
 }
 
@@ -67,7 +68,7 @@ exports.handler = async (event) => {
     // 2. Build tracking link
     const link = buildLink(event, load.trackingToken, load.id);
 
-    // 3. Send SMS via Twilio
+    // 3. Send SMS via AWS SNS
     const smsText =
       "CMP Freight - Load " + load.loadNumber + "\n" +
       "Pickup: " + load.pickupAddress + "\n" +
@@ -77,7 +78,7 @@ exports.handler = async (event) => {
     let smsSent = false;
     let smsError = null;
     try {
-      smsSent = await sendSMS(driverPhone.replace(/[^\d+]/g, ""), smsText);
+      smsSent = await sendSMS(driverPhone, smsText);
     } catch (e) {
       console.warn("SMS failed:", e.message);
       smsError = e.message;
@@ -94,7 +95,8 @@ exports.handler = async (event) => {
             Body: {
               Html: {
                 Data:
-                  "<p>SMS " + (smsSent ? "sent" : "could not be sent") + " to <strong>" + driverPhone + "</strong>.</p>" +
+                  "<p>SMS " + (smsSent ? "sent ✅" : "could not be sent ⚠️") + " to <strong>" + driverPhone + "</strong>.</p>" +
+                  (smsError ? "<p style='color:red;'>Error: " + smsError + "</p>" : "") +
                   "<p><strong>Load:</strong> " + load.loadNumber + "<br>" +
                   "<strong>Driver:</strong> " + (load.assignedDriverName || "Driver") + "<br>" +
                   "<strong>Pickup:</strong> " + load.pickupAddress + "<br>" +
@@ -136,34 +138,6 @@ exports.handler = async (event) => {
 
     return respond(200, { success: true, smsSent, smsError, driverLink: link });
 
-  } catch (err) {
-    if (err.statusCode) return respond(err.statusCode, { error: err.message });
-    console.error("sendDriverLink error:", err);
-    return respond(500, { error: "Internal server error
-        console.warn("SES customer assignment email failed (continuing):", sesErr.message);
-      }
-    }
-
-    return respond(200, {
-      success: true,
-      driverLinkSent: true,
-      driverPhone,
-      notifyCustomer,
-    });
-  } catch (err) {
-    if (err.statusCode) return respond(err.statusCode, { error: err.message });
-    console.error("sendDriverLink error:", err);
-    return respond(500, { error: "Internal server error.
-        console.warn("SES customer assignment email failed (continuing):", sesErr.message);
-      }
-    }
-
-    return respond(200, {
-      success: true,
-      driverLinkSent: true,
-      driverPhone,
-      notifyCustomer,
-    });
   } catch (err) {
     if (err.statusCode) return respond(err.statusCode, { error: err.message });
     console.error("sendDriverLink error:", err);
