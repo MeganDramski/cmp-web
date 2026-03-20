@@ -582,7 +582,7 @@ function renderDetail(){
     +'</div>'
     +(load.assignedDriverName?
         '<div class="dr"><span class="drl">Name</span><span class="drv">'+esc(load.assignedDriverName)+'</span></div>'
-       +(load.assignedDriverPhone?'<div class="dr"><span class="drl">Cell</span><span class="drv"><a href="tel:'+esc(load.assignedDriverPhone)+'">'+esc(load.assignedDriverPhone)+'</a></span></div>':'')
+       +'<div class="dr" style="align-items:center"><span class="drl">Phone</span><span class="drv" style="display:flex;gap:6px;align-items:center"><input id="d-driver-phone" type="tel" value="'+esc(load.assignedDriverPhone||'')+'" placeholder="e.g. +1 555 123 4567" style="flex:1;padding:6px 10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none"/><button id="d-save-phone" class="btn btn-sm" style="background:var(--blue);color:#fff;white-space:nowrap">Save</button></span></div>'
       :'<div class="dr"><span class="drl" style="color:var(--muted);font-style:italic">No driver assigned</span></div>')
     +'</div>'
 
@@ -617,6 +617,19 @@ function renderDetail(){
   document.getElementById('d-edit').addEventListener('click',function(){editLoad(selId);});
   document.getElementById('d-del').addEventListener('click',function(){delLoad(selId);});
   el.querySelectorAll('.cbtn').forEach(function(b){b.addEventListener('click',function(){copyText(this.dataset.cp);});});
+
+  // Save driver phone button
+  if(document.getElementById('d-save-phone')){
+    document.getElementById('d-save-phone').addEventListener('click',function(){
+      var btn=this;
+      var phone=document.getElementById('d-driver-phone').value.trim();
+      var load=null; for(var i=0;i<loads.length;i++){if(loads[i].id===selId){load=loads[i];break;}}
+      if(!load)return;
+      btn.textContent='Saving…'; btn.disabled=true;
+      assignDriver(selId, load.assignedDriverId, load.assignedDriverName, load.assignedDriverEmail, phone||null);
+      setTimeout(function(){btn.textContent='Save'; btn.disabled=false;}, 800);
+    });
+  }
 
   // Driver assignment dropdown
   document.getElementById('d-driver-sel').addEventListener('change',function(){
