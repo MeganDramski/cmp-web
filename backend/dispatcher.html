@@ -589,7 +589,6 @@ function renderDetail(){
     +'<div class="dr"><span class="drl">Current Status</span><span class="drv"><select class="ssel" id="d-status">'+sopts+'</select></span></div>'
     +'</div>'
 
-    // LIVE TRACKING MAP SECTION (shown for In Transit or Assigned loads with a tracking token)
     +(load.trackingToken && (load.status==='In Transit'||load.status==='Assigned') && isLive()
       ? '<div class="sec" id="disp-map-section">'
         +'<div class="map-header"><span><span class="live-dot"></span><span class="map-header-title">Live Driver Location</span></span>'
