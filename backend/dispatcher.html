@@ -731,13 +731,15 @@ function pollDispatcherMap(token){
         _dispMap.panTo([lat,lng]);
       }
 
-      // Update trail
-      if(data.locationHistory&&data.locationHistory.length>1){
-        _dispTrailPts=data.locationHistory.map(function(p){return[p.latitude,p.longitude];});
-        _dispTrail.setLatLngs(_dispTrailPts);
+      // Update trail — only use locationHistory (real posted GPS points).
+      // Never append lastLocation manually; it can be a stale/initial point
+      // that would draw a phantom line when the driver hasn't moved.
+      if(data.locationHistory && data.locationHistory.length >= 2){
+        var pts=data.locationHistory.map(function(p){return[p.latitude,p.longitude];});
+        _dispTrail.setLatLngs(pts);
       } else {
-        _dispTrailPts.push([lat,lng]);
-        _dispTrail.setLatLngs(_dispTrailPts);
+        // Only 0 or 1 point — no trail to draw yet
+        _dispTrail.setLatLngs([]);
       }
 
       // Show stats bar

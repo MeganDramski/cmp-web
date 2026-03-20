@@ -35,17 +35,38 @@ exports.handler = async (event) => {
     let lastLocation = null;
     let locationHistory = [];
     try {
-      const locResult = await db.send(new QueryCommand({
+      const queryParams = {
         TableName:                LOCATIONS_TABLE,
         KeyConditionExpression:   "loadId = :lid",
         ExpressionAttributeValues: marshall({ ":lid": load.id }),
         ScanIndexForward:         true,   // ascending by timestamp = chronological order
-      }));
+      };
+
+      // If the load has a startedAt timestamp, only fetch points from the
+      // current trip — this prevents stale points from previous trips
+      // drawing a phantom line when the driver hasn't moved yet.
+      if (load.startedAt) {
+        queryParams.KeyConditionExpression += " AND #ts >= :start";
+        queryParams.ExpressionAttributeNames = { "#ts": "timestamp" };
+        queryParams.ExpressionAttributeValues = marshall({
+          ":lid": load.id,
+          ":start": load.startedAt,
+        });
+      }
+
+      const locResult = await db.send(new QueryCommand(queryParams));
       if (locResult.Items && locResult.Items.length > 0) {
         locationHistory = locResult.Items.map(unmarshall);
         lastLocation = locationHistory[locationHistory.length - 1];
       }
     } catch (_) { /* no locations yet is fine */ }
+
+    // If no locationHistory points yet but lastLocation exists on the load
+    // (set by startTracking.js), use it as the marker position only —
+    // do NOT include it in locationHistory so it doesn't create a fake trail.
+    if (!lastLocation && load.lastLocation) {
+      lastLocation = load.lastLocation;
+    }
 
     // Return only customer-safe fields (strip internal/private data)
     const safeLoad = {
