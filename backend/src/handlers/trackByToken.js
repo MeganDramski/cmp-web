@@ -31,18 +31,19 @@ exports.handler = async (event) => {
 
     const load = unmarshall(loadResult.Items[0]);
 
-    // Fetch latest location
+    // Fetch latest location + full history for trail
     let lastLocation = null;
+    let locationHistory = [];
     try {
       const locResult = await db.send(new QueryCommand({
         TableName:                LOCATIONS_TABLE,
         KeyConditionExpression:   "loadId = :lid",
         ExpressionAttributeValues: marshall({ ":lid": load.id }),
-        ScanIndexForward:         false,
-        Limit:                    1,
+        ScanIndexForward:         true,   // ascending by timestamp = chronological order
       }));
       if (locResult.Items && locResult.Items.length > 0) {
-        lastLocation = unmarshall(locResult.Items[0]);
+        locationHistory = locResult.Items.map(unmarshall);
+        lastLocation = locationHistory[locationHistory.length - 1];
       }
     } catch (_) { /* no locations yet is fine */ }
 
@@ -64,6 +65,7 @@ exports.handler = async (event) => {
       assignedDriverName: load.assignedDriverName || null,
       notes:           load.notes || "",
       lastLocation,
+      locationHistory,
     };
 
     return respond(200, safeLoad);

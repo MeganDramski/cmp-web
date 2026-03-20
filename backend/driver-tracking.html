@@ -464,12 +464,13 @@
       }
 
       var badge = document.getElementById("status-badge");
-      if (data.status === "In Transit") {
+      } else if (data.status === "In Transit") {
         badge.className  = "status-badge active";
         badge.textContent = "🚛 In Transit";
         document.getElementById("btn-start").style.display = "none";
         document.getElementById("btn-stop").style.display  = "flex";
         isTracking = true;
+        loadTrailHistory();
         startGPS(false);
         // If permission was already denied, the watchPosition error handler will show the message
       } else if (data.status === "Delivered") {
@@ -655,7 +656,7 @@
     }
 
     // ── Map setup ─────────────────────────────────────────────────────────────
-    var map = null, mapMarker = null, mapCircle = null;
+    var map = null, mapMarker = null, mapCircle = null, trailPolyline = null, trailPoints = [];
 
     function initMap(lat, lng) {
       if (map) return;
@@ -671,14 +672,40 @@
       });
       mapMarker = L.marker([lat, lng], { icon: truckIcon }).addTo(map);
       mapCircle = L.circle([lat, lng], { radius: 20, color: '#007AFF', fillColor: '#007AFF', fillOpacity: 0.15, weight: 2 }).addTo(map);
+      // Start the trail polyline
+      trailPolyline = L.polyline(trailPoints, {
+        color: '#007AFF',
+        weight: 4,
+        opacity: 0.8,
+        lineJoin: 'round',
+        lineCap: 'round',
+      }).addTo(map);
     }
 
     function updateMap(lat, lng, accuracy) {
+      // Append to trail
+      trailPoints.push([lat, lng]);
       if (!map) { initMap(lat, lng); return; }
       mapMarker.setLatLng([lat, lng]);
       mapCircle.setLatLng([lat, lng]);
       mapCircle.setRadius(accuracy || 20);
       map.panTo([lat, lng]);
+      if (trailPolyline) trailPolyline.setLatLngs(trailPoints);
+    }
+
+    // Load existing trail from API when resuming a trip
+    function loadTrailHistory() {
+      if (!isLive() || !TOKEN) return;
+      fetch(API_BASE + '/track/' + TOKEN)
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(data) {
+          if (!data || !data.locationHistory || data.locationHistory.length < 2) return;
+          trailPoints = data.locationHistory.map(function(p) { return [p.latitude, p.longitude]; });
+          if (trailPolyline) {
+            trailPolyline.setLatLngs(trailPoints);
+          }
+        })
+        .catch(function() {});
     }
 
     function updateGPSDisplay(pos) {

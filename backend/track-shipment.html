@@ -189,7 +189,7 @@
       ? _raw.replace(/\/$/, "")          // trim any trailing slash
       : null;
 
-    let map, driverMarker;
+    let map, driverMarker, trailPolyline;
 
     (async function init() {
       if (!TOKEN) {
@@ -258,6 +258,24 @@
           document.getElementById("stat-updated").textContent =
             loc.timestamp ? new Date(loc.timestamp).toLocaleTimeString() : "—";
 
+          // Draw movement trail from full history
+          if (data.locationHistory && data.locationHistory.length > 1) {
+            const trailCoords = data.locationHistory.map(function(p) {
+              return [p.latitude, p.longitude];
+            });
+            if (trailPolyline) {
+              trailPolyline.setLatLngs(trailCoords);
+            } else {
+              trailPolyline = L.polyline(trailCoords, {
+                color: '#007AFF',
+                weight: 4,
+                opacity: 0.8,
+                lineJoin: 'round',
+                lineCap: 'round',
+              }).addTo(map);
+            }
+          }
+
           // Update map marker
           const truckIcon = L.divIcon({
             html: `<div style="font-size:26px;line-height:1;">🚛</div>`,
@@ -268,7 +286,12 @@
 
           if (!driverMarker) {
             driverMarker = L.marker([lat, lng], { icon: truckIcon }).addTo(map);
-            map.setView([lat, lng], 10);
+            // Fit map to trail if we have history, otherwise just zoom in
+            if (trailPolyline) {
+              map.fitBounds(trailPolyline.getBounds().pad(0.2));
+            } else {
+              map.setView([lat, lng], 13);
+            }
           } else {
             driverMarker.setLatLng([lat, lng]);
             map.panTo([lat, lng]);
