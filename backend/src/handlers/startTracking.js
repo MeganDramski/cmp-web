@@ -17,7 +17,9 @@ const ses = new SESClient({});
 
 const LOADS_TABLE  = process.env.LOADS_TABLE;
 const FROM_EMAIL   = process.env.SES_FROM_EMAIL;
-const BASE_URL     = process.env.TRACKING_BASE_URL;
+// Use the Amplify frontend URL so links in emails open the HTML pages,
+// not the API Gateway endpoint (which only serves JSON).
+const BASE_URL     = (process.env.AMPLIFY_BASE_URL || process.env.TRACKING_BASE_URL || "").replace(/\/$/, "");
 
 function respond(statusCode, body) {
   return {

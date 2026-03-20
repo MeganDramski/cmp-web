@@ -4,6 +4,8 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>CMP Freight - Dispatcher Portal</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--blue:#007AFF;--green:#34C759;--orange:#FF9500;--red:#FF3B30;--bg:#0f0f1a;--surface:#1c1c2e;--s2:#252538;--border:#2c2c3e;--text:#fff;--muted:#8e8ea0}
@@ -163,7 +165,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .spin{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* MOBILE */
+/* LIVE TRACKING MAP (dispatcher detail panel) */
+#disp-map-section{margin-bottom:12px}
+#disp-map{width:100%;height:280px;border-radius:13px;overflow:hidden;background:#1a1a2e}
+.map-header{display:flex;align-items:center;justify-content:space-between;padding:8px 15px;background:var(--s2);border-bottom:1px solid var(--border)}
+.map-header-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);animation:lpulse 2s ease-in-out infinite;margin-right:5px}
+@keyframes lpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
+.map-stats{display:flex;gap:0;border-top:1px solid var(--border)}
+.map-stat{flex:1;padding:8px 12px;border-right:1px solid var(--border);text-align:center}
+.map-stat:last-child{border-right:none}
+.map-stat-val{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+.map-stat-lbl{font-size:10px;color:var(--muted);margin-top:1px}
+.map-no-loc{display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;color:var(--muted);font-size:13px;gap:6px;text-align:center;padding:16px}
+
 @media(max-width:799px){
   #lp{width:100%;border-right:none}
   #dp{position:fixed;inset:52px 0 0;z-index:50;display:none}
@@ -522,6 +537,7 @@ function selLoad(id){
 
 /* RENDER DETAIL */
 function renderDetail(){
+  stopDispatcherMap();
   var load=null; for(var i=0;i<loads.length;i++){if(loads[i].id===selId){load=loads[i];break;}}
   if(!load)return;
   document.getElementById('dph').style.display='none';
@@ -573,7 +589,22 @@ function renderDetail(){
     +'<div class="dr"><span class="drl">Current Status</span><span class="drv"><select class="ssel" id="d-status">'+sopts+'</select></span></div>'
     +'</div>'
 
-    // DRIVER ASSIGNMENT SECTION
+    // LIVE TRACKING MAP SECTION (shown for In Transit or Assigned loads with a tracking token)
+    +(load.trackingToken && (load.status==='In Transit'||load.status==='Assigned') && isLive()
+      ? '<div class="sec" id="disp-map-section">'
+        +'<div class="map-header"><span><span class="live-dot"></span><span class="map-header-title">Live Driver Location</span></span>'
+        +(load.status==='In Transit'?'<span style="font-size:11px;color:var(--green)">● Tracking active</span>':'<span style="font-size:11px;color:var(--muted)">Waiting for driver to start</span>')
+        +'</div>'
+        +'<div id="disp-map-inner"><div class="map-no-loc">📡<span>'+(load.status==='In Transit'?'Loading driver location…':'Driver has not started tracking yet.<br>Location will appear once they tap Start Tracking.')+'</span></div></div>'
+        +'<div class="map-stats" id="disp-map-stats" style="display:none">'
+        +'<div class="map-stat"><div class="map-stat-val" id="dms-speed">—</div><div class="map-stat-lbl">mph</div></div>'
+        +'<div class="map-stat"><div class="map-stat-val" id="dms-updated">—</div><div class="map-stat-lbl">Last update</div></div>'
+        +'<div class="map-stat"><div class="map-stat-val" id="dms-lat">—</div><div class="map-stat-lbl">Latitude</div></div>'
+        +'<div class="map-stat"><div class="map-stat-val" id="dms-lng">—</div><div class="map-stat-lbl">Longitude</div></div>'
+        +'</div>'
+        +'</div>'
+      : ''
+    )
     +'<div class="sec"><div class="sec-h">Assigned Driver</div>'
     +'<div class="driver-picker">'
     +'<label>Select Driver</label>'
@@ -610,7 +641,7 @@ function renderDetail(){
   el.innerHTML=html;
 
   // Wire events
-  document.getElementById('d-back').addEventListener('click',function(){document.getElementById('dp').classList.remove('on');selId=null;renderList();});
+  document.getElementById('d-back').addEventListener('click',function(){stopDispatcherMap();document.getElementById('dp').classList.remove('on');selId=null;renderList();});
   document.getElementById('d-status').addEventListener('change',function(){updStatus(selId,this.value);});
   document.getElementById('d-notify').addEventListener('change',function(){notifyOn=this.checked;});
   document.getElementById('d-send').addEventListener('click',function(){sendLink(selId);});
@@ -628,30 +659,78 @@ function renderDetail(){
       btn.textContent='Saving…'; btn.disabled=true;
       assignDriver(selId, load.assignedDriverId, load.assignedDriverName, load.assignedDriverEmail, phone||null);
       setTimeout(function(){btn.textContent='Save'; btn.disabled=false;}, 800);
-    });
-  }
-
-  // Driver assignment dropdown
-  document.getElementById('d-driver-sel').addEventListener('change',function(){
-    var driverId=this.value;
-    if(!driverId){
-      // Unassign
-      assignDriver(selId,null,null,null,null);
-    } else {
-      var dr=drivers.find(function(d){return d.email===driverId;});
-      if(dr){
-        assignDriver(selId,dr.email,dr.name,dr.email,dr.phone||null);
-      } else {
-        // Was a manually-entered driver id
-        for(var i=0;i<loads.length;i++){
-          if(loads[i].id===selId&&loads[i].assignedDriverId===driverId){
-            assignDriver(selId,driverId,loads[i].assignedDriverName,loads[i].assignedDriverEmail,loads[i].assignedDriverPhone);
-            break;
-          }
-        }
-      }
-    }
   });
+
+  // Start live map polling for In Transit / Assigned loads
+  startDispatcherMap(load);
+}
+
+/* ── DISPATCHER LIVE MAP ─────────────────────────────────────────────────── */
+var _dispMap=null, _dispMarker=null, _dispTrail=null, _dispTrailPts=[], _dispPollTimer=null;
+
+function stopDispatcherMap(){
+  if(_dispPollTimer){clearInterval(_dispPollTimer);_dispPollTimer=null;}
+  _dispMap=null; _dispMarker=null; _dispTrail=null; _dispTrailPts=[];
+}
+
+function startDispatcherMap(load){
+  stopDispatcherMap();
+  if(!isLive()||!load.trackingToken||(load.status!=='In Transit'&&load.status!=='Assigned'))return;
+  // Immediate first fetch
+  pollDispatcherMap(load.trackingToken);
+  // Then every 15 seconds
+  _dispPollTimer=setInterval(function(){pollDispatcherMap(load.trackingToken);},15000);
+}
+
+function pollDispatcherMap(token){
+  fetch(API+'/track/'+token)
+    .then(function(r){return r.ok?r.json():null;})
+    .then(function(data){
+      if(!data)return;
+      var el=document.getElementById('disp-map-inner');
+      if(!el)return; // panel was closed
+
+      var loc=data.lastLocation;
+      if(!loc){
+        // Still no location — just update status text (no-op on map)
+        return;
+      }
+
+      var lat=loc.latitude, lng=loc.longitude;
+
+      // Build map container if first time we have a location
+      if(!_dispMap){
+        el.innerHTML='<div id="disp-map"></div>';
+        _dispMap=L.map('disp-map',{zoomControl:true,attributionControl:false}).setView([lat,lng],13);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(_dispMap);
+        var truckIcon=L.divIcon({html:'<div style="font-size:26px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">🚛</div>',className:'',iconSize:[32,32],iconAnchor:[16,16]});
+        _dispMarker=L.marker([lat,lng],{icon:truckIcon}).addTo(_dispMap);
+        _dispTrail=L.polyline([],{color:'#007AFF',weight:4,opacity:.85,lineJoin:'round',lineCap:'round'}).addTo(_dispMap);
+      } else {
+        _dispMarker.setLatLng([lat,lng]);
+        _dispMap.panTo([lat,lng]);
+      }
+
+      // Update trail
+      if(data.locationHistory&&data.locationHistory.length>1){
+        _dispTrailPts=data.locationHistory.map(function(p){return[p.latitude,p.longitude];});
+        _dispTrail.setLatLngs(_dispTrailPts);
+      } else {
+        _dispTrailPts.push([lat,lng]);
+        _dispTrail.setLatLngs(_dispTrailPts);
+      }
+
+      // Show stats bar
+      var statsEl=document.getElementById('disp-map-stats');
+      if(statsEl){
+        statsEl.style.display='flex';
+        document.getElementById('dms-speed').textContent=loc.speed!=null?Math.round(loc.speed):'0';
+        document.getElementById('dms-lat').textContent=lat.toFixed(5);
+        document.getElementById('dms-lng').textContent=lng.toFixed(5);
+        document.getElementById('dms-updated').textContent=loc.timestamp?new Date(loc.timestamp).toLocaleTimeString():'—';
+      }
+    })
+    .catch(function(){/* silently ignore network errors */});
 }
 
 /* ASSIGN DRIVER */
