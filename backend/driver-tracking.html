@@ -224,20 +224,21 @@
     .log-time { flex-shrink: 0; font-variant-numeric: tabular-nums; }
 
     /* Error banner */
+    /* Error banner */
     .error-banner {
       width: 100%;
       max-width: 400px;
-      background: rgba(255,59,48,0.15);
-      border: 1px solid rgba(255,59,48,0.3);
-      color: var(--red);
-      padding: 12px 16px;
-      border-radius: 12px;
+      background: rgba(255,59,48,0.12);
+      border: 1px solid rgba(255,59,48,0.35);
+      color: #fff;
+      padding: 16px;
+      border-radius: 14px;
       font-size: 13px;
       margin-bottom: 12px;
       display: none;
+      line-height: 1.5;
     }
     .error-banner.visible { display: block; }
-
     /* Success banner */
     .success-banner {
       width: 100%;
@@ -475,8 +476,7 @@
       } else if (data.status === "Delivered") {
         badge.className   = "status-badge stopped";
         badge.textContent = "✅ Delivered";
-        document.getElementById("btn-start").style.display   = "none";
-        document.getElementById("btn-deliver").style.display = "none";
+        document.getElementById("btn-start").style.display = "none";
         document.getElementById("delivered-screen").style.display = "flex";
       } else {
         badge.textContent = "⏳ " + (data.status || "Pending");
@@ -758,15 +758,93 @@
     function showError(msg) {
       const el = document.getElementById("error-banner");
       el.innerHTML = '';
-      // Detect permission denied and show actionable instructions
-      if (msg.toLowerCase().includes('denied') || msg.toLowerCase().includes('permission')) {
-        el.innerHTML =
-          '<strong>📍 Location access is blocked.</strong><br>' +
-          'To fix this:<br>' +
-          '1. Tap the <strong>🔒 lock icon</strong> in your browser address bar<br>' +
-          '2. Set <strong>Location</strong> to <strong>Allow</strong><br>' +
-          '3. Reload the page and tap <strong>Start Tracking</strong> again<br><br>' +
-          '<button onclick="location.reload()" style="background:#007AFF;color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:15px;font-weight:600;cursor:pointer;margin-top:4px;">🔄 Reload Page</button>';
+
+      const isDenied = msg.toLowerCase().includes('denied') ||
+                       msg.toLowerCase().includes('permission') ||
+                       msg.code === 1;
+
+      if (isDenied) {
+        // Detect iOS vs Android for tailored instructions
+        const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+        const isAndroid = /android/i.test(navigator.userAgent);
+
+        let html = `
+          <div style="font-size:15px;font-weight:700;margin-bottom:10px;">📍 Location Access is Blocked</div>
+          <div style="font-size:13px;margin-bottom:14px;color:#ff9580;">
+            Your phone is blocking this page from seeing your location.
+            Follow the steps below to fix it.
+          </div>`;
+
+        if (isIOS) {
+          html += `
+          <div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+            <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8e8ea0;margin-bottom:8px;">Step 1 — Allow in Safari</div>
+            <div style="font-size:13px;line-height:1.7;">
+              1. Tap the <strong>AA</strong> or <strong>🔒</strong> icon in the Safari address bar<br>
+              2. Tap <strong>"Website Settings"</strong><br>
+              3. Tap <strong>"Location"</strong> → select <strong>"Allow"</strong><br>
+              4. Come back here and tap <strong>🔄 Reload</strong> below
+            </div>
+          </div>
+          <div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+            <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8e8ea0;margin-bottom:8px;">Step 2 — If that doesn't work: Check iPhone Settings</div>
+            <div style="font-size:13px;line-height:1.7;">
+              1. Open the iPhone <strong>Settings</strong> app (grey gear icon)<br>
+              2. Scroll down and tap <strong>"Privacy &amp; Security"</strong><br>
+              3. Tap <strong>"Location Services"</strong><br>
+              4. Make sure <strong>Location Services</strong> is turned <strong>ON</strong> at the top<br>
+              5. Scroll down and tap <strong>"Safari Websites"</strong><br>
+              6. Set it to <strong>"While Using the App"</strong> or <strong>"Ask Next Time"</strong><br>
+              7. Come back here and tap <strong>🔄 Reload</strong> below
+            </div>
+          </div>
+          <div style="background:rgba(255,149,0,0.12);border:1px solid rgba(255,149,0,0.3);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#FF9500;">
+            💡 <strong>Tip:</strong> If you tapped "Don't Allow" when Safari first asked, you must go to iPhone Settings to reset it — Safari won't ask again automatically.
+          </div>`;
+        } else if (isAndroid) {
+          html += `
+          <div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+            <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8e8ea0;margin-bottom:8px;">Step 1 — Allow in Chrome</div>
+            <div style="font-size:13px;line-height:1.7;">
+              1. Tap the <strong>🔒 lock icon</strong> in the Chrome address bar<br>
+              2. Tap <strong>"Permissions"</strong> → <strong>"Location"</strong><br>
+              3. Select <strong>"Allow"</strong><br>
+              4. Tap <strong>🔄 Reload</strong> below
+            </div>
+          </div>
+          <div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+            <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8e8ea0;margin-bottom:8px;">Step 2 — If that doesn't work: Check Android Settings</div>
+            <div style="font-size:13px;line-height:1.7;">
+              1. Open <strong>Settings</strong> → <strong>"Apps"</strong> → <strong>"Chrome"</strong><br>
+              2. Tap <strong>"Permissions"</strong> → <strong>"Location"</strong><br>
+              3. Select <strong>"Allow only while using the app"</strong><br>
+              4. Come back here and tap <strong>🔄 Reload</strong> below
+            </div>
+          </div>`;
+        } else {
+          // Desktop / unknown browser fallback
+          html += `
+          <div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+            <div style="font-size:13px;line-height:1.7;">
+              1. Look for a <strong>🔒 lock</strong> or <strong>📍 location</strong> icon in your browser address bar<br>
+              2. Click it and set <strong>Location</strong> to <strong>"Allow"</strong><br>
+              3. Reload the page and tap <strong>Start Tracking</strong> again
+            </div>
+          </div>`;
+        }
+
+        html += `
+          <button onclick="location.reload()"
+            style="width:100%;background:#007AFF;color:#fff;border:none;border-radius:12px;
+                   padding:14px;font-size:16px;font-weight:700;cursor:pointer;margin-top:4px;
+                   -webkit-tap-highlight-color:transparent;">
+            🔄 Reload Page
+          </button>
+          <div style="font-size:11px;color:#8e8ea0;margin-top:8px;text-align:center;">
+            After changing settings, always reload the page before tapping Start Tracking.
+          </div>`;
+
+        el.innerHTML = html;
       } else {
         el.textContent = msg;
       }
