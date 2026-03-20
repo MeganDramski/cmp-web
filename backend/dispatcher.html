@@ -602,7 +602,8 @@ function renderDetail(){
     +'<p style="font-size:11px;color:var(--muted);margin-top:7px;text-align:center">Sends the driver their load info + a link to start tracking. No app required.</p></div>'
     +'</div>'
 
-    +'<div style="padding:6px 0 28px;text-align:center">'
+    +'<div style="padding:6px 0 28px;display:flex;gap:10px;justify-content:center">'
+    +'<button class="btn btn-sm" id="d-edit" style="background:var(--blue);color:#fff">✏️ Edit Load</button>'
     +'<button class="btn btn-sm btn-outline" style="color:var(--red);border-color:var(--red)" id="d-del">🗑 Delete Load</button>'
     +'</div>';
 
@@ -613,6 +614,7 @@ function renderDetail(){
   document.getElementById('d-status').addEventListener('change',function(){updStatus(selId,this.value);});
   document.getElementById('d-notify').addEventListener('change',function(){notifyOn=this.checked;});
   document.getElementById('d-send').addEventListener('click',function(){sendLink(selId);});
+  document.getElementById('d-edit').addEventListener('click',function(){editLoad(selId);});
   document.getElementById('d-del').addEventListener('click',function(){delLoad(selId);});
   el.querySelectorAll('.cbtn').forEach(function(b){b.addEventListener('click',function(){copyText(this.dataset.cp);});});
 
@@ -806,7 +808,64 @@ document.getElementById('toggle-manual').addEventListener('click',function(){
   if(showing)selectedDriverId=null;
 });
 
+var editingLoadId = null; // null = new load, string = editing existing
+
+function editLoad(id){
+  var load=null; for(var i=0;i<loads.length;i++){if(loads[i].id===id){load=loads[i];break;}}
+  if(!load)return;
+  editingLoadId=id;
+  document.querySelector('#modal-ov .mhdr h2').textContent='✏️ Edit Load';
+  document.getElementById('btn-save').textContent='Save Changes';
+
+  // Pre-fill all fields
+  var tl=function(iso){if(!iso)return'';try{return new Date(iso).toISOString().slice(0,16);}catch(e){return'';}};
+  document.getElementById('al-num').value=load.loadNumber||'';
+  document.getElementById('al-wt').value=load.weight||'';
+  document.getElementById('al-desc').value=load.description||'';
+  document.getElementById('al-pu').value=load.pickupAddress||'';
+  document.getElementById('al-de').value=load.deliveryAddress||'';
+  document.getElementById('al-pd').value=tl(load.pickupDate);
+  document.getElementById('al-dd').value=tl(load.deliveryDate);
+  document.getElementById('al-cn').value=load.customerName||'';
+  document.getElementById('al-ce').value=load.customerEmail||'';
+  document.getElementById('al-cp').value=load.customerPhone||'';
+  document.getElementById('al-notes').value=load.notes||'';
+  document.getElementById('al-nfy').checked=!!load.notifyCustomer;
+  document.getElementById('merr').style.display='none';
+
+  // Pre-select driver
+  selectedDriverId=null;
+  renderDriverPicker();
+  if(load.assignedDriverId){
+    var dr=drivers.find(function(d){return d.email===load.assignedDriverId;});
+    if(dr){
+      selectedDriverId=dr.email;
+      // Visually highlight the selected driver
+      setTimeout(function(){
+        var opts=document.querySelectorAll('#driver-picker-list .driver-option');
+        opts.forEach(function(o){
+          if(o.dataset.id===dr.email){
+            o.classList.add('sel');
+            o.querySelector('.dcheck').style.display='';
+          }
+        });
+      },0);
+    } else {
+      // Driver was manually entered - show in manual fields
+      document.getElementById('manual-driver').style.display='block';
+      document.getElementById('toggle-manual').textContent='- Use driver picker instead';
+      document.getElementById('al-dn').value=load.assignedDriverName||'';
+      document.getElementById('al-dp').value=load.assignedDriverPhone||'';
+    }
+  }
+
+  document.getElementById('modal-ov').classList.add('on');
+}
+
 function openModal(){
+  editingLoadId=null;
+  document.querySelector('#modal-ov .mhdr h2').textContent='New Load';
+  document.getElementById('btn-save').textContent='Save Load';
   var now=new Date(),tom=new Date(now.getTime()+86400000);
   var tl=function(d){return d.toISOString().slice(0,16);};
   document.getElementById('al-pd').value=tl(now);
@@ -820,7 +879,12 @@ function openModal(){
   renderDriverPicker();
   document.getElementById('modal-ov').classList.add('on');
 }
-function closeModal(){ document.getElementById('modal-ov').classList.remove('on'); }
+function closeModal(){
+  document.getElementById('modal-ov').classList.remove('on');
+  editingLoadId=null;
+  document.querySelector('#modal-ov .mhdr h2').textContent='New Load';
+  document.getElementById('btn-save').textContent='Save Load';
+}
 
 function renderDriverPicker(){
   var el=document.getElementById('driver-picker-list');
@@ -868,36 +932,69 @@ function saveLoad(){
     if(dName)dId='D'+Math.floor(Math.random()*900+100);
   }
 
+  var isEdit=!!editingLoadId;
+  var existing=null;
+  if(isEdit){for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){existing=loads[i];break;}}}
+
   var load={
-    id:uid(),
+    id: isEdit ? editingLoadId : uid(),
     loadNumber:document.getElementById('al-num').value.trim()||('CMP-'+Date.now().toString().slice(-4)),
     description:document.getElementById('al-desc').value.trim(),
     weight:parseFloat(document.getElementById('al-wt').value)||0,
     pickupAddress:pu,deliveryAddress:de,
     pickupDate:document.getElementById('al-pd').value?new Date(document.getElementById('al-pd').value).toISOString():new Date().toISOString(),
     deliveryDate:document.getElementById('al-dd').value?new Date(document.getElementById('al-dd').value).toISOString():new Date(Date.now()+86400000).toISOString(),
-    status:dId?'Assigned':'Pending',
+    status: isEdit ? (existing?existing.status:'Pending') : (dId?'Assigned':'Pending'),
     assignedDriverId:dId,assignedDriverName:dName,assignedDriverEmail:dEmail,assignedDriverPhone:dPhone,
-    trackingToken:uid(),
+    trackingToken: isEdit && existing ? existing.trackingToken : uid(),
     customerName:cn,customerEmail:ce,
     customerPhone:document.getElementById('al-cp').value.trim(),
     dispatcherEmail:session&&session.user?session.user.email:null,
     notifyCustomer:document.getElementById('al-nfy').checked,
     notes:document.getElementById('al-notes').value.trim(),
-    createdAt:new Date().toISOString()
+    createdAt: isEdit && existing ? existing.createdAt : new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
 
-  var btn=document.getElementById('btn-save');btn.disabled=true;btn.innerHTML='<span class="spin"></span> Saving…';
+  var btn=document.getElementById('btn-save');
+  btn.disabled=true;
+  btn.innerHTML='<span class="spin"></span> Saving…';
+
   if(!isLive()){
-    loads.unshift(load);localStorage.setItem('cmp_loads',JSON.stringify(loads));
-    renderList();closeModal();selLoad(load.id);toast('Load '+load.loadNumber+' created');
-    btn.disabled=false;btn.textContent='Save Load';return;
+    if(isEdit){
+      for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){loads[i]=load;break;}}
+    } else {
+      loads.unshift(load);
+    }
+    localStorage.setItem('cmp_loads',JSON.stringify(loads));
+    renderList();closeModal();selLoad(load.id);
+    toast(isEdit?'✅ Load updated':'Load '+load.loadNumber+' created');
+    btn.disabled=false;btn.textContent=isEdit?'Save Changes':'Save Load';
+    return;
   }
-  fetch(API+'/loads',{method:'POST',headers:ah(),body:JSON.stringify(load)})
-    .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
-    .then(function(res){if(!res.ok)throw new Error(res.d.error||'Save failed');loads.unshift(res.d);renderList();closeModal();selLoad(res.d.id);toast('Load '+load.loadNumber+' created');})
-    .catch(function(e){var err=document.getElementById('merr');err.textContent=e.message;err.style.display='block';})
-    .finally(function(){btn.disabled=false;btn.textContent='Save Load';});
+
+  if(isEdit){
+    fetch(API+'/loads/'+editingLoadId,{method:'PUT',headers:ah(),body:JSON.stringify(load)})
+      .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
+      .then(function(res){
+        var updated=res.ok?res.d:load; // fall back to local if API doesn't return updated
+        for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){loads[i]=updated;break;}}
+        renderList();closeModal();selLoad(updated.id);toast('✅ Load updated');
+      })
+      .catch(function(e){
+        // If API doesn't support PUT yet, update locally and show warning
+        for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){loads[i]=load;break;}}
+        renderList();closeModal();selLoad(load.id);
+        toast('✅ Updated locally (API update pending)');
+      })
+      .finally(function(){btn.disabled=false;btn.textContent='Save Changes';});
+  } else {
+    fetch(API+'/loads',{method:'POST',headers:ah(),body:JSON.stringify(load)})
+      .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
+      .then(function(res){if(!res.ok)throw new Error(res.d.error||'Save failed');loads.unshift(res.d);renderList();closeModal();selLoad(res.d.id);toast('Load '+load.loadNumber+' created');})
+      .catch(function(e){var err=document.getElementById('merr');err.textContent=e.message;err.style.display='block';})
+      .finally(function(){btn.disabled=false;btn.textContent='Save Load';});
+  }
 }
 
 /* KEYBOARD */

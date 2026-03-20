@@ -1,0 +1,56 @@
+// src/handlers/updateLoad.js
+// PUT /loads/{id}  – full load update (edit all fields)
+const { DynamoDBClient, UpdateItemCommand, GetItemCommand } = require("@aws-sdk/client-dynamodb");
+const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
+const { verifyToken, respond } = require("../utils/auth");
+
+const db = new DynamoDBClient({});
+const TABLE = process.env.LOADS_TABLE;
+
+exports.handler = async (event) => {
+  try {
+    verifyToken(event);
+    const loadId = event.pathParameters && event.pathParameters.id;
+    if (!loadId) return respond(400, { error: "Load ID is required." });
+
+    const body = JSON.parse(event.body || "{}");
+
+    const fields = [
+      "loadNumber","description","weight","pickupAddress","deliveryAddress",
+      "pickupDate","deliveryDate","status","assignedDriverId","assignedDriverName",
+      "assignedDriverEmail","assignedDriverPhone","customerName","customerEmail",
+      "customerPhone","notifyCustomer","notes","dispatcherEmail"
+    ];
+
+    const expParts = ["updatedAt = :updatedAt"];
+    const exprNames = {};
+    const exprValues = { ":updatedAt": new Date().toISOString() };
+
+    fields.forEach(function(f) {
+      if (body[f] !== undefined) {
+        expParts.push("#" + f + " = :" + f);
+        exprNames["#" + f] = f;
+        exprValues[":" + f] = body[f];
+      }
+    });
+
+    await db.send(new UpdateItemCommand({
+      TableName: TABLE,
+      Key: marshall({ id: loadId }),
+      UpdateExpression: "SET " + expParts.join(", "),
+      ExpressionAttributeNames: Object.keys(exprNames).length ? exprNames : undefined,
+      ExpressionAttributeValues: marshall(exprValues),
+    }));
+
+    const result = await db.send(new GetItemCommand({
+      TableName: TABLE,
+      Key: marshall({ id: loadId }),
+    }));
+
+    return respond(200, result.Item ? unmarshall(result.Item) : Object.assign({ id: loadId }, body));
+  } catch (err) {
+    if (err.statusCode) return respond(err.statusCode, { error: err.message });
+    console.error("updateLoad error:", err);
+    return respond(500, { error: "Internal server error." });
+  }
+};
