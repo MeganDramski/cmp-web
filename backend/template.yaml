@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: CMP Tracking Backend - API Gateway + Lambda + DynamoDB
+Description: CMP Tracking Backend
 
 Globals:
   Function:
@@ -9,35 +9,37 @@ Globals:
     MemorySize: 256
     Environment:
       Variables:
-        USERS_TABLE:       !Ref UsersTable
-        LOADS_TABLE:       !Ref LoadsTable
-        LOCATIONS_TABLE:   !Ref LocationsTable
-        JWT_SECRET:        !Ref JwtSecret
-        SES_FROM_EMAIL:    !Ref SesFromEmail
-  HttpApi:
-    CorsConfiguration:
-      AllowOrigins:
-        - "*"
-      AllowHeaders:
-        - Content-Type
-        - Authorization
-      AllowMethods:
-        - GET
-        - POST
-        - PATCH
-        - DELETE
-        - OPTIONS
+        USERS_TABLE:        !Ref UsersTable
+        LOADS_TABLE:        !Ref LoadsTable
+        LOCATIONS_TABLE:    !Ref LocationsTable
+        JWT_SECRET:         !Ref JwtSecret
+        SES_FROM_EMAIL:     !Ref SesFromEmail
+        TWILIO_ACCOUNT_SID: !Ref TwilioAccountSid
+        TWILIO_AUTH_TOKEN:  !Ref TwilioAuthToken
+        TWILIO_FROM_NUMBER: !Ref TwilioFromNumber
+        AMPLIFY_BASE_URL:   !Ref AmplifyBaseUrl
 
 Parameters:
   JwtSecret:
     Type: String
     NoEcho: true
     Default: ""
-    Description: JWT signing secret
   SesFromEmail:
     Type: String
     Default: "no-reply@yourdomain.com"
-    Description: SES-verified sender address
+  TwilioAccountSid:
+    Type: String
+    Default: ""
+  TwilioAuthToken:
+    Type: String
+    NoEcho: true
+    Default: ""
+  TwilioFromNumber:
+    Type: String
+    Default: ""
+  AmplifyBaseUrl:
+    Type: String
+    Default: ""
 
 Resources:
 
@@ -109,13 +111,7 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action:
-                  - dynamodb:GetItem
-                  - dynamodb:PutItem
-                  - dynamodb:UpdateItem
-                  - dynamodb:DeleteItem
-                  - dynamodb:Query
-                  - dynamodb:Scan
+                Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:DeleteItem, dynamodb:Query, dynamodb:Scan]
                 Resource:
                   - !GetAtt UsersTable.Arn
                   - !GetAtt LoadsTable.Arn
@@ -136,6 +132,14 @@ Resources:
                 Action: [sns:Publish]
                 Resource: "*"
 
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins: ["*"]
+        AllowHeaders: ["Content-Type", "Authorization"]
+        AllowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
+
   RegisterFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -147,6 +151,7 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
+            ApiId: !Ref HttpApi
             Path: /users/register
             Method: POST
 
@@ -161,6 +166,7 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
+            ApiId: !Ref HttpApi
             Path: /users/login
             Method: POST
 
@@ -175,6 +181,7 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
+            ApiId: !Ref HttpApi
             Path: /loads
             Method: GET
 
@@ -189,6 +196,7 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
+            ApiId: !Ref HttpApi
             Path: /loads
             Method: POST
 
@@ -203,6 +211,7 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
+            ApiId: !Ref HttpApi
             Path: /loads/{id}/status
             Method: PATCH
 
@@ -217,6 +226,7 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
+            ApiId: !Ref HttpApi
             Path: /locations
             Method: POST
 
@@ -231,6 +241,7 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
+            ApiId: !Ref HttpApi
             Path: /loads/{id}/location
             Method: GET
 
@@ -245,6 +256,7 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
+            ApiId: !Ref HttpApi
             Path: /track/{token}
             Method: GET
 
@@ -259,6 +271,7 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
+            ApiId: !Ref HttpApi
             Path: /loads/{id}/send-driver-link
             Method: POST
 
@@ -273,6 +286,7 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
+            ApiId: !Ref HttpApi
             Path: /track/{token}/start
             Method: POST
 
@@ -287,16 +301,11 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
+            ApiId: !Ref HttpApi
             Path: /track/{token}/location
             Method: POST
 
 Outputs:
   ApiBaseUrl:
-    Description: "API Gateway base URL - set as CMP_API_BASE in Amplify and AWSConfig.swift"
-    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
-  UsersTableName:
-    Value: !Ref UsersTable
-  LoadsTableName:
-    Value: !Ref LoadsTable
-  LocationsTableName:
-    Value: !Ref LocationsTable
+    Description: "API Gateway base URL"
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"
