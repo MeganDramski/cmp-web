@@ -12,6 +12,136 @@
 import SwiftUI
 import MapKit
 
+// MARK: - Road-Snapping MKMapView Wrapper
+
+/// UIViewRepresentable that wraps MKMapView so we can draw MKPolyline overlays
+/// (SwiftUI's Map doesn't support overlays in iOS 16 without MapKit for SwiftUI extras).
+/// Routes are fetched via MKDirections so the trail follows actual roads.
+struct RoadSnappingMapView: UIViewRepresentable {
+    let annotations: [TrackAnnotation]
+    let rawTrail: [CLLocationCoordinate2D]   // raw GPS points (used as fallback)
+    @Binding var region: MKCoordinateRegion
+    // Routed polyline segments are accumulated inside the Coordinator
+    // so they persist across SwiftUI re-renders.
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> MKMapView {
+        let mv = MKMapView()
+        mv.delegate = context.coordinator
+        mv.showsUserLocation = false
+        mv.isZoomEnabled = true
+        mv.isScrollEnabled = true
+        mv.isPitchEnabled = false
+        mv.setRegion(region, animated: false)
+        return mv
+    }
+
+    func updateUIView(_ mv: MKMapView, context: Context) {
+        // ── Sync region (only when SwiftUI changes it, e.g. recenter tap) ──
+        let mvCenter = mv.region.center
+        let desired  = region.center
+        let latDiff  = abs(mvCenter.latitude  - desired.latitude)
+        let lngDiff  = abs(mvCenter.longitude - desired.longitude)
+        if latDiff > 0.0001 || lngDiff > 0.0001 {
+            mv.setRegion(region, animated: true)
+        }
+
+        // ── Sync annotations ──────────────────────────────────────────────
+        mv.removeAnnotations(mv.annotations)
+        for ann in annotations {
+            let pin = TrackPin(annotation: ann)
+            mv.addAnnotation(pin)
+        }
+
+        // ── Append new raw GPS points and request routing ──────────────────
+        let coordinator = context.coordinator
+        let newPoints = rawTrail.dropFirst(coordinator.processedCount)
+        guard !newPoints.isEmpty else { return }
+
+        if coordinator.processedCount == 0, let first = rawTrail.first {
+            // First point — just record it, nothing to route yet
+            coordinator.lastRouteEnd = first
+            coordinator.processedCount = rawTrail.count
+            return
+        }
+
+        let startCoord = coordinator.lastRouteEnd ?? rawTrail[coordinator.processedCount - 1]
+        guard let endCoord = newPoints.last else { return }
+        coordinator.processedCount = rawTrail.count
+
+        // Request road-following route from last known point to new point
+        let request = MKDirections.Request()
+        request.transportType = .automobile
+        request.source = MKMapItem(placemark: MKPlacemark(coordinate: startCoord))
+        request.destination = MKMapItem(placemark: MKPlacemark(coordinate: endCoord))
+
+        let directions = MKDirections(request: request)
+        coordinator.pendingDirections.append(directions)
+        directions.calculate { response, error in
+            DispatchQueue.main.async {
+                coordinator.pendingDirections.removeAll { $0 === directions }
+                if let route = response?.routes.first {
+                    // Road-following polyline
+                    coordinator.lastRouteEnd = endCoord
+                    mv.addOverlay(route.polyline, level: .aboveRoads)
+                    coordinator.routedOverlays.append(route.polyline)
+                } else {
+                    // Routing failed (no network, over water, etc.) — draw straight segment
+                    var coords = [startCoord, endCoord]
+                    let fallback = MKPolyline(coordinates: &coords, count: 2)
+                    coordinator.lastRouteEnd = endCoord
+                    mv.addOverlay(fallback, level: .aboveRoads)
+                    coordinator.routedOverlays.append(fallback)
+                }
+            }
+        }
+    }
+
+    // MARK: Coordinator
+    class Coordinator: NSObject, MKMapViewDelegate {
+        var processedCount = 0
+        var lastRouteEnd: CLLocationCoordinate2D?
+        var routedOverlays: [MKPolyline] = []
+        var pendingDirections: [MKDirections] = []
+
+        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            if let polyline = overlay as? MKPolyline {
+                let renderer = MKPolylineRenderer(polyline: polyline)
+                renderer.strokeColor = UIColor.systemBlue
+                renderer.lineWidth = 5
+                renderer.lineJoin = .round
+                renderer.lineCap = .round
+                renderer.alpha = 0.85
+                return renderer
+            }
+            return MKOverlayRenderer(overlay: overlay)
+        }
+
+        func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            guard let pin = annotation as? TrackPin else { return nil }
+            let view = MKAnnotationView(annotation: pin, reuseIdentifier: "truck")
+            // Build a UIHostingController snapshot for the truck icon
+            let host = UIHostingController(rootView:
+                TruckAnnotationView(speed: pin.trackAnnotation.speed,
+                                    heading: pin.trackAnnotation.heading))
+            host.view.backgroundColor = .clear
+            host.view.frame = CGRect(x: 0, y: 0, width: 48, height: 48)
+            view.addSubview(host.view)
+            view.frame = host.view.frame
+            view.centerOffset = CGPoint(x: 0, y: -24)
+            return view
+        }
+    }
+}
+
+/// MKAnnotation wrapper for TrackAnnotation
+class TrackPin: NSObject, MKAnnotation {
+    let trackAnnotation: TrackAnnotation
+    var coordinate: CLLocationCoordinate2D { trackAnnotation.coordinate }
+    init(annotation: TrackAnnotation) { self.trackAnnotation = annotation }
+}
+
 // MARK: - Tracking Map View
 
 struct TrackingMapView: View {
@@ -22,11 +152,9 @@ struct TrackingMapView: View {
     @StateObject private var network = NetworkManager.shared
     @State private var mapRegion: MKCoordinateRegion
     @State private var annotations: [TrackAnnotation] = []
-    @State private var polylineCoords: [CLLocationCoordinate2D] = []
-    @State private var isPolling = false
+    @State private var rawTrail: [CLLocationCoordinate2D] = []   // raw GPS points fed to RoadSnappingMapView
     @State private var pollingTimer: Timer?
     @State private var lastUpdate: LocationUpdate?
-    @State private var showCopied = false
     @Environment(\.dismiss) var dismiss
 
     init(loadId: String, initialLocation: LocationUpdate, loadNumber: String) {
@@ -39,20 +167,20 @@ struct TrackingMapView: View {
         ))
         _annotations = State(initialValue: [TrackAnnotation(location: initialLocation)])
         _lastUpdate = State(initialValue: initialLocation)
+        _rawTrail = State(initialValue: [initialLocation.coordinate])
     }
 
     var body: some View {
         NavigationView {
             ZStack(alignment: .bottom) {
 
-                // ── Map — fully interactive: pinch to zoom, drag to pan ────
-                Map(coordinateRegion: $mapRegion, annotationItems: annotations) { annotation in
-                    MapAnnotation(coordinate: annotation.coordinate) {
-                        TruckAnnotationView(speed: annotation.speed, heading: annotation.heading)
-                    }
-                }
+                // ── Map — road-following polyline via MKDirections ─────────
+                RoadSnappingMapView(
+                    annotations: annotations,
+                    rawTrail: rawTrail,
+                    region: $mapRegion
+                )
                 .ignoresSafeArea(edges: .top)
-                .gesture(DragGesture().onChanged { _ in }) // allows free pan without interference
 
                 // ── Info Panel ───────────────────────────────────────────────
                 infoPanel
@@ -189,7 +317,7 @@ struct TrackingMapView: View {
         lastUpdate = update
         let coord = update.coordinate
         annotations = [TrackAnnotation(location: update)]
-        polylineCoords.append(coord)
+        rawTrail.append(coord)
 
         // Only move the map center if the truck has drifted outside
         // the currently visible region — this way manual zoom/pan is preserved.
@@ -302,6 +430,7 @@ struct CustomerTrackingView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var liveLocation: LocationUpdate?
+    @State private var rawTrail: [CLLocationCoordinate2D] = []
     @State private var mapRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 0, longitude: 0),
         span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
@@ -329,6 +458,7 @@ struct CustomerTrackingView: View {
             liveLocation = update
             let coord = update.coordinate
             annotations = [TrackAnnotation(location: update)]
+            rawTrail.append(coord)
             withAnimation { mapRegion.center = coord }
         }
     }
@@ -340,13 +470,14 @@ struct CustomerTrackingView: View {
         ScrollView {
             VStack(spacing: 0) {
 
+
                 // ── Live Map ─────────────────────────────────────────────────
                 ZStack(alignment: .topLeading) {
-                    Map(coordinateRegion: $mapRegion, annotationItems: annotations) { ann in
-                        MapAnnotation(coordinate: ann.coordinate) {
-                            TruckAnnotationView(speed: ann.speed, heading: ann.heading)
-                        }
-                    }
+                    RoadSnappingMapView(
+                        annotations: annotations,
+                        rawTrail: rawTrail,
+                        region: $mapRegion
+                    )
                     .frame(height: 280)
 
                     // Live badge
@@ -576,6 +707,8 @@ struct CustomerTrackingView: View {
                             center: loc.coordinate,
                             span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
                         )
+                        // Seed trail with current location; more points arrive via WebSocket
+                        self.rawTrail = [loc.coordinate]
                     }
                     // Connect WebSocket to receive live pushes for THIS load only
                     NetworkManager.shared.connectWebSocket(forLoadId: resolvedLoad.id)

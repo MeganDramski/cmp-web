@@ -236,18 +236,19 @@
         pts = sampled;
       }
       const coords = pts.map(p => p.longitude + ',' + p.latitude).join(';');
-      const timestamps = pts.map(p => p.timestamp ? Math.floor(new Date(p.timestamp).getTime() / 1000) : 0);
-      const useTs = timestamps.every(t => t > 0) && timestamps.every((t, i) => i === 0 || t >= timestamps[i - 1]);
+      // Only send timestamps if every point has one AND they are strictly non-decreasing
+      const rawTs = pts.map(p => p.timestamp ? Math.floor(new Date(p.timestamp).getTime() / 1000) : 0);
+      const useTs = rawTs.every(t => t > 0) && rawTs.every((t, i) => i === 0 || t >= rawTs[i - 1]);
       const url = 'https://router.project-osrm.org/match/v1/driving/' + coords
                 + '?overview=full&geometries=geojson&steps=false'
-                + (useTs ? '&timestamps=' + timestamps.join(';') : '');
+                + (useTs ? '&timestamps=' + rawTs.join(';') : '');
       fetch(url)
-        .then(r => r.ok ? r.json() : null)
+        .then(r => r.json().catch(() => null))
         .then(data => {
           if (!data || !data.matchings || !data.matchings.length) { callback(null); return; }
           const roadCoords = [];
           data.matchings.forEach(m => m.geometry.coordinates.forEach(c => roadCoords.push([c[1], c[0]])));
-          callback(roadCoords);
+          if (roadCoords.length >= 2) { callback(roadCoords); } else { callback(null); }
         })
         .catch(() => callback(null));
     }
