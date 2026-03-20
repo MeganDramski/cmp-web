@@ -772,7 +772,14 @@ function sendLink(id){
           btn.style.background='#1a7a35';
           toast('📱 SMS sent to driver');
         } else {
-          btn.textContent='⚠️ SMS failed – check Twilio';
+          var errMsg = d.smsError || '';
+          if(errMsg.indexOf('21608') !== -1 || errMsg.indexOf('unverified') !== -1){
+            btn.textContent='⚠️ Twilio trial – upgrade at console.twilio.com';
+          } else if(errMsg){
+            btn.textContent='⚠️ '+errMsg.substring(0,60);
+          } else {
+            btn.textContent='⚠️ SMS failed – check Twilio';
+          }
           btn.style.background='var(--red)';
           btn.disabled=false;
         }

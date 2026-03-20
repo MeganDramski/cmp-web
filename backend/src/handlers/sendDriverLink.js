@@ -75,10 +75,12 @@ exports.handler = async (event) => {
       "Tap to start tracking:\n" + link;
 
     let smsSent = false;
+    let smsError = null;
     try {
       smsSent = await sendSMS(driverPhone.replace(/[^\d+]/g, ""), smsText);
     } catch (e) {
       console.warn("SMS failed:", e.message);
+      smsError = e.message;
     }
 
     // 4. Email dispatcher confirmation
@@ -132,11 +134,39 @@ exports.handler = async (event) => {
       }
     }
 
-    return respond(200, { success: true, smsSent, driverLink: link });
+    return respond(200, { success: true, smsSent, smsError, driverLink: link });
 
   } catch (err) {
     if (err.statusCode) return respond(err.statusCode, { error: err.message });
     console.error("sendDriverLink error:", err);
-    return respond(500, { error: "Internal server error" });
+    return respond(500, { error: "Internal server error
+        console.warn("SES customer assignment email failed (continuing):", sesErr.message);
+      }
+    }
+
+    return respond(200, {
+      success: true,
+      driverLinkSent: true,
+      driverPhone,
+      notifyCustomer,
+    });
+  } catch (err) {
+    if (err.statusCode) return respond(err.statusCode, { error: err.message });
+    console.error("sendDriverLink error:", err);
+    return respond(500, { error: "Internal server error.
+        console.warn("SES customer assignment email failed (continuing):", sesErr.message);
+      }
+    }
+
+    return respond(200, {
+      success: true,
+      driverLinkSent: true,
+      driverPhone,
+      notifyCustomer,
+    });
+  } catch (err) {
+    if (err.statusCode) return respond(err.statusCode, { error: err.message });
+    console.error("sendDriverLink error:", err);
+    return respond(500, { error: "Internal server error." });
   }
 };
