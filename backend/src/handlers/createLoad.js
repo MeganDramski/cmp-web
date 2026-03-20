@@ -19,8 +19,7 @@ exports.handler = async (event) => {
     }
 
     const body = JSON.parse(event.body || "{}");
-    const required = ["loadNumber", "description", "pickupAddress", "deliveryAddress",
-                      "customerName", "customerEmail", "customerPhone"];
+    const required = ["pickupAddress", "deliveryAddress", "customerName"];
     for (const field of required) {
       if (!body[field]) return respond(400, { error: `${field} is required.` });
     }

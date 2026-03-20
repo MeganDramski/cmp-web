@@ -282,13 +282,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
       <div class="ftitle">Customer</div>
       <div class="fg"><label>Customer Name *</label><input type="text" id="al-cn" placeholder="Acme Corp"/></div>
       <div class="frow">
-        <div class="fg"><label>Customer Email *</label><input type="email" id="al-ce" placeholder="logistics@acme.com"/></div>
+        <div class="fg"><label>Customer Email</label><input type="email" id="al-ce" placeholder="logistics@acme.com"/></div>
         <div class="fg"><label>Customer Phone</label><input type="tel" id="al-cp" placeholder="+1 312 555 0100"/></div>
       </div>
       <div class="sec" style="margin-top:11px">
         <div class="togrow" style="border-bottom:none">
           <div class="togl">📧 Email customer when driver starts<small>Customer gets a live tracking link by email.</small></div>
-          <label class="tog"><input type="checkbox" id="al-nfy" checked/><span class="togs"></span></label>
+          <label class="tog"><input type="checkbox" id="al-nfy"/><span class="togs"></span></label>
         </div>
       </div>
       <div class="ftitle">Notes</div>
@@ -939,7 +939,7 @@ function saveLoad(){
   var de=document.getElementById('al-de').value.trim();
   var cn=document.getElementById('al-cn').value.trim();
   var ce=document.getElementById('al-ce').value.trim();
-  if(!pu||!de||!cn||!ce){var e=document.getElementById('merr');e.textContent='Pickup, delivery, customer name and email are required.';e.style.display='block';return;}
+  if(!pu||!de||!cn){var e=document.getElementById('merr');e.textContent='Pickup address, delivery address and customer name are required.';e.style.display='block';return;}
 
   // Resolve driver from picker or manual fields
   var dId=null,dName=null,dEmail=null,dPhone=null;
