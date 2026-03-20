@@ -702,23 +702,46 @@ function startDispatcherMap(load){
   _dispPollTimer=setInterval(function(){pollDispatcherMap(load.trackingToken);},15000);
 }
 
+// Keep only location points from the last 4 hours — filters out stale
+// DynamoDB records from previous test sessions that cause phantom lines.
+function filterRecentLocations(history){
+  if(!history||!history.length)return[];
+  var cutoff=Date.now()-(4*60*60*1000);
+  return history.filter(function(p){
+    if(!p.timestamp)return true;
+    return new Date(p.timestamp).getTime()>=cutoff;
+  });
+}
+function isRecentPoint(p){
+  if(!p||!p.timestamp)return false;
+  return new Date(p.timestamp).getTime()>=(Date.now()-(4*60*60*1000));
+}
+
 function pollDispatcherMap(token){
   fetch(API+'/track/'+token)
     .then(function(r){return r.ok?r.json():null;})
     .then(function(data){
       if(!data)return;
       var el=document.getElementById('disp-map-inner');
-      if(!el)return; // panel was closed
+      if(!el)return;
 
-      var loc=data.lastLocation;
+      // Filter out stale history points from previous trips/sessions
+      var recentHistory=filterRecentLocations(data.locationHistory);
+
+      // Use the most recent point from filtered history as the position,
+      // falling back to data.lastLocation only if history is empty.
+      var loc=recentHistory.length
+        ? recentHistory[recentHistory.length-1]
+        : (data.lastLocation && isRecentPoint(data.lastLocation) ? data.lastLocation : null);
+
       if(!loc){
-        // Still no location — just update status text (no-op on map)
+        // No fresh location yet — driver hasn't started or data is stale
         return;
       }
 
       var lat=loc.latitude, lng=loc.longitude;
 
-      // Build map container if first time we have a location
+      // Build map container first time we have a location
       if(!_dispMap){
         el.innerHTML='<div id="disp-map"></div>';
         _dispMap=L.map('disp-map',{zoomControl:true,attributionControl:false}).setView([lat,lng],13);
@@ -731,14 +754,11 @@ function pollDispatcherMap(token){
         _dispMap.panTo([lat,lng]);
       }
 
-      // Update trail — only use locationHistory (real posted GPS points).
-      // Never append lastLocation manually; it can be a stale/initial point
-      // that would draw a phantom line when the driver hasn't moved.
-      if(data.locationHistory && data.locationHistory.length >= 2){
-        var pts=data.locationHistory.map(function(p){return[p.latitude,p.longitude];});
+      // Trail: only draw when we have 2+ recent points (real movement)
+      if(recentHistory.length>=2){
+        var pts=recentHistory.map(function(p){return[p.latitude,p.longitude];});
         _dispTrail.setLatLngs(pts);
       } else {
-        // Only 0 or 1 point — no trail to draw yet
         _dispTrail.setLatLngs([]);
       }
 
