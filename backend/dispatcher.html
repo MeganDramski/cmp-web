@@ -721,50 +721,32 @@ function isRecentPoint(p){
 // Points are subsampled to max 100 to stay within URL length limits.
 // Calls callback(roadCoords) where roadCoords = [[lat,lng], ...]
 function snapToRoads(history, callback){
-  // Subsample: take at most 100 evenly-spaced points
+  if(!history || history.length < 2){ callback(null); return; }
+
+  // Subsample: at most 25 points (OSRM /route waypoint limit)
   var pts = history;
-  if(pts.length > 100){
-    var step = pts.length / 100;
+  if(pts.length > 25){
+    var step = (pts.length - 1) / 24;
     var sampled = [];
-    for(var i=0;i<100;i++) sampled.push(pts[Math.floor(i*step)]);
-    sampled[sampled.length-1] = pts[pts.length-1];
+    for(var i = 0; i < 24; i++) sampled.push(pts[Math.round(i * step)]);
+    sampled.push(pts[pts.length - 1]);
     pts = sampled;
   }
 
-  var coords = pts.map(function(p){ return p.longitude+','+p.latitude; }).join(';');
-  var timestamps = pts.map(function(p){
-    return p.timestamp ? Math.floor(new Date(p.timestamp).getTime()/1000) : 0;
-  });
-  var useTs = timestamps.every(function(t){ return t>0; }) &&
-              timestamps.every(function(t,i){ return i===0||t>=timestamps[i-1]; });
+  var coords = pts.map(function(p){ return p.longitude + ',' + p.latitude; }).join(';');
+  var url = 'https://router.project-osrm.org/route/v1/driving/' + coords
+          + '?overview=full&geometries=geojson&steps=false';
 
-  var baseUrl = 'https://router.project-osrm.org/match/v1/driving/' + coords
-              + '?overview=full&geometries=geojson&steps=false';
-
-  function parseRoadCoords(data){
-    if(!data || !data.matchings || !data.matchings.length) return null;
-    var roadCoords = [];
-    data.matchings.forEach(function(m){
-      m.geometry.coordinates.forEach(function(c){
-        roadCoords.push([c[1], c[0]]);
-      });
-    });
-    return roadCoords.length >= 2 ? roadCoords : null;
-  }
-
-  // Try with timestamps first; if OSRM rejects (400/NoMatch), retry without them
-  fetch(baseUrl + (useTs ? '&timestamps='+timestamps.join(';') : ''))
+  fetch(url)
     .then(function(r){ return r.json().catch(function(){ return null; }); })
     .then(function(data){
-      var result = parseRoadCoords(data);
-      if(result){ callback(result); return; }
-      // Retry without timestamps (handles NoSegment / NoMatch errors)
-      if(useTs){
-        return fetch(baseUrl)
-          .then(function(r){ return r.json().catch(function(){ return null; }); })
-          .then(function(data2){ callback(parseRoadCoords(data2)); });
+      if(!data || data.code !== 'Ok' || !data.routes || !data.routes.length){
+        callback(null); return;
       }
-      callback(null);
+      var roadCoords = data.routes[0].geometry.coordinates.map(function(c){
+        return [c[1], c[0]]; // GeoJSON [lng,lat] → Leaflet [lat,lng]
+      });
+      callback(roadCoords.length >= 2 ? roadCoords : null);
     })
     .catch(function(){ callback(null); });
 }

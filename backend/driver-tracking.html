@@ -685,8 +685,8 @@
       }).addTo(map);
     }
 
-    // Snap trailPoints to roads via OSRM /match (free, no API key, works on iOS Safari + Android Chrome).
-    // Falls back to raw GPS coords if OSRM is unreachable or returns no match.
+    // Snap trailPoints to roads via OSRM /route — works everywhere, no API key needed.
+    // Falls back to raw GPS if OSRM is unreachable.
     function snapAndDrawTrail() {
       if (!trailPolyline || trailPoints.length < 2) {
         if (trailPolyline && trailPoints.length === 1) {
@@ -695,41 +695,33 @@
         return;
       }
 
-      // Sample down to ≤100 points so the OSRM URL stays within limits
+      // Sample down to ≤25 waypoints (OSRM /route limit)
       var pts = trailPoints;
-      if (pts.length > 100) {
-        var step = pts.length / 100;
+      if (pts.length > 25) {
+        var step = (pts.length - 1) / 24;
         var sampled = [];
-        for (var i = 0; i < 100; i++) sampled.push(pts[Math.floor(i * step)]);
-        sampled[sampled.length - 1] = pts[pts.length - 1];
+        for (var i = 0; i < 24; i++) sampled.push(pts[Math.round(i * step)]);
+        sampled.push(pts[pts.length - 1]);
         pts = sampled;
       }
 
       var coords = pts.map(function(p) { return p.lng + ',' + p.lat; }).join(';');
-      var timestamps = pts.map(function(p) { return p.ts || 0; });
-      var useTs = timestamps.every(function(t) { return t > 0; }) &&
-                  timestamps.every(function(t, i) { return i === 0 || t >= timestamps[i - 1]; });
-
-      var url = 'https://router.project-osrm.org/match/v1/driving/' + coords
-              + '?overview=full&geometries=geojson&steps=false'
-              + (useTs ? '&timestamps=' + timestamps.join(';') : '');
+      var url = 'https://router.project-osrm.org/route/v1/driving/' + coords
+              + '?overview=full&geometries=geojson&steps=false';
 
       snapInFlight = true;
       fetch(url)
-        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(r) { return r.json().catch(function() { return null; }); })
         .then(function(data) {
           snapInFlight = false;
-          if (data && data.matchings && data.matchings.length) {
-            var roadCoords = [];
-            data.matchings.forEach(function(m) {
-              m.geometry.coordinates.forEach(function(c) { roadCoords.push([c[1], c[0]]); });
-            });
+          if (data && data.code === 'Ok' && data.routes && data.routes.length) {
+            var roadCoords = data.routes[0].geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
             if (roadCoords.length >= 2) {
               trailPolyline.setLatLngs(roadCoords);
               return;
             }
           }
-          // OSRM matched nothing useful — fall back to raw GPS
+          // OSRM returned nothing useful — keep raw GPS trail
           trailPolyline.setLatLngs(trailPoints.map(function(p) { return [p.lat, p.lng]; }));
         })
         .catch(function() {

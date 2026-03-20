@@ -87,18 +87,18 @@ struct RoadSnappingMapView: UIViewRepresentable {
         func snapToRoads(_ trail: [CLLocationCoordinate2D], mapView mv: MKMapView) {
             guard trail.count >= 2 else { return }
 
-            // Sample down to ≤100 points (OSRM URL length limit)
+            // Sample down to ≤25 waypoints (OSRM /route limit)
             var pts = trail
-            if pts.count > 100 {
-                let step = Double(pts.count) / 100.0
+            if pts.count > 25 {
+                let step = Double(pts.count - 1) / 24.0
                 var sampled: [CLLocationCoordinate2D] = []
-                for i in 0..<100 { sampled.append(pts[Int(Double(i) * step)]) }
-                sampled[sampled.count - 1] = pts[pts.count - 1]
+                for i in 0..<24 { sampled.append(pts[Int((Double(i) * step).rounded())]) }
+                sampled.append(pts[pts.count - 1])
                 pts = sampled
             }
 
             let coordStr = pts.map { "\($0.longitude),\($0.latitude)" }.joined(separator: ";")
-            let urlStr = "https://router.project-osrm.org/match/v1/driving/\(coordStr)?overview=full&geometries=geojson&steps=false"
+            let urlStr = "https://router.project-osrm.org/route/v1/driving/\(coordStr)?overview=full&geometries=geojson&steps=false"
             guard let url = URL(string: urlStr) else { return }
 
             currentTask?.cancel()
@@ -107,22 +107,21 @@ struct RoadSnappingMapView: UIViewRepresentable {
             currentTask = URLSession.shared.dataTask(with: request) { data, _, _ in
                 guard let data = data,
                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let matchings = json["matchings"] as? [[String: Any]], !matchings.isEmpty
+                      (json["code"] as? String) == "Ok",
+                      let routes = json["routes"] as? [[String: Any]],
+                      let first = routes.first,
+                      let geometry = first["geometry"] as? [String: Any],
+                      let coordsArray = geometry["coordinates"] as? [[Double]]
                 else {
                     // OSRM failed — raw trail already visible, nothing to do
                     return
                 }
 
-                // Decode GeoJSON coordinates from all matchings
+                // Decode GeoJSON coordinates from route geometry
                 var roadCoords: [CLLocationCoordinate2D] = []
-                for matching in matchings {
-                    if let geometry = matching["geometry"] as? [String: Any],
-                       let coordsArray = geometry["coordinates"] as? [[Double]] {
-                        for c in coordsArray {
-                            guard c.count >= 2 else { continue }
-                            roadCoords.append(CLLocationCoordinate2D(latitude: c[1], longitude: c[0]))
-                        }
-                    }
+                for c in coordsArray {
+                    guard c.count >= 2 else { continue }
+                    roadCoords.append(CLLocationCoordinate2D(latitude: c[1], longitude: c[0]))
                 }
                 guard roadCoords.count >= 2 else { return }
 
