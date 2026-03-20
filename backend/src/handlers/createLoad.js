@@ -44,6 +44,8 @@ exports.handler = async (event) => {
       customerEmail:       body.customerEmail,
       customerPhone:       body.customerPhone,
       notes:               body.notes          || "",
+      dispatcherEmail:     body.dispatcherEmail || user.email,  // always store so startTracking can email them
+      notifyCustomer:      body.notifyCustomer  || false,
       createdAt:           new Date().toISOString(),
       createdBy:           user.email,
     };

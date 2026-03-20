@@ -76,12 +76,17 @@ exports.handler = async (event) => {
     }));
 
     // ── 3. Email dispatcher ─────────────────────────────────────────────────
-    const emailRecipient = dispatcherEmail || load.dispatcherEmail;
+    const emailRecipient = dispatcherEmail || load.dispatcherEmail || load.createdBy;
     if (FROM_EMAIL && emailRecipient) {
       try {
-        const locationNote = latitude != null
-          ? `<p>Initial location: <a href="https://maps.google.com/?q=${latitude},${longitude}">View on map</a></p>`
-          : "";
+        const mapsLink = latitude != null
+          ? `https://maps.google.com/?q=${latitude},${longitude}`
+          : null;
+        const customerTrackURL = `${BASE_URL}/track-shipment.html?token=${load.trackingToken}`;
+        const startedTime = new Date(now).toLocaleString("en-US", {
+          month: "short", day: "numeric", year: "numeric",
+          hour: "numeric", minute: "2-digit", timeZoneName: "short"
+        });
 
         await ses.send(new SendEmailCommand({
           Source: FROM_EMAIL,
@@ -91,22 +96,38 @@ exports.handler = async (event) => {
             Body: {
               Html: {
                 Data: `
-                  <p>Hello,</p>
-                  <p>The driver has tapped <strong>Start Tracking</strong> for load
-                  <strong>${load.loadNumber}</strong>.</p>
-                  <table style="border-collapse:collapse;margin:12px 0;">
-                    <tr><td style="padding:4px 12px 4px 0;color:#666;">Driver</td>
-                        <td>${load.assignedDriverName || "Driver"}</td></tr>
-                    <tr><td style="padding:4px 12px 4px 0;color:#666;">Pickup</td>
-                        <td>${load.pickupAddress}</td></tr>
-                    <tr><td style="padding:4px 12px 4px 0;color:#666;">Delivery</td>
-                        <td>${load.deliveryAddress}</td></tr>
-                    <tr><td style="padding:4px 12px 4px 0;color:#666;">Started at</td>
-                        <td>${now}</td></tr>
-                  </table>
-                  ${locationNote}
-                  <p style="color:#888;font-size:12px;">– CMP Freight Tracking</p>
-                `,
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f4f4f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);">
+    <div style="background:#007AFF;padding:24px 28px;">
+      <div style="font-size:22px;font-weight:700;color:#fff;">🚛 Driver Started Tracking</div>
+      <div style="color:rgba(255,255,255,.8);font-size:14px;margin-top:4px;">Load ${load.loadNumber} is now In Transit</div>
+    </div>
+    <div style="padding:24px 28px;">
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <tr><td style="padding:8px 0;color:#888;width:120px;">Driver</td><td style="padding:8px 0;font-weight:600;">${load.assignedDriverName || "—"}</td></tr>
+        <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Load #</td><td style="padding:8px 0;font-weight:600;">${load.loadNumber}</td></tr>
+        <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Pickup</td><td style="padding:8px 0;">${load.pickupAddress}</td></tr>
+        <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Delivery</td><td style="padding:8px 0;">${load.deliveryAddress}</td></tr>
+        <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Customer</td><td style="padding:8px 0;">${load.customerName || "—"}</td></tr>
+        <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Started</td><td style="padding:8px 0;">${startedTime}</td></tr>
+      </table>
+
+      ${mapsLink ? `
+      <a href="${mapsLink}" style="display:block;margin:20px 0 12px;background:#34C759;color:#fff;text-align:center;padding:13px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;">
+        📍 View Current Location on Map
+      </a>` : ""}
+
+      <a href="${customerTrackURL}" style="display:block;margin:${mapsLink ? "0" : "20px 0 12px"};background:#f0f7ff;color:#007AFF;text-align:center;padding:13px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;border:1px solid #cce0ff;">
+        🗺 Open Live Tracking Page
+      </a>
+
+      <p style="font-size:12px;color:#aaa;margin-top:20px;text-align:center;">– CMP Freight Tracking</p>
+    </div>
+  </div>
+</body>
+</html>`,
               },
             },
           },
