@@ -658,6 +658,27 @@ function renderDetail(){
       btn.textContent='Saving…'; btn.disabled=true;
       assignDriver(selId, load.assignedDriverId, load.assignedDriverName, load.assignedDriverEmail, phone||null);
       setTimeout(function(){btn.textContent='Save'; btn.disabled=false;}, 800);
+    });
+  }
+
+  // Driver assignment dropdown
+  document.getElementById('d-driver-sel').addEventListener('change',function(){
+    var driverId=this.value;
+    if(!driverId){
+      assignDriver(selId,null,null,null,null);
+    } else {
+      var dr=drivers.find(function(d){return d.email===driverId;});
+      if(dr){
+        assignDriver(selId,dr.email,dr.name,dr.email,dr.phone||null);
+      } else {
+        for(var i=0;i<loads.length;i++){
+          if(loads[i].id===selId&&loads[i].assignedDriverId===driverId){
+            assignDriver(selId,driverId,loads[i].assignedDriverName,loads[i].assignedDriverEmail,loads[i].assignedDriverPhone);
+            break;
+          }
+        }
+      }
+    }
   });
 
   // Start live map polling for In Transit / Assigned loads
