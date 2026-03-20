@@ -178,6 +178,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .map-stat-val{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
 .map-stat-lbl{font-size:10px;color:var(--muted);margin-top:1px}
 .map-no-loc{display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;color:var(--muted);font-size:13px;gap:6px;text-align:center;padding:16px}
+.stale-warn{display:none;align-items:center;gap:8px;padding:8px 15px;background:rgba(255,149,0,.15);border-top:1px solid rgba(255,149,0,.35);color:var(--orange);font-size:12px;font-weight:600}
+.stale-warn.on{display:flex}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}.stale-icon{animation:blink 1.2s ease-in-out infinite;font-size:15px}
 
 @media(max-width:799px){
   #lp{width:100%;border-right:none}
@@ -601,6 +604,7 @@ function renderDetail(){
         +'<div class="map-stat"><div class="map-stat-val" id="dms-lat">—</div><div class="map-stat-lbl">Latitude</div></div>'
         +'<div class="map-stat"><div class="map-stat-val" id="dms-lng">—</div><div class="map-stat-lbl">Longitude</div></div>'
         +'</div>'
+        +'<div class="stale-warn" id="disp-stale-warn"><span class="stale-icon">⚠️</span><span id="disp-stale-msg">No location update received — signal may be lost.</span></div>'
         +'</div>'
       : ''
     )
@@ -686,11 +690,12 @@ function renderDetail(){
 }
 
 /* ── DISPATCHER LIVE MAP ─────────────────────────────────────────────────── */
-var _dispMap=null, _dispMarker=null, _dispTrail=null, _dispTrailPts=[], _dispPollTimer=null;
+var _dispMap=null, _dispMarker=null, _dispTrail=null, _dispTrailPts=[], _dispPollTimer=null, _dispStaleTimer=null, _lastLocTimestamp=null;
 
 function stopDispatcherMap(){
   if(_dispPollTimer){clearInterval(_dispPollTimer);_dispPollTimer=null;}
-  _dispMap=null; _dispMarker=null; _dispTrail=null; _dispTrailPts=[];
+  if(_dispStaleTimer){clearInterval(_dispStaleTimer);_dispStaleTimer=null;}
+  _dispMap=null; _dispMarker=null; _dispTrail=null; _dispTrailPts=[]; _lastLocTimestamp=null;
 }
 
 function startDispatcherMap(load){
@@ -700,6 +705,24 @@ function startDispatcherMap(load){
   pollDispatcherMap(load.trackingToken);
   // Then every 15 seconds
   _dispPollTimer=setInterval(function(){pollDispatcherMap(load.trackingToken);},15000);
+  // Check for stale signal every 30 seconds
+  _dispStaleTimer=setInterval(function(){checkStaleSignal();},30000);
+}
+
+function checkStaleSignal(){
+  var warn=document.getElementById('disp-stale-warn');
+  var msg=document.getElementById('disp-stale-msg');
+  if(!warn)return;
+  if(!_lastLocTimestamp){warn.classList.remove('on');return;}
+  var age=Date.now()-_lastLocTimestamp; // ms since last update
+  var STALE_MS=2*60*1000; // 2 minutes
+  if(age>=STALE_MS){
+    var mins=Math.floor(age/60000);
+    if(msg) msg.textContent='No location update for '+mins+' min — driver signal may be lost.';
+    warn.classList.add('on');
+  } else {
+    warn.classList.remove('on');
+  }
 }
 
 // Keep only location points from the last 4 hours — filters out stale
@@ -721,32 +744,44 @@ function isRecentPoint(p){
 // Points are subsampled to max 100 to stay within URL length limits.
 // Calls callback(roadCoords) where roadCoords = [[lat,lng], ...]
 function snapToRoads(history, callback){
-  if(!history || history.length < 2){ callback(null); return; }
-
-  // Subsample: at most 25 points (OSRM /route waypoint limit)
+  // Subsample: take at most 100 evenly-spaced points
   var pts = history;
-  if(pts.length > 25){
-    var step = (pts.length - 1) / 24;
+  if(pts.length > 100){
+    var step = pts.length / 100;
     var sampled = [];
-    for(var i = 0; i < 24; i++) sampled.push(pts[Math.round(i * step)]);
-    sampled.push(pts[pts.length - 1]);
+    for(var i=0;i<100;i++) sampled.push(pts[Math.floor(i*step)]);
+    // Always include the last point
+    sampled[sampled.length-1] = pts[pts.length-1];
     pts = sampled;
   }
 
-  var coords = pts.map(function(p){ return p.longitude + ',' + p.latitude; }).join(';');
-  var url = 'https://router.project-osrm.org/route/v1/driving/' + coords
-          + '?overview=full&geometries=geojson&steps=false';
+  // Build OSRM match URL: coordinates as lng,lat pairs
+  var coords = pts.map(function(p){ return p.longitude+','+p.latitude; }).join(';');
+  var timestamps = pts.map(function(p){
+    return p.timestamp ? Math.floor(new Date(p.timestamp).getTime()/1000) : 0;
+  });
+  // Only include timestamps if all are valid and monotonically increasing
+  var useTs = timestamps.every(function(t){ return t>0; }) &&
+              timestamps.every(function(t,i){ return i===0||t>=timestamps[i-1]; });
+
+  var url = 'https://router.project-osrm.org/match/v1/driving/' + coords
+          + '?overview=full&geometries=geojson&steps=false'
+          + (useTs ? '&timestamps='+timestamps.join(';') : '');
 
   fetch(url)
-    .then(function(r){ return r.json().catch(function(){ return null; }); })
+    .then(function(r){ return r.ok ? r.json() : null; })
     .then(function(data){
-      if(!data || data.code !== 'Ok' || !data.routes || !data.routes.length){
+      if(!data || !data.matchings || !data.matchings.length){
         callback(null); return;
       }
-      var roadCoords = data.routes[0].geometry.coordinates.map(function(c){
-        return [c[1], c[0]]; // GeoJSON [lng,lat] → Leaflet [lat,lng]
+      // Combine all matching segments into one coordinate array
+      var roadCoords = [];
+      data.matchings.forEach(function(m){
+        m.geometry.coordinates.forEach(function(c){
+          roadCoords.push([c[1], c[0]]); // GeoJSON is [lng,lat], Leaflet wants [lat,lng]
+        });
       });
-      callback(roadCoords.length >= 2 ? roadCoords : null);
+      callback(roadCoords);
     })
     .catch(function(){ callback(null); });
 }
@@ -788,18 +823,16 @@ function pollDispatcherMap(token){
         _dispMap.panTo([lat,lng]);
       }
 
-      // Trail: draw raw GPS immediately, then snap to roads async
+      // Trail: snap to roads using OSRM match API (free, no key needed)
       if(recentHistory.length>=2){
-        // Show raw trail right away so there's no blank gap
-        _dispTrail.setLatLngs(recentHistory.map(function(p){return[p.latitude,p.longitude];}));
         snapToRoads(recentHistory, function(roadPts){
           if(roadPts && roadPts.length>=2){
             _dispTrail.setLatLngs(roadPts);
+          } else {
+            // Fallback to straight line if OSRM fails
+            _dispTrail.setLatLngs(recentHistory.map(function(p){return[p.latitude,p.longitude];}));
           }
-          // else raw trail already showing — leave it
         });
-      } else if(recentHistory.length===1){
-        _dispTrail.setLatLngs([[recentHistory[0].latitude,recentHistory[0].longitude]]);
       } else {
         _dispTrail.setLatLngs([]);
       }
@@ -812,6 +845,9 @@ function pollDispatcherMap(token){
         document.getElementById('dms-lat').textContent=lat.toFixed(5);
         document.getElementById('dms-lng').textContent=lng.toFixed(5);
         document.getElementById('dms-updated').textContent=loc.timestamp?new Date(loc.timestamp).toLocaleTimeString():'—';
+        // Track when this location was recorded (for stale-signal detection)
+        _lastLocTimestamp=loc.timestamp?new Date(loc.timestamp).getTime():Date.now();
+        checkStaleSignal();
       }
     })
     .catch(function(){/* silently ignore network errors */});
