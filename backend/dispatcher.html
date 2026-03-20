@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>CMP Logistics - Dispatcher Portal</title>
+<title>CMP Freight - Dispatcher Portal</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -197,7 +197,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   <div class="acard">
     <div class="alogo">
       <div class="ico">🚛</div>
-      <h1>CMP Logistics</h1>
+      <h1>CMP Freight</h1>
       <p>Dispatcher Portal</p>
     </div>
     <div class="atabs">
@@ -224,7 +224,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <!-- APP -->
 <div id="app-screen">
   <nav class="nav">
-    <div class="brand">🚛 CMP Logistics</div>
+    <div class="brand">🚛 CMP Freight</div>
     <div class="spacer"></div>
     <div class="uchip"><span>👤</span><strong id="nav-name">Dispatcher</strong></div>
     <button class="btn btn-sm" id="btn-out">Sign Out</button>
@@ -717,6 +717,52 @@ function isRecentPoint(p){
   return new Date(p.timestamp).getTime()>=(Date.now()-(4*60*60*1000));
 }
 
+// Snap GPS points to actual roads using OSRM public API (free, no key).
+// Points are subsampled to max 100 to stay within URL length limits.
+// Calls callback(roadCoords) where roadCoords = [[lat,lng], ...]
+function snapToRoads(history, callback){
+  // Subsample: take at most 100 evenly-spaced points
+  var pts = history;
+  if(pts.length > 100){
+    var step = pts.length / 100;
+    var sampled = [];
+    for(var i=0;i<100;i++) sampled.push(pts[Math.floor(i*step)]);
+    // Always include the last point
+    sampled[sampled.length-1] = pts[pts.length-1];
+    pts = sampled;
+  }
+
+  // Build OSRM match URL: coordinates as lng,lat pairs
+  var coords = pts.map(function(p){ return p.longitude+','+p.latitude; }).join(';');
+  var timestamps = pts.map(function(p){
+    return p.timestamp ? Math.floor(new Date(p.timestamp).getTime()/1000) : 0;
+  });
+  // Only include timestamps if all are valid and monotonically increasing
+  var useTs = timestamps.every(function(t){ return t>0; }) &&
+              timestamps.every(function(t,i){ return i===0||t>=timestamps[i-1]; });
+
+  var url = 'https://router.project-osrm.org/match/v1/driving/' + coords
+          + '?overview=full&geometries=geojson&steps=false'
+          + (useTs ? '&timestamps='+timestamps.join(';') : '');
+
+  fetch(url)
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(data){
+      if(!data || !data.matchings || !data.matchings.length){
+        callback(null); return;
+      }
+      // Combine all matching segments into one coordinate array
+      var roadCoords = [];
+      data.matchings.forEach(function(m){
+        m.geometry.coordinates.forEach(function(c){
+          roadCoords.push([c[1], c[0]]); // GeoJSON is [lng,lat], Leaflet wants [lat,lng]
+        });
+      });
+      callback(roadCoords);
+    })
+    .catch(function(){ callback(null); });
+}
+
 function pollDispatcherMap(token){
   fetch(API+'/track/'+token)
     .then(function(r){return r.ok?r.json():null;})
@@ -754,10 +800,16 @@ function pollDispatcherMap(token){
         _dispMap.panTo([lat,lng]);
       }
 
-      // Trail: only draw when we have 2+ recent points (real movement)
+      // Trail: snap to roads using OSRM match API (free, no key needed)
       if(recentHistory.length>=2){
-        var pts=recentHistory.map(function(p){return[p.latitude,p.longitude];});
-        _dispTrail.setLatLngs(pts);
+        snapToRoads(recentHistory, function(roadPts){
+          if(roadPts && roadPts.length>=2){
+            _dispTrail.setLatLngs(roadPts);
+          } else {
+            // Fallback to straight line if OSRM fails
+            _dispTrail.setLatLngs(recentHistory.map(function(p){return[p.latitude,p.longitude];}));
+          }
+        });
       } else {
         _dispTrail.setLatLngs([]);
       }
@@ -838,7 +890,7 @@ function sendLink(id){
   var pickupStr=load.pickupDate?new Date(load.pickupDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
 
   var msgText='Hi '+(load.assignedDriverName||'Driver')+',\n\n'
-    +'You have a new load assigned by CMP Logistics.\n\n'
+    +'You have a new load assigned by CMP Freight.\n\n'
     +'LOAD #: '+(load.loadNumber||'--')+'\n'
     +'PICKUP: '+(load.pickupAddress||'--')+'\n'
     +'DELIVERY: '+(load.deliveryAddress||'--')+'\n'
