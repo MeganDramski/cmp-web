@@ -1,17 +1,19 @@
-// sendDriverLink.js – sends SMS via AWS SNS + confirmation email via SES
+// sendDriverLink.js – sends SMS via Vonage + confirmation email via SES
 const { DynamoDBClient, GetItemCommand } = require("@aws-sdk/client-dynamodb");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
-const { SNSClient, PublishCommand } = require("@aws-sdk/client-sns");
+const { Vonage } = require("@vonage/server-sdk");
 const { verifyToken, respond } = require("../utils/auth");
 
 const db  = new DynamoDBClient({ region: "us-east-1" });
 const ses = new SESClient({ region: "us-east-1" });
-const sns = new SNSClient({ region: "us-east-1" });
 
-const LOADS_TABLE = process.env.LOADS_TABLE;
-const FROM_EMAIL  = process.env.SES_FROM_EMAIL;
-const AMPLIFY_URL = process.env.AMPLIFY_BASE_URL || "";
+const LOADS_TABLE  = process.env.LOADS_TABLE;
+const FROM_EMAIL   = process.env.SES_FROM_EMAIL;
+const AMPLIFY_URL  = process.env.AMPLIFY_BASE_URL || "";
+const VONAGE_API_KEY    = process.env.VONAGE_API_KEY    || "";
+const VONAGE_API_SECRET = process.env.VONAGE_API_SECRET || "";
+const VONAGE_FROM       = process.env.VONAGE_FROM       || "CMPFreight";
 
 function buildLink(event, token, id) {
   const base = AMPLIFY_URL || (function() {
@@ -23,26 +25,29 @@ function buildLink(event, token, id) {
 }
 
 async function sendSMS(to, message) {
-  const phone = to.replace(/[^\d+]/g, "");
-  // Ensure E.164 format (add +1 for US numbers if missing country code)
-  const e164 = phone.startsWith("+") ? phone : "+1" + phone;
+  if (!VONAGE_API_KEY || !VONAGE_API_SECRET) {
+    throw new Error("Vonage credentials not configured. Set VONAGE_API_KEY and VONAGE_API_SECRET in Lambda environment.");
+  }
 
-  const result = await sns.send(new PublishCommand({
-    PhoneNumber: e164,
-    Message: message,
-    MessageAttributes: {
-      "AWS.SNS.SMS.SMSType": {
-        DataType: "String",
-        StringValue: "Transactional", // higher delivery priority
-      },
-      "AWS.SNS.SMS.SenderID": {
-        DataType: "String",
-        StringValue: "CMPFreight",    // shown as sender name where supported
-      },
-    },
-  }));
-  console.log("SNS SMS sent, MessageId:", result.MessageId);
-  return true;
+  const vonage = new Vonage({ apiKey: VONAGE_API_KEY, apiSecret: VONAGE_API_SECRET });
+
+  // Ensure E.164 format
+  const phone = to.replace(/[^\d+]/g, "");
+  const e164  = phone.startsWith("+") ? phone : "+1" + phone;
+
+  return new Promise((resolve, reject) => {
+    vonage.sms.send({ to: e164, from: VONAGE_FROM, text: message }, (err, data) => {
+      if (err) return reject(err);
+      const msg = data.messages && data.messages[0];
+      if (msg && msg.status === "0") {
+        console.log("Vonage SMS sent, id:", msg["message-id"]);
+        resolve(true);
+      } else {
+        const errText = msg ? msg["error-text"] : "Unknown error";
+        reject(new Error("Vonage error: " + errText));
+      }
+    });
+  });
 }
 
 exports.handler = async (event) => {
@@ -68,7 +73,7 @@ exports.handler = async (event) => {
     // 2. Build tracking link
     const link = buildLink(event, load.trackingToken, load.id);
 
-    // 3. Send SMS via AWS SNS
+    // 3. Send SMS via Vonage
     const smsText =
       "CMP Freight - Load " + load.loadNumber + "\n" +
       "Pickup: " + load.pickupAddress + "\n" +
