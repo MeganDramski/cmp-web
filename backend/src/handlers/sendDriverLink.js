@@ -1,19 +1,17 @@
-// sendDriverLink.js – sends SMS via Vonage + confirmation email via SES
+// sendDriverLink.js – sends SMS via AWS SNS + email via SES (both free on AWS)
 const { DynamoDBClient, GetItemCommand } = require("@aws-sdk/client-dynamodb");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
-const { Vonage } = require("@vonage/server-sdk");
+const { SNSClient, PublishCommand } = require("@aws-sdk/client-sns");
 const { verifyToken, respond } = require("../utils/auth");
 
 const db  = new DynamoDBClient({ region: "us-east-1" });
 const ses = new SESClient({ region: "us-east-1" });
+const sns = new SNSClient({ region: "us-east-1" });
 
-const LOADS_TABLE  = process.env.LOADS_TABLE;
-const FROM_EMAIL   = process.env.SES_FROM_EMAIL;
-const AMPLIFY_URL  = process.env.AMPLIFY_BASE_URL || "";
-const VONAGE_API_KEY    = process.env.VONAGE_API_KEY    || "";
-const VONAGE_API_SECRET = process.env.VONAGE_API_SECRET || "";
-const VONAGE_FROM       = process.env.VONAGE_FROM       || "CMPFreight";
+const LOADS_TABLE = process.env.LOADS_TABLE;
+const FROM_EMAIL  = process.env.SES_FROM_EMAIL;
+const AMPLIFY_URL = process.env.AMPLIFY_BASE_URL || "";
 
 function buildLink(event, token, id) {
   const base = AMPLIFY_URL || (function() {
@@ -25,29 +23,44 @@ function buildLink(event, token, id) {
 }
 
 async function sendSMS(to, message) {
-  if (!VONAGE_API_KEY || !VONAGE_API_SECRET) {
-    throw new Error("Vonage credentials not configured. Set VONAGE_API_KEY and VONAGE_API_SECRET in Lambda environment.");
-  }
-
-  const vonage = new Vonage({ apiKey: VONAGE_API_KEY, apiSecret: VONAGE_API_SECRET });
-
-  // Ensure E.164 format
   const phone = to.replace(/[^\d+]/g, "");
   const e164  = phone.startsWith("+") ? phone : "+1" + phone;
+  const result = await sns.send(new PublishCommand({
+    PhoneNumber: e164,
+    Message: message,
+    MessageAttributes: {
+      "AWS.SNS.SMS.SMSType": { DataType: "String", StringValue: "Transactional" },
+    },
+  }));
+  console.log("SNS SMS sent, MessageId:", result.MessageId);
+  return true;
+}
 
-  return new Promise((resolve, reject) => {
-    vonage.sms.send({ to: e164, from: VONAGE_FROM, text: message }, (err, data) => {
-      if (err) return reject(err);
-      const msg = data.messages && data.messages[0];
-      if (msg && msg.status === "0") {
-        console.log("Vonage SMS sent, id:", msg["message-id"]);
-        resolve(true);
-      } else {
-        const errText = msg ? msg["error-text"] : "Unknown error";
-        reject(new Error("Vonage error: " + errText));
-      }
-    });
-  });
+async function sendDriverEmail(driverEmail, driverName, load, link) {
+  if (!driverEmail || !FROM_EMAIL) return;
+  await ses.send(new SendEmailCommand({
+    Source: FROM_EMAIL,
+    Destination: { ToAddresses: [driverEmail] },
+    Message: {
+      Subject: { Data: "CMP Logistics – Load " + load.loadNumber + " assigned to you" },
+      Body: {
+        Html: {
+          Data:
+            "<p>Hi <strong>" + (driverName || "Driver") + "</strong>,</p>" +
+            "<p>You have a new load assigned by CMP Logistics.</p>" +
+            "<table style='font-family:sans-serif;font-size:14px;'>" +
+            "<tr><td><strong>Load #:</strong></td><td>" + load.loadNumber + "</td></tr>" +
+            "<tr><td><strong>Pickup:</strong></td><td>" + load.pickupAddress + "</td></tr>" +
+            "<tr><td><strong>Delivery:</strong></td><td>" + load.deliveryAddress + "</td></tr>" +
+            "</table>" +
+            "<p style='margin-top:20px;'>" +
+            "<a href='" + link + "' style='background:#007AFF;color:#fff;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;'>Open Tracking Link</a>" +
+            "</p>" +
+            "<p style='color:#888;font-size:12px;margin-top:20px;'>No app needed – works in any browser.</p>",
+        },
+      },
+    },
+  }));
 }
 
 exports.handler = async (event) => {
@@ -73,9 +86,9 @@ exports.handler = async (event) => {
     // 2. Build tracking link
     const link = buildLink(event, load.trackingToken, load.id);
 
-    // 3. Send SMS via Vonage
+    // 3. Send SMS via AWS SNS
     const smsText =
-      "CMP Freight - Load " + load.loadNumber + "\n" +
+      "CMP Logistics - Load " + load.loadNumber + "\n" +
       "Pickup: " + load.pickupAddress + "\n" +
       "Deliver to: " + load.deliveryAddress + "\n\n" +
       "Tap to start tracking:\n" + link;
@@ -89,7 +102,14 @@ exports.handler = async (event) => {
       smsError = e.message;
     }
 
-    // 4. Email dispatcher confirmation
+    // 4. Send email to driver as backup (if email on file)
+    try {
+      await sendDriverEmail(load.assignedDriverEmail, load.assignedDriverName, load, link);
+    } catch (e) {
+      console.warn("Driver email failed:", e.message);
+    }
+
+    // 5. Email dispatcher confirmation
     if (FROM_EMAIL) {
       try {
         await ses.send(new SendEmailCommand({
@@ -101,13 +121,12 @@ exports.handler = async (event) => {
               Html: {
                 Data:
                   "<p>SMS " + (smsSent ? "sent ✅" : "could not be sent ⚠️") + " to <strong>" + driverPhone + "</strong>.</p>" +
-                  (smsError ? "<p style='color:red;'>Error: " + smsError + "</p>" : "") +
+                  (smsError ? "<p style='color:orange;'>SMS Error: " + smsError + "</p><p>The driver tracking link was sent by <strong>email</strong> instead.</p>" : "") +
                   "<p><strong>Load:</strong> " + load.loadNumber + "<br>" +
                   "<strong>Driver:</strong> " + (load.assignedDriverName || "Driver") + "<br>" +
                   "<strong>Pickup:</strong> " + load.pickupAddress + "<br>" +
                   "<strong>Delivery:</strong> " + load.deliveryAddress + "</p>" +
-                  "<p>Driver link: <a href='" + link + "'>" + link + "</a></p>" +
-                  "<p style='color:#888;font-size:12px;'>- CMP Freight Tracking</p>",
+                  "<p>Driver link: <a href='" + link + "'>" + link + "</a></p>",
               },
             },
           },
@@ -117,7 +136,7 @@ exports.handler = async (event) => {
       }
     }
 
-    // 5. Optionally notify customer
+    // 6. Optionally notify customer
     if (notifyCustomer && load.customerEmail && FROM_EMAIL) {
       try {
         await ses.send(new SendEmailCommand({
@@ -131,7 +150,7 @@ exports.handler = async (event) => {
                   "<p>Hello <strong>" + load.customerName + "</strong>,</p>" +
                   "<p>Your shipment <strong>" + load.loadNumber + "</strong> has been assigned a driver. " +
                   "You will receive a live tracking link once the driver starts the trip.</p>" +
-                  "<p style='color:#888;font-size:12px;'>- CMP Freight</p>",
+                  "<p style='color:#888;font-size:12px;'>- CMP Logistics</p>",
               },
             },
           },
