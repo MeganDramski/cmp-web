@@ -1,4 +1,4 @@
-<lst !DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -741,7 +741,7 @@ function sendLink(id){
     +'<button class="btn btn-p btn-full" id="sm-copy-link" style="font-size:14px;padding:11px">📋 Copy Link</button>'
     +'</div>'
     +(dp
-      ?'<button id="sm-send-sms" style="width:100%;margin-bottom:10px;background:#34C759;color:#fff;font-size:17px;font-weight:700;padding:16px;border:none;border-radius:13px;cursor:pointer">📱 Open SMS App – Send to '+esc(dp)+'</button>'
+      ?'<button id="sm-send-sms" style="width:100%;margin-bottom:10px;background:#34C759;color:#fff;font-size:17px;font-weight:700;padding:16px;border:none;border-radius:13px;cursor:pointer">📱 Send SMS to '+esc(dp)+'</button>'
       :'<div style="background:var(--s2);border-radius:9px;padding:12px 14px;font-size:13px;color:var(--muted);margin-bottom:10px;text-align:center">⚠️ No phone number on file.<br>Add driver phone in the Assigned Driver section.</div>'
     )
     +'<a class="btn btn-full" href="'+esc(emailLink)+'" style="margin-bottom:10px;display:flex;align-items:center;justify-content:center;font-size:15px;padding:13px;text-decoration:none">✉️ Send via Email</a>'
@@ -757,12 +757,38 @@ function sendLink(id){
 
   if(dp){
     document.getElementById('sm-send-sms').addEventListener('click',function(){
-      // Open native SMS app pre-filled — free, works on any phone, no backend needed
-      window.open(smsLink, '_blank');
-      this.textContent='✅ SMS App Opened';
-      this.style.background='#1a7a35';
-      var self=this;
-      setTimeout(function(){ self.textContent='📱 Send SMS to '+dp; self.style.background='#34C759'; },4000);
+      var btn=this;
+      btn.disabled=true;
+      btn.textContent='⏳ Sending…';
+      fetch(API+'/loads/'+load.id+'/send-driver-link',{
+        method:'POST',
+        headers:ah(),
+        body:JSON.stringify({driverPhone:dp,dispatcherEmail:session.user.email,notifyCustomer:false})
+      })
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.smsSent){
+          btn.textContent='✅ SMS Sent to '+dp;
+          btn.style.background='#1a7a35';
+          toast('📱 SMS sent to driver');
+        } else {
+          var errMsg = d.smsError || '';
+          if(errMsg.indexOf('21608') !== -1 || errMsg.indexOf('unverified') !== -1){
+            btn.textContent='⚠️ Twilio trial – upgrade at console.twilio.com';
+          } else if(errMsg){
+            btn.textContent='⚠️ '+errMsg.substring(0,60);
+          } else {
+            btn.textContent='⚠️ SMS failed – check Twilio';
+          }
+          btn.style.background='var(--red)';
+          btn.disabled=false;
+        }
+      })
+      .catch(function(e){
+        btn.textContent='⚠️ Error – try again';
+        btn.style.background='var(--red)';
+        btn.disabled=false;
+      });
     });
   }
 
