@@ -745,7 +745,7 @@ function pollDispatcherMap(token){
       if(!_dispMap){
         el.innerHTML='<div id="disp-map"></div>';
         _dispMap=L.map('disp-map',{zoomControl:true,attributionControl:false}).setView([lat,lng],13);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(_dispMap);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(_dispMap);
         var truckIcon=L.divIcon({html:'<div style="font-size:26px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">🚛</div>',className:'',iconSize:[32,32],iconAnchor:[16,16]});
         _dispMarker=L.marker([lat,lng],{icon:truckIcon}).addTo(_dispMap);
         _dispTrail=L.polyline([],{color:'#007AFF',weight:4,opacity:.85,lineJoin:'round',lineCap:'round'}).addTo(_dispMap);
