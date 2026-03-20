@@ -464,19 +464,18 @@
       }
 
       var badge = document.getElementById("status-badge");
-      } else if (data.status === "In Transit") {
-        badge.className  = "status-badge active";
+      if (data.status === "In Transit") {
+        badge.className   = "status-badge active";
         badge.textContent = "🚛 In Transit";
         document.getElementById("btn-start").style.display = "none";
         document.getElementById("btn-stop").style.display  = "flex";
         isTracking = true;
         loadTrailHistory();
         startGPS(false);
-        // If permission was already denied, the watchPosition error handler will show the message
       } else if (data.status === "Delivered") {
-        badge.className  = "status-badge stopped";
+        badge.className   = "status-badge stopped";
         badge.textContent = "✅ Delivered";
-        document.getElementById("btn-start").style.display  = "none";
+        document.getElementById("btn-start").style.display   = "none";
         document.getElementById("btn-deliver").style.display = "none";
         document.getElementById("delivered-screen").style.display = "flex";
       } else {
