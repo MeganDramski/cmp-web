@@ -727,38 +727,44 @@ function snapToRoads(history, callback){
     var step = pts.length / 100;
     var sampled = [];
     for(var i=0;i<100;i++) sampled.push(pts[Math.floor(i*step)]);
-    // Always include the last point
     sampled[sampled.length-1] = pts[pts.length-1];
     pts = sampled;
   }
 
-  // Build OSRM match URL: coordinates as lng,lat pairs
   var coords = pts.map(function(p){ return p.longitude+','+p.latitude; }).join(';');
   var timestamps = pts.map(function(p){
     return p.timestamp ? Math.floor(new Date(p.timestamp).getTime()/1000) : 0;
   });
-  // Only include timestamps if all are valid and monotonically increasing
   var useTs = timestamps.every(function(t){ return t>0; }) &&
               timestamps.every(function(t,i){ return i===0||t>=timestamps[i-1]; });
 
-  var url = 'https://router.project-osrm.org/match/v1/driving/' + coords
-          + '?overview=full&geometries=geojson&steps=false'
-          + (useTs ? '&timestamps='+timestamps.join(';') : '');
+  var baseUrl = 'https://router.project-osrm.org/match/v1/driving/' + coords
+              + '?overview=full&geometries=geojson&steps=false';
 
-  fetch(url)
-    .then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(data){
-      if(!data || !data.matchings || !data.matchings.length){
-        callback(null); return;
-      }
-      // Combine all matching segments into one coordinate array
-      var roadCoords = [];
-      data.matchings.forEach(function(m){
-        m.geometry.coordinates.forEach(function(c){
-          roadCoords.push([c[1], c[0]]); // GeoJSON is [lng,lat], Leaflet wants [lat,lng]
-        });
+  function parseRoadCoords(data){
+    if(!data || !data.matchings || !data.matchings.length) return null;
+    var roadCoords = [];
+    data.matchings.forEach(function(m){
+      m.geometry.coordinates.forEach(function(c){
+        roadCoords.push([c[1], c[0]]);
       });
-      callback(roadCoords);
+    });
+    return roadCoords.length >= 2 ? roadCoords : null;
+  }
+
+  // Try with timestamps first; if OSRM rejects (400/NoMatch), retry without them
+  fetch(baseUrl + (useTs ? '&timestamps='+timestamps.join(';') : ''))
+    .then(function(r){ return r.json().catch(function(){ return null; }); })
+    .then(function(data){
+      var result = parseRoadCoords(data);
+      if(result){ callback(result); return; }
+      // Retry without timestamps (handles NoSegment / NoMatch errors)
+      if(useTs){
+        return fetch(baseUrl)
+          .then(function(r){ return r.json().catch(function(){ return null; }); })
+          .then(function(data2){ callback(parseRoadCoords(data2)); });
+      }
+      callback(null);
     })
     .catch(function(){ callback(null); });
 }
@@ -800,16 +806,18 @@ function pollDispatcherMap(token){
         _dispMap.panTo([lat,lng]);
       }
 
-      // Trail: snap to roads using OSRM match API (free, no key needed)
+      // Trail: draw raw GPS immediately, then snap to roads async
       if(recentHistory.length>=2){
+        // Show raw trail right away so there's no blank gap
+        _dispTrail.setLatLngs(recentHistory.map(function(p){return[p.latitude,p.longitude];}));
         snapToRoads(recentHistory, function(roadPts){
           if(roadPts && roadPts.length>=2){
             _dispTrail.setLatLngs(roadPts);
-          } else {
-            // Fallback to straight line if OSRM fails
-            _dispTrail.setLatLngs(recentHistory.map(function(p){return[p.latitude,p.longitude];}));
           }
+          // else raw trail already showing — leave it
         });
+      } else if(recentHistory.length===1){
+        _dispTrail.setLatLngs([[recentHistory[0].latitude,recentHistory[0].longitude]]);
       } else {
         _dispTrail.setLatLngs([]);
       }
