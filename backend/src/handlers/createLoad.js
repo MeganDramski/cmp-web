@@ -38,6 +38,7 @@ exports.handler = async (event) => {
       assignedDriverId:    body.assignedDriverId    || null,
       assignedDriverName:  body.assignedDriverName  || null,
       assignedDriverEmail: body.assignedDriverEmail || null,
+      assignedDriverPhone: body.assignedDriverPhone || null,
       trackingToken:       body.trackingToken  || crypto.randomUUID(),
       customerName:        body.customerName,
       customerEmail:       body.customerEmail,

@@ -271,6 +271,38 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /loads/{id}
             Method: PUT
+  # PATCH /loads/{id}/assign
+  AssignDriverFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-assign-driver
+      CodeUri: src/
+      Handler: handlers/assignDriver.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /loads/{id}/assign
+            Method: PATCH
+
+  # GET /users  (dispatcher – list drivers/dispatchers)
+  GetUsersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-get-users
+      CodeUri: src/
+      Handler: handlers/getUsers.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /users
+            Method: GET
+
   # POST /locations  (driver – push GPS fix)
   PostLocationFunction:
     Type: AWS::Serverless::Function
@@ -359,4 +391,4 @@ Resources:
           Type: HttpApi
           Properties:
           Properties:
-            ApiId: !Ref HttpApief HttpApiief HttpApi
+            ApiId: !Ref HttpApief HttpApiief HttpApiief HttpApi
