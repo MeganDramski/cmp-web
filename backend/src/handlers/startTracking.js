@@ -1,12 +1,5 @@
 // src/handlers/startTracking.js
 // POST /track/{token}/start
-// Called from the browser-based driver tracking page when the driver
-// taps "Start Tracking".
-//
-// 1. Marks load status = "In Transit" in DynamoDB
-// 2. Sends email to dispatcher: "Driver has started tracking"
-// 3. If notifyCustomer flag is set on the load → sends email to customer
-//    with a live tracking link they can open in their browser
 
 const { DynamoDBClient, QueryCommand, UpdateItemCommand } = require("@aws-sdk/client-dynamodb");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
@@ -15,17 +8,14 @@ const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
 const db  = new DynamoDBClient({});
 const ses = new SESClient({});
 
-const LOADS_TABLE  = process.env.LOADS_TABLE;
-const FROM_EMAIL   = process.env.SES_FROM_EMAIL;
-const BASE_URL     = process.env.TRACKING_BASE_URL;
+const LOADS_TABLE = process.env.LOADS_TABLE;
+const FROM_EMAIL  = process.env.SES_FROM_EMAIL;
+const BASE_URL    = (process.env.AMPLIFY_BASE_URL || process.env.TRACKING_BASE_URL || "").replace(/\/$/, "");
 
 function respond(statusCode, body) {
   return {
     statusCode,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-    },
+    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
     body: JSON.stringify(body),
   };
 }
@@ -38,7 +28,7 @@ exports.handler = async (event) => {
     const body = JSON.parse(event.body || "{}");
     const { latitude, longitude, dispatcherEmail, notifyCustomer = false } = body;
 
-    // ── 1. Look up load by trackingToken (GSI) ───────────────────────────────
+    // 1. Look up load by trackingToken (GSI)
     const loadResult = await db.send(new QueryCommand({
       TableName: LOADS_TABLE,
       IndexName: "TrackingTokenIndex",
@@ -53,18 +43,14 @@ exports.handler = async (event) => {
 
     const load = unmarshall(loadResult.Items[0]);
 
-    // ── 2. Update load status → In Transit ──────────────────────────────────
+    // 2. Update load status → In Transit + record startedAt
     const now = new Date().toISOString();
     const updateExpr = latitude != null
       ? "SET #st = :status, startedAt = :now, lastLocation = :loc"
       : "SET #st = :status, startedAt = :now";
-
     const exprAttrValues = latitude != null
-      ? marshall({
-          ":status": "In Transit",
-          ":now": now,
-          ":loc": { latitude: Number(latitude), longitude: Number(longitude), timestamp: now },
-        })
+      ? marshall({ ":status": "In Transit", ":now": now,
+          ":loc": { latitude: Number(latitude), longitude: Number(longitude), timestamp: now } })
       : marshall({ ":status": "In Transit", ":now": now });
 
     await db.send(new UpdateItemCommand({
@@ -75,69 +61,65 @@ exports.handler = async (event) => {
       ExpressionAttributeValues: exprAttrValues,
     }));
 
-    // ── 3. Email dispatcher ─────────────────────────────────────────────────
-    const emailRecipient = dispatcherEmail || load.dispatcherEmail || load.createdBy;
+    // 3. Email dispatcher
+    // Check every possible field where the dispatcher email may be stored
+    const emailRecipient = dispatcherEmail
+      || load.dispatcherEmail
+      || load.createdBy
+      || load.assignedByEmail;
+
+    console.log("startTracking: FROM_EMAIL =", FROM_EMAIL, "| recipient =", emailRecipient);
+
     if (FROM_EMAIL && emailRecipient) {
       try {
         const mapsLink = latitude != null
-          ? `https://maps.google.com/?q=${latitude},${longitude}`
-          : null;
-        const customerTrackURL = `${BASE_URL}/track-shipment.html?token=${load.trackingToken}`;
+          ? `https://maps.google.com/?q=${latitude},${longitude}` : null;
+        const trackURL = `${BASE_URL}/track-shipment.html?token=${load.trackingToken}`;
         const startedTime = new Date(now).toLocaleString("en-US", {
           month: "short", day: "numeric", year: "numeric",
-          hour: "numeric", minute: "2-digit", timeZoneName: "short"
+          hour: "numeric", minute: "2-digit", timeZoneName: "short",
         });
 
         await ses.send(new SendEmailCommand({
           Source: FROM_EMAIL,
           Destination: { ToAddresses: [emailRecipient] },
           Message: {
-            Subject: { Data: `🚛 Driver started – Load ${load.loadNumber}` },
+            Subject: { Data: `\uD83D\uDE9B Driver started \u2013 Load ${load.loadNumber}` },
             Body: {
               Html: {
-                Data: `
-<!DOCTYPE html>
-<html>
-<body style="margin:0;padding:0;background:#f4f4f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <div style="max-width:520px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);">
-    <div style="background:#007AFF;padding:24px 28px;">
-      <div style="font-size:22px;font-weight:700;color:#fff;">🚛 Driver Started Tracking</div>
-      <div style="color:rgba(255,255,255,.8);font-size:14px;margin-top:4px;">Load ${load.loadNumber} is now In Transit</div>
-    </div>
-    <div style="padding:24px 28px;">
-      <table style="width:100%;border-collapse:collapse;font-size:14px;">
-        <tr><td style="padding:8px 0;color:#888;width:120px;">Driver</td><td style="padding:8px 0;font-weight:600;">${load.assignedDriverName || "—"}</td></tr>
-        <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Load #</td><td style="padding:8px 0;font-weight:600;">${load.loadNumber}</td></tr>
-        <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Pickup</td><td style="padding:8px 0;">${load.pickupAddress}</td></tr>
-        <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Delivery</td><td style="padding:8px 0;">${load.deliveryAddress}</td></tr>
-        <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Customer</td><td style="padding:8px 0;">${load.customerName || "—"}</td></tr>
-        <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Started</td><td style="padding:8px 0;">${startedTime}</td></tr>
-      </table>
-
-      ${mapsLink ? `
-      <a href="${mapsLink}" style="display:block;margin:20px 0 12px;background:#34C759;color:#fff;text-align:center;padding:13px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;">
-        📍 View Current Location on Map
-      </a>` : ""}
-
-      <a href="${customerTrackURL}" style="display:block;margin:${mapsLink ? "0" : "20px 0 12px"};background:#f0f7ff;color:#007AFF;text-align:center;padding:13px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;border:1px solid #cce0ff;">
-        🗺 Open Live Tracking Page
-      </a>
-
-      <p style="font-size:12px;color:#aaa;margin-top:20px;text-align:center;">– CMP Freight Tracking</p>
-    </div>
+                Data: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<div style="max-width:520px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);">
+  <div style="background:#007AFF;padding:24px 28px;">
+    <div style="font-size:22px;font-weight:700;color:#fff;">\uD83D\uDE9B Driver Started Tracking</div>
+    <div style="color:rgba(255,255,255,.8);font-size:14px;margin-top:4px;">Load ${load.loadNumber} is now In Transit</div>
   </div>
-</body>
-</html>`,
+  <div style="padding:24px 28px;">
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+      <tr><td style="padding:8px 0;color:#888;width:120px;">Driver</td><td style="padding:8px 0;font-weight:600;">${load.assignedDriverName || "\u2014"}</td></tr>
+      <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Load #</td><td style="padding:8px 0;font-weight:600;">${load.loadNumber}</td></tr>
+      <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Pickup</td><td style="padding:8px 0;">${load.pickupAddress}</td></tr>
+      <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Delivery</td><td style="padding:8px 0;">${load.deliveryAddress}</td></tr>
+      <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Customer</td><td style="padding:8px 0;">${load.customerName || "\u2014"}</td></tr>
+      <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Started</td><td style="padding:8px 0;">${startedTime}</td></tr>
+    </table>
+    ${mapsLink ? `<a href="${mapsLink}" style="display:block;margin:20px 0 12px;background:#34C759;color:#fff;text-align:center;padding:13px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;">\uD83D\uDCCD View Current Location</a>` : ""}
+    <a href="${trackURL}" style="display:block;margin:${mapsLink ? "0" : "20px 0 12px"};background:#f0f7ff;color:#007AFF;text-align:center;padding:13px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;border:1px solid #cce0ff;">\uD83D\uDDFA Open Live Tracking Page</a>
+    <p style="font-size:12px;color:#aaa;margin-top:20px;text-align:center;">\u2013 CMP Freight Tracking</p>
+  </div>
+</div></body></html>`,
               },
             },
           },
         }));
+        console.log("startTracking: dispatcher email sent to", emailRecipient);
       } catch (err) {
-        console.warn("SES dispatcher start email failed:", err.message);
+        console.error("SES dispatcher email failed:", err.message);
       }
+    } else {
+      console.warn("startTracking: skipping dispatcher email — FROM_EMAIL:", FROM_EMAIL, "| recipient:", emailRecipient);
     }
 
-    // ── 4. Email customer with live tracking link ────────────────────────────
+    // 4. Email customer with live tracking link
     const shouldNotify = notifyCustomer || load.notifyCustomer;
     if (shouldNotify && FROM_EMAIL && load.customerEmail) {
       try {
@@ -146,39 +128,34 @@ exports.handler = async (event) => {
           Source: FROM_EMAIL,
           Destination: { ToAddresses: [load.customerEmail] },
           Message: {
-            Subject: { Data: `📦 Your shipment ${load.loadNumber} is on its way!` },
+            Subject: { Data: `\uD83D\uDCE6 Your shipment ${load.loadNumber} is on its way!` },
             Body: {
               Html: {
-                Data: `
-                  <p>Hello <strong>${load.customerName}</strong>,</p>
-                  <p>Your shipment is now in transit!</p>
-                  <p style="margin:20px 0;">
-                    <a href="${trackURL}"
-                       style="background:#007AFF;color:white;padding:12px 28px;
-                              border-radius:8px;text-decoration:none;font-weight:bold;font-size:16px;">
-                      📍 Track My Shipment
-                    </a>
-                  </p>
-                  <table style="border-collapse:collapse;margin:12px 0;">
-                    <tr><td style="padding:4px 12px 4px 0;color:#666;">Load #</td>
-                        <td>${load.loadNumber}</td></tr>
-                    <tr><td style="padding:4px 12px 4px 0;color:#666;">Pickup</td>
-                        <td>${load.pickupAddress}</td></tr>
-                    <tr><td style="padding:4px 12px 4px 0;color:#666;">Delivery</td>
-                        <td>${load.deliveryAddress}</td></tr>
-                    <tr><td style="padding:4px 12px 4px 0;color:#666;">Est. Delivery</td>
-                        <td>${load.deliveryDate || "TBD"}</td></tr>
-                  </table>
-                  <p style="color:#888;font-size:12px;">
-                    This link is unique to your shipment.<br>– CMP Freight
-                  </p>
-                `,
+                Data: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<div style="max-width:520px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);">
+  <div style="background:#34C759;padding:24px 28px;">
+    <div style="font-size:22px;font-weight:700;color:#fff;">\uD83D\uDCE6 Your Shipment Is On Its Way!</div>
+    <div style="color:rgba(255,255,255,.8);font-size:14px;margin-top:4px;">Load ${load.loadNumber} is now in transit</div>
+  </div>
+  <div style="padding:24px 28px;">
+    <p style="font-size:15px;margin:0 0 12px;">Hello <strong>${load.customerName || "Valued Customer"}</strong>,</p>
+    <table style="width:100%;border-collapse:collapse;font-size:14px;margin:0 0 20px;">
+      <tr><td style="padding:8px 0;color:#888;width:120px;">Load #</td><td style="padding:8px 0;font-weight:600;">${load.loadNumber}</td></tr>
+      <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Pickup</td><td style="padding:8px 0;">${load.pickupAddress}</td></tr>
+      <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Delivery</td><td style="padding:8px 0;">${load.deliveryAddress}</td></tr>
+      <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Est. Delivery</td><td style="padding:8px 0;">${load.deliveryDate || "TBD"}</td></tr>
+    </table>
+    <a href="${trackURL}" style="display:block;background:#007AFF;color:#fff;text-align:center;padding:14px;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;">\uD83D\uDCCD Track My Shipment Live</a>
+    <p style="font-size:12px;color:#aaa;margin-top:20px;text-align:center;">\u2013 CMP Freight</p>
+  </div>
+</div></body></html>`,
               },
             },
           },
         }));
+        console.log("startTracking: customer email sent to", load.customerEmail);
       } catch (err) {
-        console.warn("SES customer tracking email failed:", err.message);
+        console.error("SES customer email failed:", err.message);
       }
     }
 

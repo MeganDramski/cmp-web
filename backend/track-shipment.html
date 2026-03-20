@@ -191,6 +191,12 @@
 
     let map, driverMarker, trailPolyline;
 
+    function filterRecentLocations(history) {
+      if (!history || !history.length) return [];
+      const cutoff = Date.now() - (4 * 60 * 60 * 1000); // 4 hours
+      return history.filter(p => p.timestamp && new Date(p.timestamp).getTime() >= cutoff);
+    }
+
     (async function init() {
       if (!TOKEN) {
         showError("Invalid tracking link – no token found in the URL.");
@@ -258,22 +264,20 @@
           document.getElementById("stat-updated").textContent =
             loc.timestamp ? new Date(loc.timestamp).toLocaleTimeString() : "—";
 
-          // Draw movement trail from full history
-          if (data.locationHistory && data.locationHistory.length > 1) {
-            const trailCoords = data.locationHistory.map(function(p) {
-              return [p.latitude, p.longitude];
-            });
+          // Draw trail — only recent points (last 4 hours) to avoid phantom lines
+          const recentHistory = filterRecentLocations(data.locationHistory);
+          if (recentHistory.length >= 2) {
+            const trailCoords = recentHistory.map(p => [p.latitude, p.longitude]);
             if (trailPolyline) {
               trailPolyline.setLatLngs(trailCoords);
             } else {
               trailPolyline = L.polyline(trailCoords, {
-                color: '#007AFF',
-                weight: 4,
-                opacity: 0.8,
-                lineJoin: 'round',
-                lineCap: 'round',
+                color: '#007AFF', weight: 4, opacity: 0.8,
+                lineJoin: 'round', lineCap: 'round',
               }).addTo(map);
             }
+          } else if (trailPolyline) {
+            trailPolyline.setLatLngs([]);
           }
 
           // Update map marker
