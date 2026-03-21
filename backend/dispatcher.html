@@ -810,11 +810,14 @@ function stopDispatcherMap(){
 function startDispatcherMap(load){
   stopDispatcherMap();
   if(!isLive()||!load.trackingToken||(load.status!=='In Transit'&&load.status!=='Assigned'))return;
+  // Seed last-loc timestamp to NOW so the stale timer doesn't fire immediately
+  // on a freshly-opened panel (the last DB timestamp could be old).
+  _lastLocTimestamp=Date.now();
   // Immediate first fetch
   pollDispatcherMap(load.trackingToken);
   // Then every 15 seconds
   _dispPollTimer=setInterval(function(){pollDispatcherMap(load.trackingToken);},15000);
-  // Check for stale signal every 30 seconds
+  // Check for stale signal every 30 seconds (starts after first poll has run)
   _dispStaleTimer=setInterval(function(){checkStaleSignal();},30000);
 }
 
@@ -823,8 +826,8 @@ function checkStaleSignal(){
   var msg=document.getElementById('disp-stale-msg');
   if(!warn)return;
   if(!_lastLocTimestamp){warn.classList.remove('on');return;}
-  var age=Date.now()-_lastLocTimestamp; // ms since last update
-  var STALE_MS=2*60*1000; // 2 minutes
+  var age=Date.now()-_lastLocTimestamp; // ms since last live poll update
+  var STALE_MS=5*60*1000; // 5 minutes of no new data from the live poll
   if(age>=STALE_MS){
     var mins=Math.floor(age/60000);
     if(msg) msg.textContent='No location update for '+mins+' min — driver signal may be lost.';
@@ -954,8 +957,8 @@ function pollDispatcherMap(token){
         document.getElementById('dms-lat').textContent=lat.toFixed(5);
         document.getElementById('dms-lng').textContent=lng.toFixed(5);
         document.getElementById('dms-updated').textContent=loc.timestamp?new Date(loc.timestamp).toLocaleTimeString():'—';
-        // Track when this location was recorded (for stale-signal detection)
-        _lastLocTimestamp=loc.timestamp?new Date(loc.timestamp).getTime():Date.now();
+        // Update stale clock to NOW (time of this successful poll), not the stored GPS timestamp
+        _lastLocTimestamp=Date.now();
         checkStaleSignal();
       }
     })
