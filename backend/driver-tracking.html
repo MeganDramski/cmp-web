@@ -371,7 +371,7 @@
 
   <!-- ── Update Log ──────────────────────────────────────────────────────── -->
   <div class="card" id="log-card" style="display:none;">
-    <p class="card-title">Updates sent</p>
+    <p class="card-title">Activity</p>
     <div id="log-list"></div>
   </div>
 
@@ -563,6 +563,7 @@
           document.getElementById('btn-deliver').style.display = 'flex';
           document.getElementById('log-card').style.display    = 'block';
           showSuccess('✅ Tracking started! Dispatcher has been notified.');
+          addLog('🚛 Tracking started');
 
           postLocation(pos);
           startGPS(true);
@@ -689,7 +690,6 @@
             showError('denied');
           } else {
             // Timeout or POSITION_UNAVAILABLE — auto-restart after delay
-            addLog('⚠️ GPS lost (' + err.message + ') — retrying in ' + (gpsRestartDelay / 1000) + 's…');
             navigator.geolocation.clearWatch(watchId);
             watchId = null;
             if (isTracking) {
@@ -860,7 +860,6 @@
     // ── POST location to API (with offline queue + auto-retry) ─────────────
     function postLocation(pos) {
       updateCount++;
-      addLog("📍 Location updated (" + updateCount + ")");
       if (!isLive()) return;
       var c = pos.coords;
       var payload = {
@@ -874,7 +873,6 @@
       if (!navigator.onLine) {
         offlineQueue.push(payload);
         setConnBar('offline');
-        addLog("📦 Queued offline (" + offlineQueue.length + " pending)");
         return;
       }
 
@@ -889,7 +887,6 @@
       }).catch(function() {
         offlineQueue.push(payload);
         setConnBar('offline');
-        addLog("⚠️ Send failed — queued for retry (" + offlineQueue.length + " pending)");
       });
     }
 
@@ -897,7 +894,6 @@
       if (!isLive() || offlineQueue.length === 0) return;
       var queue = offlineQueue.slice();
       offlineQueue = [];
-      addLog("🔄 Flushing " + queue.length + " queued location(s)…");
       queue.forEach(function(payload) { sendLocationPayload(payload); });
     }
 
@@ -1039,7 +1035,6 @@
       }
       // When the driver comes back to the tab while tracking, restart GPS if it dropped
       if (isTracking && document.visibilityState === "visible" && watchId === null) {
-        addLog("📲 Tab visible again — restarting GPS…");
         startGPS(false);
       }
       // Flush any queued locations when coming back online
@@ -1072,7 +1067,6 @@
             navigator.wakeLock.request('screen').then(function(wl){ wakeLock = wl; }).catch(function(){});
           }
           if (isTracking && watchId === null && !gpsRestartTimer) {
-            addLog('📲 Keep-alive: restarting GPS…');
             startGPS(false);
           }
         }
