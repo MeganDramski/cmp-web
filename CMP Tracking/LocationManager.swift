@@ -37,20 +37,20 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// How close (meters) the driver must be to the delivery address to start the timer
     private let deliveryRadiusMeters: CLLocationDistance = 300
     /// How long (seconds) the driver must be still near the delivery address
-    private let stillnessThreshold: TimeInterval = 5 * 60   // 5 minutes
+    private let stillnessThreshold: TimeInterval = 3 * 60   // 3 minutes
     /// Timer that fires the reminder after stillness threshold
     private var stillnessTimer: Timer?
     /// Last location used to detect movement
     private var lastMovementLocation: CLLocation?
     /// Minimum movement (meters) to reset the stillness timer
-    private let movementResetDistance: CLLocationDistance = 50
+    private let movementResetDistance: CLLocationDistance = 30
 
     // MARK: - Init
     override init() {
         super.init()
         clManager.delegate = self
         clManager.desiredAccuracy = kCLLocationAccuracyBest
-        clManager.distanceFilter = 10  // meters — only update if moved 10m
+        clManager.distanceFilter = 5   // meters — lowered so parked driver still gets updates
         clManager.pausesLocationUpdatesAutomatically = false
         // allowsBackgroundLocationUpdates can only be set to true on a real device
         // with the background location capability active. Setting it on the simulator
@@ -125,7 +125,14 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     private func geocodeDeliveryAddress(_ address: String) {
         CLGeocoder().geocodeAddressString(address) { [weak self] placemarks, error in
-            guard let self, let coord = placemarks?.first?.location?.coordinate else { return }
+            guard let self, let coord = placemarks?.first?.location?.coordinate else {
+                if let error = error {
+                    print("Geocoding error: \(error.localizedDescription)")
+                } else {
+                    print("Geocoding error: No coordinates found")
+                }
+                return
+            }
             DispatchQueue.main.async {
                 self.deliveryCoordinate = coord
             }
@@ -161,20 +168,20 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
                 lastMovementLocation = location
             } else if stillnessTimer == nil {
                 // Driver near delivery and hasn't moved — start the stillness timer
-                stillnessTimer = Timer.scheduledTimer(withTimeInterval: stillnessThreshold, repeats: false) { [weak self] _ in
-                    DispatchQueue.main.async {
-                        self?.deliveryReminderTriggered = true
-                    }
+                let t = Timer(timeInterval: stillnessThreshold, repeats: false) { [weak self] _ in
+                    self?.deliveryReminderTriggered = true
                 }
+                RunLoop.main.add(t, forMode: .common)
+                stillnessTimer = t
             }
         } else {
             // First time near delivery — record position and start timer
             lastMovementLocation = location
-            stillnessTimer = Timer.scheduledTimer(withTimeInterval: stillnessThreshold, repeats: false) { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.deliveryReminderTriggered = true
-                }
+            let t = Timer(timeInterval: stillnessThreshold, repeats: false) { [weak self] _ in
+                self?.deliveryReminderTriggered = true
             }
+            RunLoop.main.add(t, forMode: .common)
+            stillnessTimer = t
         }
     }
 
@@ -199,8 +206,12 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             self.currentLocation = location
         }
 
-        // Check geofence + stillness for delivery reminder
-        checkDeliveryStillness(location: location)
+        // Check geofence + stillness for delivery reminder — must run on main thread
+        // so that Timer.scheduledTimer is added to the main run loop and actually fires.
+        let captured = location
+        DispatchQueue.main.async {
+            self.checkDeliveryStillness(location: captured)
+        }
 
         // Throttle: only send every `updateInterval` seconds
         let now = Date()
