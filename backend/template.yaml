@@ -328,6 +328,22 @@ Resources:
             Path: /loads/{id}
             Method: DELETE
 
+  # POST /loads/{id}/accept  (driver accepts an assigned load)
+  AcceptLoadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-accept-load
+      CodeUri: src/
+      Handler: handlers/acceptLoad.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /loads/{id}/accept
+            Method: POST
+
   # PATCH /loads/{id}/assign
   AssignDriverFunction:
     Type: AWS::Serverless::Function

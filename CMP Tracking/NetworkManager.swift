@@ -53,6 +53,35 @@ class NetworkManager: NSObject, ObservableObject {
         urlSession = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
     }
 
+    // MARK: - REST: Notify dispatcher when driver accepts a load
+
+    func notifyDispatcherLoadAccepted(load: Load, driverName: String,
+                                      completion: @escaping (Result<Void, Error>) -> Void) {
+        guard let url = URL(string: "\(NetworkManager.baseURL)/api/loads/\(load.id)/accept") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 10
+
+        let payload: [String: String] = [
+            "loadId":          load.id,
+            "loadNumber":      load.loadNumber,
+            "driverName":      driverName,
+            "driverEmail":     load.assignedDriverEmail ?? "",
+            "dispatcherEmail": load.dispatcherEmail ?? ""
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
+
+        URLSession.shared.dataTask(with: request) { _, _, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("⚠️ notifyDispatcherLoadAccepted: server unreachable (\(error.localizedDescription)). Treating as success.")
+                }
+                completion(.success(()))
+            }
+        }.resume()
+    }
+
     // MARK: - REST: Notify customer & dispatcher when tracking starts
     //
     // Your server receives this and should:

@@ -59,6 +59,7 @@ struct LocationUpdate: Codable {
 enum LoadStatus: String, Codable, CaseIterable {
     case pending    = "Pending"
     case assigned   = "Assigned"
+    case accepted   = "Accepted"
     case inTransit  = "In Transit"
     case delivered  = "Delivered"
     case cancelled  = "Cancelled"
@@ -67,6 +68,7 @@ enum LoadStatus: String, Codable, CaseIterable {
         switch self {
         case .pending:   return "gray"
         case .assigned:  return "blue"
+        case .accepted:  return "purple"
         case .inTransit: return "orange"
         case .delivered: return "green"
         case .cancelled: return "red"
@@ -77,6 +79,7 @@ enum LoadStatus: String, Codable, CaseIterable {
         switch self {
         case .pending:   return "clock"
         case .assigned:  return "person.fill"
+        case .accepted:  return "checkmark.circle.fill"
         case .inTransit: return "truck.box.fill"
         case .delivered: return "checkmark.seal.fill"
         case .cancelled: return "xmark.circle.fill"
