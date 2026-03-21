@@ -1122,14 +1122,18 @@ function sendLink(id){
     weight:load.weight||0,customerName:load.customerName||'',
     customerEmail:load.customerEmail||'',dispatcherEmail:load.dispatcherEmail||'',
     notifyCustomer:load.notifyCustomer||false,notes:load.notes||'',
-    assignedDriverName:load.assignedDriverName||'',status:load.status||'Pending',
+    assignedDriverName:load.assignedDriverName||'',
+    assignedDriverEmail:load.assignedDriverEmail||'',
+    assignedDriverPhone:load.assignedDriverPhone||'',
+    status:load.status||'Pending',
     trackingToken:load.trackingToken||''
   };
   var encoded='';
   try{ encoded=btoa(unescape(encodeURIComponent(JSON.stringify(payload)))); }catch(e){ encoded=''; }
 
   var dURL = base + '/driver-tracking.html?token=' + encodeURIComponent(load.trackingToken||'')
-           + '&loadId=' + encodeURIComponent(load.id||'');
+           + '&loadId=' + encodeURIComponent(load.id||'')
+           + (encoded ? '&d=' + encodeURIComponent(encoded) : '');
 
   var pickupStr=load.pickupDate?new Date(load.pickupDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
 
