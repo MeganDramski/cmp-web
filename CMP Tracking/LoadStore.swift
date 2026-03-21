@@ -30,6 +30,11 @@ final class LoadStore {
     /// Persists IDs that have been explicitly deleted so that stale iCloud
     /// snapshots can never resurrect them.
     private let deletedIDsKey   = "cmp.loads.deletedIDs"
+    /// 30-day rolling history of delivered / cancelled loads.
+    private let historyKey      = "cmp.loads.history"
+    private let historyFallback = "cmp.loads.history.local"
+
+    static let historyRetentionDays: Double = 30
 
     // MARK: - Encoder / Decoder
 
@@ -133,6 +138,58 @@ final class LoadStore {
         NSUbiquitousKeyValueStore.default.set(arr, forKey: deletedIDsKey)
         NSUbiquitousKeyValueStore.default.synchronize()
         UserDefaults.standard.set(arr, forKey: deletedIDsKey)
+    }
+
+    // MARK: - 30-Day History
+
+    /// Archives a completed (delivered / cancelled) load into the 30-day history.
+    /// If the load already exists in history (same id) it is updated in place.
+    /// Entries older than 30 days are pruned automatically.
+    func saveToHistory(_ load: Load) {
+        var history = loadHistory()
+        // Upsert
+        if let idx = history.firstIndex(where: { $0.id == load.id }) {
+            history[idx] = load
+        } else {
+            history.append(load)
+        }
+        history = pruneHistory(history)
+        persistHistory(history)
+    }
+
+    /// Returns all history entries from the last 30 days, newest first.
+    func loadHistory() -> [Load] {
+        let raw: [Load]
+        if let data = NSUbiquitousKeyValueStore.default.data(forKey: historyKey),
+           let loads = try? decoder.decode([Load].self, from: data) {
+            raw = loads
+        } else if let data = UserDefaults.standard.data(forKey: historyFallback),
+                  let loads = try? decoder.decode([Load].self, from: data) {
+            raw = loads
+        } else {
+            raw = []
+        }
+        return pruneHistory(raw).sorted { ($0.completedAt ?? $0.deliveryDate) > ($1.completedAt ?? $1.deliveryDate) }
+    }
+
+    /// Removes a single entry from history (e.g. when permanently deleting a completed load).
+    func removeFromHistory(id: String) {
+        var history = loadHistory()
+        history.removeAll { $0.id == id }
+        persistHistory(history)
+    }
+
+    @discardableResult
+    private func pruneHistory(_ loads: [Load]) -> [Load] {
+        let cutoff = Date().addingTimeInterval(-LoadStore.historyRetentionDays * 86_400)
+        return loads.filter { ($0.completedAt ?? $0.deliveryDate) >= cutoff }
+    }
+
+    private func persistHistory(_ loads: [Load]) {
+        guard let data = try? encoder.encode(loads) else { return }
+        NSUbiquitousKeyValueStore.default.set(data, forKey: historyKey)
+        NSUbiquitousKeyValueStore.default.synchronize()
+        UserDefaults.standard.set(data, forKey: historyFallback)
     }
 
     // MARK: - iCloud Remote Change
