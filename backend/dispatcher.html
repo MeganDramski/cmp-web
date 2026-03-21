@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>CMP Logistics - Dispatcher Portal</title>
+<title>CMP Freight - Dispatcher Portal</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -65,7 +65,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 
 /* LIST PANEL */
 #lp{width:370px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-.ltop{padding:13px 13px 0;background:var(--surface);border-bottom:1px solid var(--border)}
+.ltop{padding:13px 13px 0;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+#view-loads{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .srow{display:flex;gap:8px;padding-bottom:11px;overflow-x:auto}
 .srow::-webkit-scrollbar{display:none}
 .sc{flex-shrink:0;width:80px;height:80px;background:var(--s2);border-radius:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;border:2px solid transparent}
@@ -95,6 +96,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .bInTransit{background:rgba(255,149,0,.18);color:var(--orange)}
 .bDelivered{background:rgba(52,199,89,.18);color:var(--green)}
 .bCancelled{background:rgba(255,59,48,.18);color:var(--red)}
+
+/* HISTORY VIEW */
+#view-history{flex:1;flex-direction:column;overflow:hidden;display:none}
+#view-history .htop{padding:13px 13px 0;background:var(--surface);border-bottom:1px solid var(--border)}
+#view-history .hstats{display:flex;gap:8px;padding-bottom:11px}
+.hstat{flex:1;background:var(--s2);border-radius:13px;padding:10px 8px;text-align:center}
+.hstat .hn{font-size:20px;font-weight:700}.hstat .hl-{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.hstat-de .hn{color:var(--green)}.hstat-ca .hn{color:var(--red)}
+#view-history .hsr{padding:9px 13px;background:var(--surface);border-bottom:1px solid var(--border)}
+#view-history .hsr input{width:100%;padding:8px 12px 8px 30px;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;outline:none}
+#view-history .hsr input:focus{border-color:var(--blue)}
+.hsr-wrap{position:relative}.hsr-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:13px;pointer-events:none}
+#hl{flex:1;overflow-y:auto}
+.hwk-hdr{padding:8px 13px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);background:var(--bg);border-bottom:1px solid var(--border)}
 
 /* DETAIL PANEL */
 #dp{flex:1;overflow-y:auto;background:var(--bg)}
@@ -200,7 +215,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   <div class="acard">
     <div class="alogo">
       <div class="ico">🚛</div>
-      <h1>CMP Logistics</h1>
+      <h1>CMP Freight</h1>
       <p>Dispatcher Portal</p>
     </div>
     <div class="atabs">
@@ -237,7 +252,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <!-- APP -->
 <div id="app-screen">
   <nav class="nav">
-    <div class="brand">🚛 CMP Logistics</div>
+    <div class="brand">🚛 CMP Freight</div>
     <div class="spacer"></div>
     <div class="uchip"><span>👤</span><strong id="nav-name">Dispatcher</strong></div>
     <button class="btn btn-sm" id="btn-out">Sign Out</button>
@@ -253,13 +268,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
           <div class="sc" id="sc-as"><span class="sc-i">👤</span><span class="sc-n" id="cn-as">0</span><span class="sc-l">Assigned</span></div>
           <div class="sc" id="sc-pe"><span class="sc-i">⏰</span><span class="sc-n" id="cn-pe">0</span><span class="sc-l">Pending</span></div>
           <div class="sc" id="sc-de"><span class="sc-i">✅</span><span class="sc-n" id="cn-de">0</span><span class="sc-l">Delivered</span></div>
+          <div class="sc" id="sc-hi"><span class="sc-i">🕐</span><span class="sc-n" id="cn-hi">30d</span><span class="sc-l">History</span></div>
         </div>
         <div class="sr">
           <div class="sw"><span class="si">🔍</span><input type="search" id="q" placeholder="Search loads, customers, drivers…"/></div>
           <button class="btn btn-sm" id="btn-rf">🔄</button>
         </div>
       </div>
-      <div id="ll"></div>
+      <!-- Active Loads view -->
+      <div id="view-loads" style="flex:1;flex-direction:column;overflow:hidden;display:flex">
+        <div id="ll"></div>
+      </div>
+      <!-- History view -->
+      <div id="view-history">
+        <div class="htop">
+          <div class="hstats">
+            <div class="hstat"><div class="hn" id="hn-all">0</div><div class="hl-">Total (30d)</div></div>
+            <div class="hstat hstat-de"><div class="hn" id="hn-de">0</div><div class="hl-">Delivered</div></div>
+            <div class="hstat hstat-ca"><div class="hn" id="hn-ca">0</div><div class="hl-">Cancelled</div></div>
+          </div>
+        </div>
+        <div class="hsr"><div class="hsr-wrap"><span class="hsr-icon">🔍</span><input type="search" id="hq" placeholder="Search history…"/></div></div>
+        <div id="hl"></div>
+      </div>
     </div>
     <!-- Detail panel -->
     <div id="dp">
@@ -504,30 +535,37 @@ function loadDrivers(){
     .catch(function(){drivers=[];});
 }
 
+/* DELETED IDS TOMBSTONE — persists across logins so deleted loads never resurrect */
+function getDeletedIDs(){return JSON.parse(localStorage.getItem('cmp_deleted_ids')||'[]');}
+function addDeletedID(id){var ids=getDeletedIDs();if(ids.indexOf(id)===-1){ids.push(id);localStorage.setItem('cmp_deleted_ids',JSON.stringify(ids));}}
+function filterDeleted(arr){var ids=getDeletedIDs();return arr.filter(function(l){return ids.indexOf(l.id)===-1;});}
+
 /* LOAD DATA */
 document.getElementById('btn-rf').addEventListener('click',loadData);
 function loadData(){
   var btn=document.getElementById('btn-rf'); btn.textContent='⏳'; btn.disabled=true;
   if(!isLive()){
-    var s=JSON.parse(localStorage.getItem('cmp_loads')||'[]');
+    var s=filterDeleted(JSON.parse(localStorage.getItem('cmp_loads')||'[]'));
     loads=s.length?s:makeSamples();
     if(!s.length)localStorage.setItem('cmp_loads',JSON.stringify(loads));
     renderList(); btn.textContent='🔄'; btn.disabled=false; return;
   }
   fetch(API+'/loads',{headers:ah()})
     .then(function(r){if(r.status===401){showAuth();throw new Error('unauth');}return r.json();})
-    .then(function(d){loads=Array.isArray(d)?d:[];renderList();})
+    .then(function(d){loads=filterDeleted(Array.isArray(d)?d:[]);renderList();})
     .catch(function(e){if(e.message!=='unauth')toast('Could not load data: '+e.message);})
     .finally(function(){btn.textContent='🔄';btn.disabled=false;});
 }
 
 /* FILTER */
-document.getElementById('sc-all').addEventListener('click',function(){setF(null);});
-document.getElementById('sc-it').addEventListener('click',function(){setF('In Transit');});
-document.getElementById('sc-as').addEventListener('click',function(){setF('Assigned');});
-document.getElementById('sc-pe').addEventListener('click',function(){setF('Pending');});
-document.getElementById('sc-de').addEventListener('click',function(){setF('Delivered');});
+document.getElementById('sc-all').addEventListener('click',function(){showLoadsPanel();setF(null);});
+document.getElementById('sc-it').addEventListener('click',function(){showLoadsPanel();setF('In Transit');});
+document.getElementById('sc-as').addEventListener('click',function(){showLoadsPanel();setF('Assigned');});
+document.getElementById('sc-pe').addEventListener('click',function(){showLoadsPanel();setF('Pending');});
+document.getElementById('sc-de').addEventListener('click',function(){showLoadsPanel();setF('Delivered');});
+document.getElementById('sc-hi').addEventListener('click',showHistoryPanel);
 document.getElementById('q').addEventListener('input',renderList);
+document.getElementById('hq').addEventListener('input',renderHistory);
 function setF(f){filt=f;renderList();}
 
 /* RENDER LIST */
@@ -538,7 +576,8 @@ function renderList(){
   document.getElementById('cn-as').textContent=loads.filter(function(l){return l.status==='Assigned';}).length;
   document.getElementById('cn-pe').textContent=loads.filter(function(l){return l.status==='Pending';}).length;
   document.getElementById('cn-de').textContent=loads.filter(function(l){return l.status==='Delivered';}).length;
-  ['sc-all','sc-it','sc-as','sc-pe','sc-de'].forEach(function(id){document.getElementById(id).classList.remove('on');});
+  document.getElementById('cn-hi').textContent=loadHistory().length||'30d';
+  ['sc-all','sc-it','sc-as','sc-pe','sc-de','sc-hi'].forEach(function(id){document.getElementById(id).classList.remove('on');});
   var map={null:'sc-all','In Transit':'sc-it','Assigned':'sc-as','Pending':'sc-pe','Delivered':'sc-de'};
   var k=filt===null?'null':filt; if(map[k])document.getElementById(map[k]).classList.add('on');
   var fl=loads.filter(function(l){
@@ -908,7 +947,13 @@ function assignDriver(loadId, driverId, driverName, driverEmail, driverPhone){
 
 /* UPDATE STATUS */
 function updStatus(id,s){
-  for(var i=0;i<loads.length;i++){if(loads[i].id===id){loads[i].status=s;break;}}
+  var load=null;
+  for(var i=0;i<loads.length;i++){if(loads[i].id===id){loads[i].status=s;load=loads[i];break;}}
+  // Archive to 30-day history when a load is completed
+  if(load&&(s==='Delivered'||s==='Cancelled')){
+    load.completedAt=new Date().toISOString();
+    archiveToHistory(load);
+  }
   renderList(); renderDetail();
   if(!isLive()){localStorage.setItem('cmp_loads',JSON.stringify(loads));toast('Status: '+s);return;}
   fetch(API+'/loads/'+id+'/status',{method:'PATCH',headers:ah(),body:JSON.stringify({status:s})})
@@ -944,7 +989,7 @@ function sendLink(id){
   var pickupStr=load.pickupDate?new Date(load.pickupDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
 
   var msgText='Hi '+(load.assignedDriverName||'Driver')+',\n\n'
-    +'You have a new load assigned by CMP Logistics.\n\n'
+    +'You have a new load assigned by CMP Freight.\n\n'
     +'LOAD #: '+(load.loadNumber||'--')+'\n'
     +'PICKUP: '+(load.pickupAddress||'--')+'\n'
     +'DELIVERY: '+(load.deliveryAddress||'--')+'\n'
@@ -998,6 +1043,14 @@ function sendLink(id){
 /* DELETE LOAD */
 function delLoad(id){
   if(!confirm('Delete this load? Cannot be undone.'))return;
+  // Find the load before removing
+  var load=null; for(var i=0;i<loads.length;i++){if(loads[i].id===id){load=loads[i];break;}}
+  // Record tombstone so it never comes back on refresh/login
+  addDeletedID(id);
+  // If delivered/cancelled, archive to history
+  if(load&&(load.status==='Delivered'||load.status==='Cancelled')){
+    archiveToHistory(load);
+  }
   loads=loads.filter(function(l){return l.id!==id;}); selId=null;
   document.getElementById('dph').style.display='';
   document.getElementById('dc').style.display='none';
@@ -1010,6 +1063,112 @@ function delLoad(id){
 /* COPY */
 function copyText(t){
   navigator.clipboard?navigator.clipboard.writeText(t).then(function(){toast('📋 Copied!');}):(function(){var e=document.createElement('textarea');e.value=t;document.body.appendChild(e);e.select();document.execCommand('copy');document.body.removeChild(e);toast('📋 Copied!');})();
+}
+
+/* ── 30-DAY HISTORY ─────────────────────────────────────────────────────── */
+var HISTORY_DAYS=30;
+
+function archiveToHistory(load){
+  var hist=loadHistory();
+  // Upsert by id
+  var idx=-1; for(var i=0;i<hist.length;i++){if(hist[i].id===load.id){idx=i;break;}}
+  var entry=JSON.parse(JSON.stringify(load));
+  if(!entry.completedAt) entry.completedAt=new Date().toISOString();
+  if(idx>=0){hist[idx]=entry;}else{hist.push(entry);}
+  hist=pruneHistory(hist);
+  localStorage.setItem('cmp_history',JSON.stringify(hist));
+}
+
+function loadHistory(){
+  return pruneHistory(JSON.parse(localStorage.getItem('cmp_history')||'[]'));
+}
+
+function pruneHistory(arr){
+  var cutoff=Date.now()-HISTORY_DAYS*86400000;
+  return arr.filter(function(l){
+    var t=l.completedAt?new Date(l.completedAt).getTime():new Date(l.deliveryDate||0).getTime();
+    return t>=cutoff;
+  });
+}
+
+function deleteHistoryEntry(id){
+  if(!confirm('Remove this entry from history?')) return;
+  var hist=loadHistory().filter(function(l){return l.id!==id;});
+  localStorage.setItem('cmp_history',JSON.stringify(hist));
+  renderHistory();
+}
+
+function weekLabel(dateStr){
+  var d=new Date(dateStr), now=new Date();
+  // Start of current week (Sunday)
+  var startOfWeek=new Date(now); startOfWeek.setHours(0,0,0,0); startOfWeek.setDate(now.getDate()-now.getDay());
+  var startOfLast=new Date(startOfWeek); startOfLast.setDate(startOfWeek.getDate()-7);
+  if(d>=startOfWeek) return 'This Week';
+  if(d>=startOfLast) return 'Last Week';
+  // Week range label
+  var ws=new Date(d); ws.setDate(d.getDate()-d.getDay()); ws.setHours(0,0,0,0);
+  var we=new Date(ws); we.setDate(ws.getDate()+6);
+  var mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return mo[ws.getMonth()]+' '+ws.getDate()+' – '+mo[we.getMonth()]+' '+we.getDate();
+}
+
+function renderHistory(){
+  var hist=loadHistory();
+  var q=(document.getElementById('hq').value||'').toLowerCase();
+  if(q) hist=hist.filter(function(l){
+    return (l.loadNumber||'').toLowerCase().indexOf(q)>-1||
+           (l.customerName||'').toLowerCase().indexOf(q)>-1||
+           (l.assignedDriverName||'').toLowerCase().indexOf(q)>-1;
+  });
+  // Update stat counts
+  document.getElementById('hn-all').textContent=hist.length;
+  document.getElementById('hn-de').textContent=hist.filter(function(l){return l.status==='Delivered';}).length;
+  document.getElementById('hn-ca').textContent=hist.filter(function(l){return l.status==='Cancelled';}).length;
+
+  var el=document.getElementById('hl');
+  if(!hist.length){
+    el.innerHTML='<div class="empty-list"><div class="ei">📂</div><h3>No History</h3><p>Delivered and cancelled loads appear here for 30 days.</p></div>';
+    return;
+  }
+  // Sort newest first, group by week
+  hist.sort(function(a,b){return new Date(b.completedAt||b.deliveryDate||0)-new Date(a.completedAt||a.deliveryDate||0);});
+  var groups={}, order=[];
+  hist.forEach(function(l){
+    var lbl=weekLabel(l.completedAt||l.deliveryDate||new Date().toISOString());
+    if(order.indexOf(lbl)===-1) order.push(lbl);
+    if(!groups[lbl]) groups[lbl]=[];
+    groups[lbl].push(l);
+  });
+  var html='';
+  order.forEach(function(lbl){
+    html+='<div class="hwk-hdr">'+esc(lbl)+'</div>';
+    groups[lbl].forEach(function(l){
+      var dateStr=l.completedAt?new Date(l.completedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'';
+      html+='<div class="lr">'
+           +'<div class="lrt"><span class="lrn">'+esc(l.loadNumber)+'</span><span class="'+bc(l.status)+'">'+esc(l.status)+'</span></div>'
+           +'<div class="lrd">'+esc(l.description||'--')+'</div>'
+           +'<div class="lrm"><span>🏢 '+esc(l.customerName||'--')+'</span>'+(l.assignedDriverName?'<span>👤 '+esc(l.assignedDriverName)+'</span>':'')+'<span style="margin-left:auto">📅 '+esc(dateStr)+'</span></div>'
+           +'<div class="lrm" style="margin-top:4px"><span>📍 '+esc(l.pickupAddress||'--')+'</span></div>'
+           +'<div class="lrm"><span>🏁 '+esc(l.deliveryAddress||'--')+'</span></div>'
+           +'<div style="margin-top:7px;text-align:right"><button class="btn btn-sm btn-outline" style="color:var(--red);border-color:var(--red);font-size:11px" onclick="deleteHistoryEntry(\''+esc(l.id)+'\')">🗑 Remove</button></div>'
+           +'</div>';
+    });
+  });
+  el.innerHTML=html;
+}
+
+/* show/hide history panel */
+function showHistoryPanel(){
+  document.getElementById('view-loads').style.display='none';
+  document.getElementById('view-history').style.display='flex';
+  document.getElementById('sc-hi').classList.add('on');
+  ['sc-all','sc-it','sc-as','sc-pe','sc-de'].forEach(function(id){document.getElementById(id).classList.remove('on');});
+  renderHistory();
+}
+function showLoadsPanel(){
+  document.getElementById('view-history').style.display='none';
+  document.getElementById('view-loads').style.display='flex';
+  filt=null; renderList();
 }
 
 /* MODAL - ADD LOAD */
