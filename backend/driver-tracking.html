@@ -446,6 +446,56 @@ notifications <!DOCTYPE html>
 
     function isLive() { return !!API_BASE; }
 
+    // ── Web Notifications ─────────────────────────────────────────────────────
+    var _pickupReminderTimers = [];
+
+    function requestDriverNotifPermission(onGranted) {
+      if (!('Notification' in window)) { if(onGranted) onGranted(false); return; }
+      if (Notification.permission === 'granted') { if(onGranted) onGranted(true); return; }
+      if (Notification.permission === 'denied')  { if(onGranted) onGranted(false); return; }
+      Notification.requestPermission().then(function(p) {
+        if(onGranted) onGranted(p === 'granted');
+      });
+    }
+
+    function driverNotify(title, body) {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      try {
+        var n = new Notification(title, { body: body || '', tag: title });
+        n.onclick = function() { window.focus(); n.close(); };
+        setTimeout(function() { n.close(); }, 10000);
+      } catch(e) {}
+    }
+
+    function schedulePickupReminders(pickupDateStr) {
+      // Clear any previously scheduled reminders
+      _pickupReminderTimers.forEach(function(t) { clearTimeout(t); });
+      _pickupReminderTimers = [];
+
+      if (!pickupDateStr) return;
+      var pickupMs = new Date(pickupDateStr).getTime();
+      var now = Date.now();
+
+      // 30-minute early warning
+      var earlyMs = pickupMs - 30 * 60 * 1000;
+      if (earlyMs > now) {
+        _pickupReminderTimers.push(setTimeout(function() {
+          driverNotify('🚛 Pickup in 30 Minutes',
+            (loadData ? 'Load ' + loadData.loadNumber + ': ' : '') +
+            'Head to ' + (loadData ? loadData.pickupAddress : 'your pickup location'));
+        }, earlyMs - now));
+      }
+
+      // On-time pickup alert
+      if (pickupMs > now) {
+        _pickupReminderTimers.push(setTimeout(function() {
+          driverNotify('🚛 Time to Start Driving!',
+            (loadData ? 'Load ' + loadData.loadNumber + ' — ' : '') +
+            'Pickup: ' + (loadData ? loadData.pickupAddress : 'your pickup location'));
+        }, pickupMs - now));
+      }
+    }
+
     // ── Connection status bar ─────────────────────────────────────────────────
     var _connHideTimer = null;
     function setConnBar(state) { // 'offline' | 'online' | ''
@@ -479,6 +529,12 @@ notifications <!DOCTYPE html>
         document.getElementById("btn-start").disabled = true;
         return;
       }
+      // Ask for notification permission straight away so reminders can fire
+      requestDriverNotifPermission(function(granted) {
+        if (granted) {
+          driverNotify('🚛 CMP Tracking', 'Notifications enabled — we\'ll remind you at pickup time.');
+        }
+      });
       loadLoadInfo();
     })();
 
@@ -544,6 +600,17 @@ notifications <!DOCTYPE html>
       document.getElementById("load-desc").textContent     = data.description || "";
       document.getElementById("pickup-addr").textContent   = data.pickupAddress || "—";
       document.getElementById("delivery-addr").textContent = data.deliveryAddress || "—";
+
+      // Schedule pickup time reminders (works for Assigned & Accepted statuses)
+      if (data.pickupDate && (data.status === 'Assigned' || data.status === 'Accepted')) {
+        schedulePickupReminders(data.pickupDate);
+      }
+
+      // New assignment notification
+      if (data.status === 'Assigned') {
+        driverNotify('📋 New Load Assigned',
+          'Load ' + (data.loadNumber || '') + ' — pickup at ' + (data.pickupAddress || ''));
+      }
 
       // Show extra details row if available
       var extras = "";
@@ -634,6 +701,7 @@ notifications <!DOCTYPE html>
           document.getElementById('log-card').style.display    = 'block';
           showSuccess('✅ Tracking started! Dispatcher has been notified.');
           addLog('🚛 Tracking started');
+          driverNotify('🚛 Tracking Started', 'Your location is now being shared. Drive safe!');
 
           postLocation(pos);
           startGPS(true);
@@ -669,6 +737,9 @@ notifications <!DOCTYPE html>
         badge.className   = 'status-badge accepted';
         badge.textContent = '✅ Accepted';
 
+        // Re-schedule pickup reminders (in case permission was just granted)
+        if (loadData && loadData.pickupDate) schedulePickupReminders(loadData.pickupDate);
+
         // Hide accept card, reveal tracking controls
         document.getElementById('accept-card').style.display  = 'none';
         document.getElementById('gps-card').style.display     = 'block';
@@ -676,6 +747,8 @@ notifications <!DOCTYPE html>
 
         showSuccess('✅ Load accepted! Dispatcher has been notified. Tap Start Tracking when ready.');
         addLog('✅ Load accepted');
+        driverNotify('✅ Load Accepted',
+          'Load ' + (loadData ? loadData.loadNumber : '') + ' accepted. Pickup reminders are set.');
       }
 
       // Try backend accept endpoint
@@ -781,6 +854,8 @@ notifications <!DOCTYPE html>
       document.getElementById("status-badge").textContent  = "✅ Delivered";
       document.getElementById("delivered-screen").style.display = "flex";
       addLog("✅ Marked as Delivered");
+      driverNotify('📦 Delivery Complete!',
+        'Load ' + (loadData ? loadData.loadNumber : '') + ' marked as delivered. Great work!');
     }
 
     function updateLocalStatus(newStatus) {

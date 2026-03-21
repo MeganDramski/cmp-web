@@ -246,6 +246,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     <div class="brand">🚛 CMP Logistics</div>
     <div class="spacer"></div>
     <div class="uchip"><span>👤</span><strong id="nav-name">Dispatcher</strong></div>
+    <button class="btn btn-sm" id="btn-notif" title="Enable notifications" style="display:none">🔔</button>
     <button class="btn btn-sm" id="btn-out">Sign Out</button>
     <button class="btn btn-p btn-sm" id="btn-new">+ New Load</button>
   </nav>
@@ -495,6 +496,99 @@ function enterApp(){
   showApp();
   loadDrivers();
   loadData();
+  requestWebNotifPermission();
+  startBackgroundPoll();
+}
+
+/* ── WEB NOTIFICATIONS ───────────────────────────────────────────────────── */
+function requestWebNotifPermission(){
+  if(!('Notification' in window)) return;
+  var btn = document.getElementById('btn-notif');
+  if(Notification.permission === 'granted'){
+    if(btn) btn.style.display = 'none'; // already granted, no button needed
+    return;
+  }
+  if(Notification.permission === 'default'){
+    // Show the bell button so dispatcher can opt in
+    if(btn){
+      btn.style.display = '';
+      btn.title = 'Enable desktop notifications';
+      btn.onclick = function(){
+        Notification.requestPermission().then(function(p){
+          if(p === 'granted'){
+            btn.style.display = 'none';
+            webNotify('🔔 Notifications enabled', 'You\'ll be notified when drivers accept or start loads.');
+          }
+        });
+      };
+    }
+  }
+}
+
+function webNotify(title, body, icon){
+  if(!('Notification' in window)) return;
+  if(Notification.permission!=='granted') return;
+  try {
+    var n = new Notification(title, {
+      body: body || '',
+      icon: icon || '',
+      badge: '',
+      tag: title, // deduplicate same-type notifications
+    });
+    n.onclick = function(){ window.focus(); n.close(); };
+    setTimeout(function(){ n.close(); }, 8000);
+  } catch(e) {}
+}
+
+/* ── BACKGROUND STATUS-CHANGE POLL ──────────────────────────────────────── */
+// Tracks previously seen statuses so we only fire once per transition.
+var _knownStatuses = {}; // loadId → status string
+var _bgPollTimer   = null;
+
+function startBackgroundPoll(){
+  if(!isLive()) return; // only meaningful when we have a real backend
+  if(_bgPollTimer) return;
+  // Snapshot current statuses so we don't fire on first load
+  loads.forEach(function(l){ _knownStatuses[l.id] = l.status; });
+  _bgPollTimer = setInterval(bgPollLoads, 30000); // every 30 s
+}
+
+function bgPollLoads(){
+  if(!isLive()) return;
+  fetch(API+'/loads', {headers:ah()})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(fresh){
+      if(!Array.isArray(fresh)) return;
+      fresh = filterDeleted(fresh);
+      fresh.forEach(function(l){
+        var prev = _knownStatuses[l.id];
+        if(prev === undefined){ _knownStatuses[l.id] = l.status; return; } // new load, no alert
+        if(prev === l.status) return; // no change
+        // Status changed — fire a notification
+        var driverName = l.assignedDriverName || 'Driver';
+        var loadNum    = l.loadNumber || l.id;
+        if(l.status === 'Accepted'){
+          webNotify('✅ Load Accepted', driverName+' accepted load '+loadNum+'. Ready at pickup time.');
+          toast('✅ '+driverName+' accepted '+loadNum);
+        } else if(l.status === 'In Transit'){
+          webNotify('🚛 Driver Started Tracking', driverName+' is now on the way for load '+loadNum+'.');
+          toast('🚛 '+driverName+' started tracking '+loadNum);
+        } else if(l.status === 'Delivered'){
+          webNotify('📦 Load Delivered', 'Load '+loadNum+' has been delivered by '+driverName+'.');
+          toast('📦 '+loadNum+' delivered by '+driverName);
+        } else if(l.status === 'Cancelled'){
+          webNotify('❌ Load Cancelled', 'Load '+loadNum+' has been cancelled.');
+        }
+        _knownStatuses[l.id] = l.status;
+        // Refresh the loads list so the UI reflects the change
+        for(var i=0;i<loads.length;i++){
+          if(loads[i].id===l.id){ loads[i]=l; break; }
+        }
+        renderList();
+        if(selId===l.id) renderDetail();
+      });
+    })
+    .catch(function(){});
 }
 
 /* LOAD DRIVERS */
@@ -527,7 +621,12 @@ function loadData(){
   }
   fetch(API+'/loads',{headers:ah()})
     .then(function(r){if(r.status===401){showAuth();throw new Error('unauth');}return r.json();})
-    .then(function(d){loads=filterDeleted(Array.isArray(d)?d:[]);renderList();})
+    .then(function(d){
+      loads=filterDeleted(Array.isArray(d)?d:[]);
+      // Seed known statuses so background poll baseline is correct
+      loads.forEach(function(l){ _knownStatuses[l.id]=l.status; });
+      renderList();
+    })
     .catch(function(e){if(e.message!=='unauth')toast('Could not load data: '+e.message);})
     .finally(function(){btn.textContent='🔄';btn.disabled=false;});
 }
