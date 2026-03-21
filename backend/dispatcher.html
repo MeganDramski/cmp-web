@@ -1,4 +1,4 @@
-<lst !DOCTYPE html>
+<nlst !DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -166,6 +166,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
 .bPending{background:rgba(142,142,160,.18);color:#aeaec0}
 .bAssigned{background:rgba(0,122,255,.18);color:var(--blue)}
+.bAccepted{background:rgba(175,82,222,.18);color:#af52de}
 .bInTransit{background:rgba(255,149,0,.18);color:var(--orange)}
 .bDelivered{background:rgba(52,199,89,.18);color:var(--green)}
 .bCancelled{background:rgba(255,59,48,.18);color:var(--red)}
@@ -252,7 +253,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   </nav>
   <div class="tab-bar">
     <button class="tab-btn on" id="tab-all">📋 All <span class="tab-count" id="cn-all">0</span></button>
-    <button class="tab-btn" id="tab-it">🚛 Active <span class="tab-count" id="cn-it">0</span></button>
+    <button class="tab-btn" id="tab-it">🚛 In Transit <span class="tab-count" id="cn-it">0</span></button>
+    <button class="tab-btn" id="tab-ac">✅ Accepted <span class="tab-count" id="cn-ac">0</span></button>
     <button class="tab-btn" id="tab-as">👤 Assigned <span class="tab-count" id="cn-as">0</span></button>
     <button class="tab-btn" id="tab-pe">⏰ Pending <span class="tab-count" id="cn-pe">0</span></button>
     <button class="tab-btn" id="tab-de">✅ Delivered <span class="tab-count" id="cn-de">0</span></button>
@@ -632,9 +634,9 @@ function loadData(){
 }
 
 /* FILTER / TABS */
-var TAB_LABELS={'tab-all':'All Loads','tab-it':'Active Loads','tab-as':'Assigned Loads','tab-pe':'Pending Loads','tab-de':'Delivered Loads','tab-ca':'Cancelled Loads'};
-var TAB_FILTER={'tab-all':null,'tab-it':'In Transit','tab-as':'Assigned','tab-pe':'Pending','tab-de':'Delivered','tab-ca':'Cancelled'};
-['tab-all','tab-it','tab-as','tab-pe','tab-de','tab-ca'].forEach(function(id){
+var TAB_LABELS={'tab-all':'All Loads','tab-it':'In Transit Loads','tab-ac':'Accepted Loads','tab-as':'Assigned Loads','tab-pe':'Pending Loads','tab-de':'Delivered Loads','tab-ca':'Cancelled Loads'};
+var TAB_FILTER={'tab-all':null,'tab-it':'In Transit','tab-ac':'Accepted','tab-as':'Assigned','tab-pe':'Pending','tab-de':'Delivered','tab-ca':'Cancelled'};
+['tab-all','tab-it','tab-ac','tab-as','tab-pe','tab-de','tab-ca'].forEach(function(id){
   document.getElementById(id).addEventListener('click',function(){
     filt=TAB_FILTER[id];
     document.getElementById('view-title').textContent=TAB_LABELS[id];
@@ -650,6 +652,7 @@ function renderList(){
   // Count live loads
   document.getElementById('cn-all').textContent=loads.length;
   document.getElementById('cn-it').textContent=loads.filter(function(l){return l.status==='In Transit';}).length;
+  document.getElementById('cn-ac').textContent=loads.filter(function(l){return l.status==='Accepted';}).length;
   document.getElementById('cn-as').textContent=loads.filter(function(l){return l.status==='Assigned';}).length;
   document.getElementById('cn-pe').textContent=loads.filter(function(l){return l.status==='Pending';}).length;
   // Delivered tab: live delivered + 30-day history delivered
@@ -660,8 +663,8 @@ function renderList(){
   var cancelledCount=loads.filter(function(l){return l.status==='Cancelled';}).length+hist.filter(function(l){return l.status==='Cancelled';}).length;
   document.getElementById('cn-ca').textContent=cancelledCount;
   // Highlight active tab
-  ['tab-all','tab-it','tab-as','tab-pe','tab-de','tab-ca'].forEach(function(id){document.getElementById(id).classList.remove('on');});
-  var tabMap={null:'tab-all','In Transit':'tab-it','Assigned':'tab-as','Pending':'tab-pe','Delivered':'tab-de','Cancelled':'tab-ca'};
+  ['tab-all','tab-it','tab-ac','tab-as','tab-pe','tab-de','tab-ca'].forEach(function(id){document.getElementById(id).classList.remove('on');});
+  var tabMap={null:'tab-all','In Transit':'tab-it','Accepted':'tab-ac','Assigned':'tab-as','Pending':'tab-pe','Delivered':'tab-de','Cancelled':'tab-ca'};
   var activeTab=tabMap[filt===null?null:filt]; if(activeTab) document.getElementById(activeTab).classList.add('on');
 
   var el=document.getElementById('ll');
@@ -768,7 +771,7 @@ function renderDetail(){
   };
   var dURL=base+'/driver-tracking.html?token='+esc(load.trackingToken)+'&loadId='+esc(load.id)+'&d='+encodeURIComponent(b64enc(JSON.stringify(loadPayload)));
   var cURL=base+'/track-shipment.html?token='+esc(load.trackingToken);
-  var sopts=['Pending','Assigned','In Transit','Delivered','Cancelled'].map(function(s){return '<option value="'+s+'"'+(s===load.status?' selected':'')+'>'+s+'</option>';}).join('');
+  var sopts=['Pending','Assigned','Accepted','In Transit','Delivered','Cancelled'].map(function(s){return '<option value="'+s+'"'+(s===load.status?' selected':'')+'>'+s+'</option>';}).join('');
 
   // Driver assign section — dropdown of known drivers
   var driverOpts='<option value="">-- Unassigned --</option>';
@@ -801,7 +804,7 @@ function renderDetail(){
     +'<div class="dr"><span class="drl">Current Status</span><span class="drv"><select class="ssel" id="d-status">'+sopts+'</select></span></div>'
     +'</div>'
 
-    +(load.trackingToken && (load.status==='In Transit'||load.status==='Assigned') && isLive()
+    +(load.trackingToken && (load.status==='In Transit'||load.status==='Assigned'||load.status==='Accepted') && isLive()
       ? '<div class="sec" id="disp-map-section">'
         +'<div class="map-header"><span><span class="live-dot"></span><span class="map-header-title">Live Driver Location</span></span>'
         +(load.status==='In Transit'?'<span style="font-size:11px;color:var(--green)">● Tracking active</span>':'<span style="font-size:11px;color:var(--muted)">Waiting for driver to start</span>')
@@ -908,7 +911,7 @@ function stopDispatcherMap(){
 
 function startDispatcherMap(load){
   stopDispatcherMap();
-  if(!isLive()||!load.trackingToken||(load.status!=='In Transit'&&load.status!=='Assigned'))return;
+  if(!isLive()||!load.trackingToken||(load.status!=='In Transit'&&load.status!=='Assigned'&&load.status!=='Accepted'))return;
   // Seed last-loc timestamp to NOW so the stale timer doesn't fire immediately
   // on a freshly-opened panel (the last DB timestamp could be old).
   _lastLocTimestamp=Date.now();
