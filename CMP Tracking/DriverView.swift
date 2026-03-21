@@ -23,6 +23,7 @@ struct DriverView: View {
     @State private var notificationBannerMessage = ""
     @State private var isSendingNotification = false
     @State private var isAcceptingLoad = false
+    @State private var isLoadingLoad = false
     /// Controls the pre-prompt sheet shown before the iOS system permission dialog
     @State private var showLocationPrePrompt = false
     /// Shown when driver appears to have stopped at the delivery address
@@ -39,7 +40,6 @@ struct DriverView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
-
                     // ── Status Card ──────────────────────────────────────────
                     trackingStatusCard
 
@@ -86,12 +86,24 @@ struct DriverView: View {
                 }
                 .padding()
             }
+            .refreshable { await fetchAssignedLoadAsync() }
             .navigationTitle("Driver Dashboard")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { authManager.signOut(); appState.logout() }) {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                    HStack(spacing: 16) {
+                        // Refresh loads from server
+                        Button(action: { fetchAssignedLoad() }) {
+                            if isLoadingLoad {
+                                ProgressView().scaleEffect(0.8)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                        }
+                        .disabled(isLoadingLoad)
+                        Button(action: { authManager.signOut(); appState.logout() }) {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                        }
                     }
                 }
             }
@@ -278,17 +290,27 @@ struct DriverView: View {
     }
 
     private var noLoadCard: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "shippingbox")
-                .font(.largeTitle)
-                .foregroundColor(.secondary)
-            Text("No Load Assigned")
-                .font(.headline)
-                .foregroundColor(.secondary)
-            Text("Contact dispatch for your next assignment.")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
+        VStack(spacing: 12) {
+            if isLoadingLoad {
+                ProgressView("Checking for assigned loads…")
+                    .padding(.vertical, 8)
+            } else {
+                Image(systemName: "shippingbox")
+                    .font(.largeTitle)
+                    .foregroundColor(.secondary)
+                Text("No Load Assigned")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+                Text("Contact dispatch for your next assignment.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                Button(action: { fetchAssignedLoad() }) {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                        .font(.subheadline)
+                        .foregroundColor(.accentColor)
+                }
+            }
         }
         .frame(maxWidth: .infinity)
         .padding()
@@ -439,37 +461,62 @@ struct DriverView: View {
     // MARK: - Actions
 
     /// Finds the load assigned to the currently logged-in driver.
-    /// Matches on assignedDriverEmail (set by dispatcher when creating the load).
+    /// Fetches fresh loads from the server first, then falls back to local cache.
     private func fetchAssignedLoad() {
         guard let driver = appState.currentUser else { return }
+        isLoadingLoad = true
+
+        // Try server first so the driver always sees the latest assignment
+        network.fetchLoads { serverLoads, _ in
+            if let serverLoads = serverLoads, !serverLoads.isEmpty {
+                // Merge into local store so offline use still works
+                for load in serverLoads { LoadStore.shared.upsert(load) }
+            }
+            // Now match from the (now-updated) local store
+            self.matchLoadForDriver(driver)
+            self.isLoadingLoad = false
+        }
+    }
+
+    /// Async wrapper used by pull-to-refresh (.refreshable).
+    private func fetchAssignedLoadAsync() async {
+        await withCheckedContinuation { cont in
+            fetchAssignedLoad()
+            // fetchAssignedLoad sets isLoadingLoad = false when done;
+            // give it a tiny moment to finish before releasing the refresh spinner
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { cont.resume() }
+        }
+    }
+
+    private func matchLoadForDriver(_ driver: Driver) {
         let driverEmail = driver.email.lowercased()
         let driverPhone = driver.phone.filter { $0.isNumber }
         let allLoads = LoadStore.shared.load()
 
+        let activeStatuses: Set<LoadStatus> = [.assigned, .accepted, .inTransit]
+
+        // Primary match: email/phone AND active status
         let match = allLoads.first(where: {
             let emailMatch = !driverEmail.isEmpty &&
                 ($0.assignedDriverEmail?.lowercased() == driverEmail)
             let phoneMatch = !driverPhone.isEmpty &&
                 ($0.assignedDriverId?.filter { $0.isNumber } == driverPhone ||
                  $0.assignedDriverEmail?.filter { $0.isNumber } == driverPhone)
-            return (emailMatch || phoneMatch) &&
-                   ($0.status == .assigned || $0.status == .accepted || $0.status == .inTransit)
+            return (emailMatch || phoneMatch) && activeStatuses.contains($0.status)
         }) ?? allLoads.first(where: {
+            // Secondary match: email/phone only, but STILL require active status
             let emailMatch = !driverEmail.isEmpty &&
                 ($0.assignedDriverEmail?.lowercased() == driverEmail)
             let phoneMatch = !driverPhone.isEmpty &&
                 ($0.assignedDriverEmail?.filter { $0.isNumber } == driverPhone)
-            return emailMatch || phoneMatch
+            return (emailMatch || phoneMatch) && activeStatuses.contains($0.status)
         })
+
         assignedLoad = match
 
         // Schedule (or cancel) pickup reminders based on the assigned load
         if let load = match {
-            if load.status == .assigned || load.status == .accepted || load.status == .inTransit {
-                PickupReminderService.schedule(load: load)
-            } else {
-                PickupReminderService.cancel(loadId: load.id)
-            }
+            PickupReminderService.schedule(load: load)
         }
     }
 
