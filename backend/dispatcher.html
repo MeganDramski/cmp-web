@@ -837,19 +837,20 @@ function checkStaleSignal(){
   }
 }
 
-// Keep only location points from the last 4 hours — filters out stale
-// DynamoDB records from previous test sessions that cause phantom lines.
+// Keep only location points from the last 24 hours — prevents truly ancient
+// DynamoDB records from drawing phantom trails, but doesn't hide today's trip.
 function filterRecentLocations(history){
   if(!history||!history.length)return[];
-  var cutoff=Date.now()-(4*60*60*1000);
+  var cutoff=Date.now()-(24*60*60*1000);
   return history.filter(function(p){
     if(!p.timestamp)return true;
     return new Date(p.timestamp).getTime()>=cutoff;
   });
 }
 function isRecentPoint(p){
+  // Accept any point from the last 24 hours
   if(!p||!p.timestamp)return false;
-  return new Date(p.timestamp).getTime()>=(Date.now()-(4*60*60*1000));
+  return new Date(p.timestamp).getTime()>=(Date.now()-(24*60*60*1000));
 }
 
 // Snap GPS points to actual roads using OSRM public API (free, no key).
@@ -906,14 +907,14 @@ function pollDispatcherMap(token){
       var el=document.getElementById('disp-map-inner');
       if(!el)return;
 
-      // Filter out stale history points from previous trips/sessions
+      // Filter history to current 24-hour window
       var recentHistory=filterRecentLocations(data.locationHistory);
 
-      // Use the most recent point from filtered history as the position,
-      // falling back to data.lastLocation only if history is empty.
+      // Use the most recent point from history as position,
+      // always fall back to lastLocation (no age check — show last known position)
       var loc=recentHistory.length
         ? recentHistory[recentHistory.length-1]
-        : (data.lastLocation && isRecentPoint(data.lastLocation) ? data.lastLocation : null);
+        : (data.lastLocation || null);
 
       if(!loc){
         // No fresh location yet — driver hasn't started or data is stale
