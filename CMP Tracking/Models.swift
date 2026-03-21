@@ -108,6 +108,8 @@ struct Load: Identifiable, Codable {
     var notifyCustomer: Bool        // if true, email customer when driver starts
     var lastLocation: LocationUpdate?
     var notes: String
+    /// Set automatically when status transitions to .delivered or .cancelled.
+    var completedAt: Date?
 
     // Deep-link into the iOS app (kept for reference)
     var trackingURL: String {

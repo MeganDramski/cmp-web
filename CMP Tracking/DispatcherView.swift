@@ -7,12 +7,32 @@
 
 import SwiftUI
 
-// MARK: - Dispatcher / Admin Dashboard
-
 struct DispatcherView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var authManager: AuthManager
     @StateObject private var viewModel = DispatcherViewModel()
+
+    var body: some View {
+        TabView {
+            ActiveLoadsTab(viewModel: viewModel)
+                .tabItem {
+                    Label("Loads", systemImage: "list.bullet.clipboard.fill")
+                }
+
+            HistoryTab(viewModel: viewModel)
+                .tabItem {
+                    Label("History", systemImage: "clock.arrow.circlepath")
+                }
+        }
+    }
+}
+
+// MARK: - Active Loads Tab
+
+struct ActiveLoadsTab: View {
+    @ObservedObject var viewModel: DispatcherViewModel
+    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var authManager: AuthManager
 
     @State private var searchText = ""
     @State private var selectedStatus: LoadStatus? = nil
@@ -32,14 +52,9 @@ struct DispatcherView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-
-                // ── Summary Bar ──────────────────────────────────────────────
                 summaryBar
-
-                // ── Filter Chips ─────────────────────────────────────────────
                 statusFilterChips
 
-                // ── Load List ────────────────────────────────────────────────
                 if viewModel.isLoading {
                     Spacer()
                     ProgressView("Loading loads…")
@@ -55,9 +70,7 @@ struct DispatcherView: View {
                         }
                     }
                     .listStyle(.insetGrouped)
-                    .refreshable {
-                        await viewModel.refreshLoads()
-                    }
+                    .refreshable { await viewModel.refreshLoads() }
                 }
             }
             .navigationTitle("Dispatch Board")
@@ -77,9 +90,7 @@ struct DispatcherView: View {
             .sheet(isPresented: $showAddLoad) {
                 AddLoadView(viewModel: viewModel)
             }
-            .task {
-                await viewModel.refreshLoads()
-            }
+            .task { await viewModel.refreshLoads() }
         }
     }
 
@@ -88,30 +99,10 @@ struct DispatcherView: View {
     private var summaryBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
-                SummaryCard(
-                    title: "Active",
-                    count: viewModel.loads.filter { $0.status == .inTransit }.count,
-                    icon: "truck.box.fill",
-                    color: .orange
-                )
-                SummaryCard(
-                    title: "Assigned",
-                    count: viewModel.loads.filter { $0.status == .assigned }.count,
-                    icon: "person.fill",
-                    color: .blue
-                )
-                SummaryCard(
-                    title: "Pending",
-                    count: viewModel.loads.filter { $0.status == .pending }.count,
-                    icon: "clock",
-                    color: .gray
-                )
-                SummaryCard(
-                    title: "Delivered",
-                    count: viewModel.loads.filter { $0.status == .delivered }.count,
-                    icon: "checkmark.seal.fill",
-                    color: .green
-                )
+                SummaryCard(title: "Active",   count: viewModel.loads.filter { $0.status == .inTransit }.count, icon: "truck.box.fill",      color: .orange)
+                SummaryCard(title: "Assigned", count: viewModel.loads.filter { $0.status == .assigned  }.count, icon: "person.fill",          color: .blue)
+                SummaryCard(title: "Pending",  count: viewModel.loads.filter { $0.status == .pending   }.count, icon: "clock",               color: .gray)
+                SummaryCard(title: "Delivered",count: viewModel.loads.filter { $0.status == .delivered }.count, icon: "checkmark.seal.fill",  color: .green)
             }
             .padding()
         }
@@ -123,9 +114,7 @@ struct DispatcherView: View {
     private var statusFilterChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                FilterChip(title: "All", isSelected: selectedStatus == nil) {
-                    selectedStatus = nil
-                }
+                FilterChip(title: "All", isSelected: selectedStatus == nil) { selectedStatus = nil }
                 ForEach(LoadStatus.allCases, id: \.self) { status in
                     FilterChip(title: status.rawValue, isSelected: selectedStatus == status) {
                         selectedStatus = selectedStatus == status ? nil : status
@@ -146,15 +135,196 @@ struct DispatcherView: View {
                 .font(.system(size: 60))
                 .foregroundColor(.secondary)
             Text("No Loads Found")
-                .font(.title2)
-                .fontWeight(.semibold)
+                .font(.title2).fontWeight(.semibold)
             Text("Tap + to create a new load or adjust your filters.")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+                .font(.body).foregroundColor(.secondary)
+                .multilineTextAlignment(.center).padding(.horizontal, 40)
             Spacer()
         }
+    }
+}
+
+// MARK: - History Tab
+
+struct HistoryTab: View {
+    @ObservedObject var viewModel: DispatcherViewModel
+    @State private var searchText = ""
+
+    private var filtered: [Load] {
+        guard !searchText.isEmpty else { return viewModel.history }
+        return viewModel.history.filter {
+            $0.loadNumber.localizedCaseInsensitiveContains(searchText) ||
+            $0.customerName.localizedCaseInsensitiveContains(searchText) ||
+            $0.assignedDriverName?.localizedCaseInsensitiveContains(searchText) == true
+        }
+    }
+
+    /// Group loads by calendar week label, e.g. "This Week", "Last Week", "Mar 1 – Mar 7"
+    private var grouped: [(String, [Load])] {
+        let cal = Calendar.current
+        let now = Date()
+        let thisWeekStart = cal.dateInterval(of: .weekOfYear, for: now)?.start ?? now
+
+        var groups: [(String, [Load])] = []
+        var seen = Set<String>()
+        var buckets: [String: [Load]] = [:]
+
+        for load in filtered {
+            let date = load.completedAt ?? load.deliveryDate
+            let label: String
+            if cal.isDate(date, equalTo: now, toGranularity: .weekOfYear) {
+                label = "This Week"
+            } else if let prev = cal.date(byAdding: .weekOfYear, value: -1, to: thisWeekStart),
+                      date >= prev {
+                label = "Last Week"
+            } else {
+                let start = cal.dateInterval(of: .weekOfYear, for: date)?.start ?? date
+                let end   = cal.date(byAdding: .day, value: 6, to: start) ?? date
+                let fmt   = DateFormatter()
+                fmt.dateFormat = "MMM d"
+                label = "\(fmt.string(from: start)) – \(fmt.string(from: end))"
+            }
+            if !seen.contains(label) { seen.insert(label); groups.append((label, [])) }
+            buckets[label, default: []].append(load)
+        }
+        return groups.map { ($0.0, buckets[$0.0] ?? []) }
+    }
+
+    var body: some View {
+        NavigationView {
+            Group {
+                if viewModel.history.isEmpty {
+                    VStack(spacing: 16) {
+                        Spacer()
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 60)).foregroundColor(.secondary)
+                        Text("No History Yet")
+                            .font(.title2).fontWeight(.semibold)
+                        Text("Delivered and cancelled loads appear here for 30 days.")
+                            .font(.body).foregroundColor(.secondary)
+                            .multilineTextAlignment(.center).padding(.horizontal, 40)
+                        Spacer()
+                    }
+                } else {
+                    List {
+                        // ── Stats banner ──────────────────────────────────────
+                        Section {
+                            HStack(spacing: 0) {
+                                HistoryStat(
+                                    value: "\(viewModel.history.filter { $0.status == .delivered }.count)",
+                                    label: "Delivered",
+                                    icon: "checkmark.seal.fill",
+                                    color: .green
+                                )
+                                Divider()
+                                HistoryStat(
+                                    value: "\(viewModel.history.filter { $0.status == .cancelled }.count)",
+                                    label: "Cancelled",
+                                    icon: "xmark.circle.fill",
+                                    color: .red
+                                )
+                                Divider()
+                                HistoryStat(
+                                    value: "\(viewModel.history.count)",
+                                    label: "Total (30d)",
+                                    icon: "calendar",
+                                    color: .accentColor
+                                )
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+
+                        // ── Grouped load rows ─────────────────────────────────
+                        ForEach(grouped, id: \.0) { (week, loads) in
+                            Section(header: Text(week).font(.subheadline).fontWeight(.semibold)) {
+                                ForEach(loads) { load in
+                                    NavigationLink(destination: LoadDetailView(load: load, viewModel: viewModel)) {
+                                        HistoryRowView(load: load)
+                                    }
+                                }
+                                .onDelete { offsets in
+                                    offsets.forEach { viewModel.deleteHistoryEntry(loads[$0]) }
+                                }
+                            }
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                    .refreshable { await viewModel.refreshLoads() }
+                }
+            }
+            .navigationTitle("History")
+            .navigationBarTitleDisplayMode(.large)
+            .searchable(text: $searchText, prompt: "Search history…")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Text("Last 30 days")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - History Stat Cell
+
+struct HistoryStat: View {
+    let value: String
+    let label: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon).foregroundColor(color).font(.title3)
+            Text(value).font(.title2).fontWeight(.bold)
+            Text(label).font(.caption2).foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+    }
+}
+
+// MARK: - History Row View
+
+struct HistoryRowView: View {
+    let load: Load
+
+    private var completedDate: String {
+        let d = load.completedAt ?? load.deliveryDate
+        return d.formatted(date: .abbreviated, time: .omitted)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(load.loadNumber).font(.headline)
+                Spacer()
+                StatusBadge(status: load.status)
+            }
+            Text(load.description)
+                .font(.subheadline).foregroundColor(.secondary).lineLimit(1)
+            HStack(spacing: 14) {
+                Label(load.customerName, systemImage: "building.2")
+                    .font(.caption).foregroundColor(.secondary)
+                if let driver = load.assignedDriverName {
+                    Label(driver, systemImage: "person.fill")
+                        .font(.caption).foregroundColor(.secondary)
+                }
+                Spacer()
+                Label(completedDate, systemImage: "calendar")
+                    .font(.caption).foregroundColor(.secondary)
+            }
+            HStack {
+                Image(systemName: "arrow.up.circle").foregroundColor(.accentColor).font(.caption)
+                Text(load.pickupAddress).font(.caption).foregroundColor(.secondary).lineLimit(1)
+            }
+            HStack {
+                Image(systemName: "arrow.down.circle.fill").foregroundColor(.green).font(.caption)
+                Text(load.deliveryAddress).font(.caption).foregroundColor(.secondary).lineLimit(1)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 
@@ -261,11 +431,10 @@ struct FilterChip: View {
     }
 }
 
-// MARK: - ViewModel
-
 @MainActor
 class DispatcherViewModel: ObservableObject {
     @Published var loads: [Load] = []
+    @Published var history: [Load] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
 
@@ -283,6 +452,7 @@ class DispatcherViewModel: ObservableObject {
         } else {
             loads = persisted
         }
+        history = store.loadHistory()
 
         // Reload whenever another device pushes a change via iCloud KV
         NotificationCenter.default.addObserver(
@@ -291,8 +461,8 @@ class DispatcherViewModel: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             guard let self else { return }
-            let updated = self.store.load()
-            if !updated.isEmpty { self.loads = updated }
+            self.loads   = self.store.load()
+            self.history = self.store.loadHistory()
         }
     }
 
@@ -319,13 +489,19 @@ class DispatcherViewModel: ObservableObject {
                 loads = persisted
             }
         }
-
+        history = store.loadHistory()
         isLoading = false
     }
 
     func updateLoadStatus(load: Load, newStatus: LoadStatus) {
         if let index = loads.firstIndex(where: { $0.id == load.id }) {
             loads[index].status = newStatus
+            // Stamp completedAt when finishing a load
+            if newStatus == .delivered || newStatus == .cancelled {
+                loads[index].completedAt = Date()
+                store.saveToHistory(loads[index])
+                history = store.loadHistory()
+            }
             store.save(loads)
             firebase.updateLoadStatus(id: load.id, status: newStatus)
             network.updateLoadStatus(loadId: load.id, status: newStatus)
@@ -334,9 +510,7 @@ class DispatcherViewModel: ObservableObject {
 
     func addLoad(_ load: Load) {
         loads.append(load)
-        // 1. Persist locally (instant, offline-safe)
         store.save(loads)
-        // 2. Sync to Firebase cloud database
         firebase.saveLoad(load) { [weak self] error in
             if let error = error {
                 self?.errorMessage = "Cloud sync error: \(error.localizedDescription)"
@@ -345,9 +519,21 @@ class DispatcherViewModel: ObservableObject {
     }
 
     func deleteLoad(_ load: Load) {
+        // If the load was completed, keep it in history instead of erasing it
+        if load.status == .delivered || load.status == .cancelled {
+            var archived = load
+            archived.completedAt = archived.completedAt ?? Date()
+            store.saveToHistory(archived)
+            history = store.loadHistory()
+        }
         loads.removeAll { $0.id == load.id }
-        store.save(loads)
+        store.delete(id: load.id)
         firebase.deleteLoad(id: load.id)
+    }
+
+    func deleteHistoryEntry(_ load: Load) {
+        store.removeFromHistory(id: load.id)
+        history = store.loadHistory()
     }
 }
 
@@ -578,7 +764,7 @@ struct LoadDetailView: View {
 
     private func openSMSFallback(driverPhone: String) {
         let link = load.webTrackingURL
-        let msg = "CMP Logistics – Load \(load.loadNumber)\nPickup: \(load.pickupAddress)\nDelivery: \(load.deliveryAddress)\n\nTap here to start tracking:\n\(link)"
+        let msg = "CMP Freight – Load \(load.loadNumber)\nPickup: \(load.pickupAddress)\nDelivery: \(load.deliveryAddress)\n\nTap here to start tracking:\n\(link)"
         let encoded = msg.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let smsTarget = driverPhone.filter { $0.isNumber || $0 == "+" }
         let urlStr = smsTarget.isEmpty ? "sms:?body=\(encoded)" : "sms:\(smsTarget)?body=\(encoded)"

@@ -61,56 +61,60 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .uchip strong{color:var(--text)}
 
 /* LAYOUT */
-.layout{display:flex;flex:1;overflow:hidden;height:calc(100vh - 52px)}
+#app-screen{display:none;flex-direction:column;height:100vh;overflow:hidden}
+#app-screen.on{display:flex}
 
-/* LIST PANEL */
-#lp{width:370px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-.ltop{padding:13px 13px 0;background:var(--surface);border-bottom:1px solid var(--border)}
-.srow{display:flex;gap:8px;padding-bottom:11px;overflow-x:auto}
-.srow::-webkit-scrollbar{display:none}
-.sc{flex-shrink:0;width:80px;height:80px;background:var(--s2);border-radius:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;border:2px solid transparent}
-.sc.on{border-color:var(--blue)}
-.sc-i{font-size:17px}.sc-n{font-size:20px;font-weight:700}.sc-l{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
-.sr{display:flex;gap:8px;padding:9px 0}
-.sw{flex:1;position:relative}
-.sw input{width:100%;padding:8px 12px 8px 30px;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;outline:none}
-.sw input:focus{border-color:var(--blue)}
-.si{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:13px;pointer-events:none}
+/* TOP TAB BAR */
+.tab-bar{display:flex;align-items:center;gap:4px;padding:0 16px;height:50px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tab-bar::-webkit-scrollbar{display:none}
+.tab-btn{flex-shrink:0;display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--muted);white-space:nowrap;transition:all .18s;position:relative}
+.tab-btn:hover{background:var(--s2);color:var(--text)}
+.tab-btn.on{background:var(--s2);color:var(--text)}
+.tab-btn.on::after{content:'';position:absolute;bottom:-2px;left:14px;right:14px;height:2px;border-radius:2px;background:var(--blue)}
+.tab-count{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;border-radius:10px;font-size:11px;font-weight:700;padding:0 5px;background:rgba(255,255,255,.1);color:var(--text)}
+.tab-btn.on .tab-count{background:var(--blue);color:#fff}
+.tab-spacer{flex:1}
+
+/* MAIN — 50/50 SPLIT */
+.main-wrap{display:flex;flex:1;overflow:hidden}
+
+/* LEFT: LOAD LIST */
+#list-panel{width:30%;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.list-toolbar{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)}
+.list-toolbar h2{font-size:15px;font-weight:700;margin-right:auto;white-space:nowrap}
+.search-wrap{position:relative;flex:1;max-width:260px}
+.search-wrap input{width:100%;padding:7px 11px 7px 30px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:13px;outline:none}
+.search-wrap input:focus{border-color:var(--blue)}
+.search-wrap .si{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:12px;pointer-events:none}
 #ll{flex:1;overflow-y:auto}
-.lr{padding:12px 13px;border-bottom:1px solid var(--border);cursor:pointer}
+
+/* LOAD ROWS */
+.lr{padding:14px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
 .lr:hover{background:var(--s2)}
 .lr.on{background:rgba(0,122,255,.08);border-left:3px solid var(--blue)}
-.lrt{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}
+.lrt{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px;gap:8px}
 .lrn{font-weight:700;font-size:14px}
-.lrd{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
-.lrm{display:flex;flex-wrap:wrap;gap:7px;font-size:11px;color:var(--muted)}
-.empty-list{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:44px 20px;text-align:center;color:var(--muted);gap:9px}
-.empty-list .ei{font-size:44px}
-.empty-list h3{font-size:16px;font-weight:600;color:var(--text)}
+.lrd{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:6px}
+.lrm{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--muted);margin-bottom:6px}
+.lra{font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:2px}
+.lra span{display:flex;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-/* BADGE */
-.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
-.bPending{background:rgba(142,142,160,.18);color:#aeaec0}
-.bAssigned{background:rgba(0,122,255,.18);color:var(--blue)}
-.bInTransit{background:rgba(255,149,0,.18);color:var(--orange)}
-.bDelivered{background:rgba(52,199,89,.18);color:var(--green)}
-.bCancelled{background:rgba(255,59,48,.18);color:var(--red)}
-
-/* DETAIL PANEL */
-#dp{flex:1;overflow-y:auto;background:var(--bg)}
-.dph{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;color:var(--muted);text-align:center;padding:32px}
-.dph .di{font-size:52px}
-.dph h3{font-size:17px;color:var(--text)}
-#dc{padding:22px;display:none}
+/* RIGHT: DETAIL PANEL — always visible */
+#detail-panel{width:70%;flex-shrink:0;background:var(--bg);overflow-y:auto;display:flex;flex-direction:column;border-left:1px solid var(--border)}
+#dp{padding:20px;flex:1}
+.dph{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;gap:14px;color:var(--muted);text-align:center}
+.dph .di{font-size:56px}
+.dph h3{font-size:17px;font-weight:600;color:var(--text)}
+.dph p{font-size:13px;line-height:1.6}
 .dhdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px}
-.dhdr h2{font-size:21px;font-weight:700}
+.dhdr h2{font-size:20px;font-weight:700}
 .dhdr-sub{font-size:13px;color:var(--muted);margin-top:2px}
 .sec{background:var(--surface);border:1px solid var(--border);border-radius:13px;margin-bottom:12px;overflow:hidden}
 .sec-h{padding:8px 15px;background:var(--s2);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border-bottom:1px solid var(--border)}
 .dr{display:flex;align-items:flex-start;justify-content:space-between;padding:10px 15px;border-bottom:1px solid var(--border);gap:10px}
 .dr:last-child{border-bottom:none}
-.drl{font-size:13px;color:var(--muted);flex-shrink:0;min-width:105px}
-.drv{font-size:13px;text-align:right;word-break:break-word;max-width:60%}
+.drl{font-size:13px;color:var(--muted);flex-shrink:0;min-width:100px}
+.drv{font-size:13px;text-align:right;word-break:break-word;max-width:62%}
 .drv a{color:var(--blue)}
 .ssel{background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:5px 9px;font-size:13px;font-weight:600;outline:none;cursor:pointer}
 .lbox{display:flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:8px 11px;font-size:11px;color:var(--muted);word-break:break-all}
@@ -125,13 +129,46 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .tog input:checked+.togs{background:var(--green)}
 .tog input:checked+.togs::before{transform:translateX(18px)}
 .swrap{padding:11px 15px 14px}
-
-/* DRIVER PICKER inside detail */
 .driver-picker{padding:12px 15px;border-bottom:1px solid var(--border)}
 .driver-picker label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px}
 .driver-picker select{width:100%;padding:9px 12px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:13px;outline:none}
 .driver-picker select:focus{border-color:var(--blue)}
 .driver-picker .dp-note{font-size:11px;color:var(--muted);margin-top:5px}
+
+/* Mobile: stack vertically */
+@media(max-width:799px){
+  .main-wrap{flex-direction:column}
+  #list-panel{width:100%;border-right:none;border-bottom:1px solid var(--border);max-height:45vh}
+  #detail-panel{width:100%;min-height:55vh}
+}
+
+/* LIVE MAP */
+#disp-map{width:100%;height:260px;background:#1a1a2e}
+.map-header{display:flex;align-items:center;justify-content:space-between;padding:8px 15px;background:var(--s2);border-bottom:1px solid var(--border)}
+.map-header-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);animation:lpulse 2s ease-in-out infinite;margin-right:5px}
+@keyframes lpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
+.map-stats{display:flex;gap:0;border-top:1px solid var(--border)}
+.map-stat{flex:1;padding:8px 12px;border-right:1px solid var(--border);text-align:center}
+.map-stat:last-child{border-right:none}
+.map-stat-val{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+.map-stat-lbl{font-size:10px;color:var(--muted);margin-top:1px}
+.map-no-loc{display:flex;flex-direction:column;align-items:center;justify-content:center;height:140px;color:var(--muted);font-size:13px;gap:6px;text-align:center;padding:16px}
+.stale-warn{display:none;align-items:center;gap:8px;padding:8px 15px;background:rgba(255,149,0,.15);border-top:1px solid rgba(255,149,0,.35);color:var(--orange);font-size:12px;font-weight:600}
+.stale-warn.on{display:flex}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}.stale-icon{animation:blink 1.2s ease-in-out infinite;font-size:15px}
+
+.empty-list{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center;color:var(--muted);gap:10px}
+.empty-list .ei{font-size:44px}
+.empty-list h3{font-size:16px;font-weight:600;color:var(--text)}
+
+/* BADGE */
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.bPending{background:rgba(142,142,160,.18);color:#aeaec0}
+.bAssigned{background:rgba(0,122,255,.18);color:var(--blue)}
+.bInTransit{background:rgba(255,149,0,.18);color:var(--orange)}
+.bDelivered{background:rgba(52,199,89,.18);color:var(--green)}
+.bCancelled{background:rgba(255,59,48,.18);color:var(--red)}
 
 /* MODAL */
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);z-index:200;display:none;align-items:flex-end;justify-content:center}
@@ -145,8 +182,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .mbody{flex:1;overflow-y:auto;padding:18px}
 .mftr{padding:13px 18px;border-top:1px solid var(--border);display:flex;gap:9px;flex-shrink:0}
 .merr{background:rgba(255,59,48,.12);border:1px solid rgba(255,59,48,.3);color:#FF3B30;border-radius:9px;padding:9px 13px;font-size:13px;margin-bottom:12px;display:none}
-
-/* Driver picker in modal */
 .driver-option{display:flex;align-items:center;gap:10px;padding:10px 13px;border:1px solid var(--border);border-radius:10px;cursor:pointer;margin-bottom:7px;transition:border-color .15s}
 .driver-option:hover{border-color:var(--blue)}
 .driver-option.sel{border-color:var(--blue);background:rgba(0,122,255,.08)}
@@ -160,37 +195,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 /* TOAST */
 #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:11px;padding:9px 18px;font-size:13px;font-weight:500;z-index:999;opacity:0;pointer-events:none;transition:opacity .3s;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.5)}
 #toast.on{opacity:1;pointer-events:auto}
-
-/* SPINNER */
 .spin{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
 @keyframes spin{to{transform:rotate(360deg)}}
-
-/* LIVE TRACKING MAP (dispatcher detail panel) */
-#disp-map-section{margin-bottom:12px}
-#disp-map{width:100%;height:420px;border-radius:13px;overflow:hidden;background:#1a1a2e}
-.map-header{display:flex;align-items:center;justify-content:space-between;padding:8px 15px;background:var(--s2);border-bottom:1px solid var(--border)}
-.map-header-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
-.live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);animation:lpulse 2s ease-in-out infinite;margin-right:5px}
-@keyframes lpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
-.map-stats{display:flex;gap:0;border-top:1px solid var(--border)}
-.map-stat{flex:1;padding:8px 12px;border-right:1px solid var(--border);text-align:center}
-.map-stat:last-child{border-right:none}
-.map-stat-val{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
-.map-stat-lbl{font-size:10px;color:var(--muted);margin-top:1px}
-.map-no-loc{display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;color:var(--muted);font-size:13px;gap:6px;text-align:center;padding:16px}
-.stale-warn{display:none;align-items:center;gap:8px;padding:8px 15px;background:rgba(255,149,0,.15);border-top:1px solid rgba(255,149,0,.35);color:var(--orange);font-size:12px;font-weight:600}
-.stale-warn.on{display:flex}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}.stale-icon{animation:blink 1.2s ease-in-out infinite;font-size:15px}
-
-@media(max-width:799px){
-  #lp{width:100%;border-right:none}
-  #dp{position:fixed;inset:52px 0 0;z-index:50;display:none}
-  #dp.on{display:block;overflow-y:auto}
-  .back-btn{display:inline-flex !important}
-}
-@media(min-width:800px){
-  .back-btn{display:none !important}
-}
 </style>
 </head>
 <body>
@@ -200,7 +206,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   <div class="acard">
     <div class="alogo">
       <div class="ico">🚛</div>
-      <h1>CMP Logistics</h1>
+      <h1>CMP Freight</h1>
       <p>Dispatcher Portal</p>
     </div>
     <div class="atabs">
@@ -243,33 +249,33 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     <button class="btn btn-sm" id="btn-out">Sign Out</button>
     <button class="btn btn-p btn-sm" id="btn-new">+ New Load</button>
   </nav>
-  <div class="layout">
-    <!-- List panel -->
-    <div id="lp">
-      <div class="ltop">
-        <div class="srow">
-          <div class="sc on" id="sc-all"><span class="sc-i">📋</span><span class="sc-n" id="cn-all">0</span><span class="sc-l">All</span></div>
-          <div class="sc" id="sc-it"><span class="sc-i">🚛</span><span class="sc-n" id="cn-it">0</span><span class="sc-l">Active</span></div>
-          <div class="sc" id="sc-as"><span class="sc-i">👤</span><span class="sc-n" id="cn-as">0</span><span class="sc-l">Assigned</span></div>
-          <div class="sc" id="sc-pe"><span class="sc-i">⏰</span><span class="sc-n" id="cn-pe">0</span><span class="sc-l">Pending</span></div>
-          <div class="sc" id="sc-de"><span class="sc-i">✅</span><span class="sc-n" id="cn-de">0</span><span class="sc-l">Delivered</span></div>
-        </div>
-        <div class="sr">
-          <div class="sw"><span class="si">🔍</span><input type="search" id="q" placeholder="Search loads, customers, drivers…"/></div>
-          <button class="btn btn-sm" id="btn-rf">🔄</button>
-        </div>
+  <div class="tab-bar">
+    <button class="tab-btn on" id="tab-all">📋 All <span class="tab-count" id="cn-all">0</span></button>
+    <button class="tab-btn" id="tab-it">🚛 Active <span class="tab-count" id="cn-it">0</span></button>
+    <button class="tab-btn" id="tab-as">👤 Assigned <span class="tab-count" id="cn-as">0</span></button>
+    <button class="tab-btn" id="tab-pe">⏰ Pending <span class="tab-count" id="cn-pe">0</span></button>
+    <button class="tab-btn" id="tab-de">✅ Delivered <span class="tab-count" id="cn-de">0</span></button>
+    <button class="tab-btn" id="tab-ca">❌ Cancelled <span class="tab-count" id="cn-ca">0</span></button>
+    <div class="tab-spacer"></div>
+    <button class="btn btn-sm" id="btn-rf" style="flex-shrink:0;margin-right:4px">🔄</button>
+  </div>
+  <div class="main-wrap">
+    <div id="list-panel">
+      <div class="list-toolbar">
+        <h2 id="view-title">All Loads</h2>
+        <div class="search-wrap"><span class="si">🔍</span><input type="search" id="q" placeholder="Search…"/></div>
       </div>
       <div id="ll"></div>
     </div>
-    <!-- Detail panel -->
-    <div id="dp">
-      <div class="dph" id="dph">
-        <div class="di">📋</div>
-        <h3>Select a Load</h3>
-        <p>Click any load to view details, assign a driver,<br>update status, or send a tracking link.</p>
-        <button class="btn btn-p" id="btn-new2">+ Create First Load</button>
+    <div id="detail-panel">
+      <div id="dp">
+        <div id="dph" class="dph">
+          <div class="di">📋</div>
+          <h3>Select a load</h3>
+          <p>Click any load on the left<br>to view its full details here.</p>
+        </div>
+        <div id="dc" style="display:none"></div>
       </div>
-      <div id="dc"></div>
     </div>
   </div>
 </div>
@@ -504,66 +510,143 @@ function loadDrivers(){
     .catch(function(){drivers=[];});
 }
 
+/* DELETED IDS TOMBSTONE — persists across logins so deleted loads never resurrect */
+function getDeletedIDs(){return JSON.parse(localStorage.getItem('cmp_deleted_ids')||'[]');}
+function addDeletedID(id){var ids=getDeletedIDs();if(ids.indexOf(id)===-1){ids.push(id);localStorage.setItem('cmp_deleted_ids',JSON.stringify(ids));}}
+function filterDeleted(arr){var ids=getDeletedIDs();return arr.filter(function(l){return ids.indexOf(l.id)===-1;});}
+
 /* LOAD DATA */
 document.getElementById('btn-rf').addEventListener('click',loadData);
 function loadData(){
   var btn=document.getElementById('btn-rf'); btn.textContent='⏳'; btn.disabled=true;
   if(!isLive()){
-    var s=JSON.parse(localStorage.getItem('cmp_loads')||'[]');
+    var s=filterDeleted(JSON.parse(localStorage.getItem('cmp_loads')||'[]'));
     loads=s.length?s:makeSamples();
     if(!s.length)localStorage.setItem('cmp_loads',JSON.stringify(loads));
     renderList(); btn.textContent='🔄'; btn.disabled=false; return;
   }
   fetch(API+'/loads',{headers:ah()})
     .then(function(r){if(r.status===401){showAuth();throw new Error('unauth');}return r.json();})
-    .then(function(d){loads=Array.isArray(d)?d:[];renderList();})
+    .then(function(d){loads=filterDeleted(Array.isArray(d)?d:[]);renderList();})
     .catch(function(e){if(e.message!=='unauth')toast('Could not load data: '+e.message);})
     .finally(function(){btn.textContent='🔄';btn.disabled=false;});
 }
 
-/* FILTER */
-document.getElementById('sc-all').addEventListener('click',function(){setF(null);});
-document.getElementById('sc-it').addEventListener('click',function(){setF('In Transit');});
-document.getElementById('sc-as').addEventListener('click',function(){setF('Assigned');});
-document.getElementById('sc-pe').addEventListener('click',function(){setF('Pending');});
-document.getElementById('sc-de').addEventListener('click',function(){setF('Delivered');});
+/* FILTER / TABS */
+var TAB_LABELS={'tab-all':'All Loads','tab-it':'Active Loads','tab-as':'Assigned Loads','tab-pe':'Pending Loads','tab-de':'Delivered Loads','tab-ca':'Cancelled Loads'};
+var TAB_FILTER={'tab-all':null,'tab-it':'In Transit','tab-as':'Assigned','tab-pe':'Pending','tab-de':'Delivered','tab-ca':'Cancelled'};
+['tab-all','tab-it','tab-as','tab-pe','tab-de','tab-ca'].forEach(function(id){
+  document.getElementById(id).addEventListener('click',function(){
+    filt=TAB_FILTER[id];
+    document.getElementById('view-title').textContent=TAB_LABELS[id];
+    renderList();
+  });
+});
 document.getElementById('q').addEventListener('input',renderList);
 function setF(f){filt=f;renderList();}
 
-/* RENDER LIST */
+/* RENDER LIST — always uses .lr rows, Delivered tab merges live + 30-day archived */
 function renderList(){
   var q=(document.getElementById('q').value||'').toLowerCase();
+  // Count live loads
   document.getElementById('cn-all').textContent=loads.length;
   document.getElementById('cn-it').textContent=loads.filter(function(l){return l.status==='In Transit';}).length;
   document.getElementById('cn-as').textContent=loads.filter(function(l){return l.status==='Assigned';}).length;
   document.getElementById('cn-pe').textContent=loads.filter(function(l){return l.status==='Pending';}).length;
-  document.getElementById('cn-de').textContent=loads.filter(function(l){return l.status==='Delivered';}).length;
-  ['sc-all','sc-it','sc-as','sc-pe','sc-de'].forEach(function(id){document.getElementById(id).classList.remove('on');});
-  var map={null:'sc-all','In Transit':'sc-it','Assigned':'sc-as','Pending':'sc-pe','Delivered':'sc-de'};
-  var k=filt===null?'null':filt; if(map[k])document.getElementById(map[k]).classList.add('on');
-  var fl=loads.filter(function(l){
-    return (!filt||l.status===filt)&&
-           (!q||(l.loadNumber||'').toLowerCase().indexOf(q)>-1||(l.customerName||'').toLowerCase().indexOf(q)>-1||(l.assignedDriverName||'').toLowerCase().indexOf(q)>-1||(l.description||'').toLowerCase().indexOf(q)>-1);
-  });
+  // Delivered tab: live delivered + 30-day history delivered
+  var hist=loadHistory();
+  var deliveredCount=loads.filter(function(l){return l.status==='Delivered';}).length+hist.filter(function(l){return l.status==='Delivered';}).length;
+  document.getElementById('cn-de').textContent=deliveredCount;
+  // Cancelled tab: live cancelled + 30-day history cancelled
+  var cancelledCount=loads.filter(function(l){return l.status==='Cancelled';}).length+hist.filter(function(l){return l.status==='Cancelled';}).length;
+  document.getElementById('cn-ca').textContent=cancelledCount;
+  // Highlight active tab
+  ['tab-all','tab-it','tab-as','tab-pe','tab-de','tab-ca'].forEach(function(id){document.getElementById(id).classList.remove('on');});
+  var tabMap={null:'tab-all','In Transit':'tab-it','Assigned':'tab-as','Pending':'tab-pe','Delivered':'tab-de','Cancelled':'tab-ca'};
+  var activeTab=tabMap[filt===null?null:filt]; if(activeTab) document.getElementById(activeTab).classList.add('on');
+
   var el=document.getElementById('ll');
-  if(!fl.length){el.innerHTML='<div class="empty-list"><div class="ei">📦</div><h3>No Loads Found</h3><p>'+(loads.length===0?'Tap "+ New Load" to create your first load.':'Try adjusting your search or filter.')+'</p></div>';return;}
+  var fl;
+
+  if(filt==='Delivered'){
+    // Merge live delivered + 30-day history delivered, dedup by id, newest first
+    var liveDelivered=loads.filter(function(l){return l.status==='Delivered';});
+    var merged=liveDelivered.slice();
+    hist.filter(function(h){return h.status==='Delivered';}).forEach(function(h){
+      if(!merged.some(function(l){return l.id===h.id;})) merged.push(h);
+    });
+    if(q) merged=merged.filter(function(l){
+      return (l.loadNumber||'').toLowerCase().indexOf(q)>-1||(l.customerName||'').toLowerCase().indexOf(q)>-1||(l.assignedDriverName||'').toLowerCase().indexOf(q)>-1;
+    });
+    merged.sort(function(a,b){return new Date(b.completedAt||b.deliveryDate||0)-new Date(a.completedAt||a.deliveryDate||0);});
+    fl=merged;
+  } else if(filt==='Cancelled'){
+    // Merge live cancelled + 30-day history cancelled, dedup by id, newest first
+    var liveCancelled=loads.filter(function(l){return l.status==='Cancelled';});
+    var mergedC=liveCancelled.slice();
+    hist.filter(function(h){return h.status==='Cancelled';}).forEach(function(h){
+      if(!mergedC.some(function(l){return l.id===h.id;})) mergedC.push(h);
+    });
+    if(q) mergedC=mergedC.filter(function(l){
+      return (l.loadNumber||'').toLowerCase().indexOf(q)>-1||(l.customerName||'').toLowerCase().indexOf(q)>-1||(l.assignedDriverName||'').toLowerCase().indexOf(q)>-1;
+    });
+    mergedC.sort(function(a,b){return new Date(b.completedAt||b.deliveryDate||0)-new Date(a.completedAt||a.deliveryDate||0);});
+    fl=mergedC;
+  } else {
+    fl=loads.filter(function(l){
+      return (!filt||l.status===filt)&&
+             (!q||(l.loadNumber||'').toLowerCase().indexOf(q)>-1||(l.customerName||'').toLowerCase().indexOf(q)>-1||(l.assignedDriverName||'').toLowerCase().indexOf(q)>-1||(l.description||'').toLowerCase().indexOf(q)>-1);
+    });
+  }
+
+  if(!fl.length){
+    el.innerHTML='<div class="empty-list"><div class="ei">📦</div><h3>No Loads Found</h3><p>'+(loads.length===0?'Tap "+ New Load" to create your first load.':'Try adjusting your filter or search.')+'</p></div>';
+    return;
+  }
   var html='';
   for(var i=0;i<fl.length;i++){
     var l=fl[i];
+    var dateStr=l.completedAt?'<span style="margin-left:auto;color:var(--muted)">📅 '+new Date(l.completedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})+'</span>':'';
     html+='<div class="lr'+(l.id===selId?' on':'')+'" data-id="'+esc(l.id)+'">'
          +'<div class="lrt"><span class="lrn">'+esc(l.loadNumber)+'</span><span class="'+bc(l.status)+'">'+esc(l.status)+'</span></div>'
          +'<div class="lrd">'+esc(l.description||'--')+'</div>'
-         +'<div class="lrm"><span>🏢 '+esc(l.customerName||'--')+'</span>'+(l.assignedDriverName?'<span>👤 '+esc(l.assignedDriverName)+'</span>':'')+'</div>'
+         +'<div class="lrm"><span>🏢 '+esc(l.customerName||'--')+'</span>'+(l.assignedDriverName?'<span>👤 '+esc(l.assignedDriverName)+'</span>':'')+dateStr+'</div>'
+         +'<div class="lra">'
+         +'<span><span style="color:var(--blue)">↑</span>'+esc(l.pickupAddress||'--')+'</span>'
+         +'<span><span style="color:var(--green)">↓</span>'+esc(l.deliveryAddress||'--')+'</span>'
+         +'</div>'
          +'</div>';
   }
   el.innerHTML=html;
+  // Store merged list for history detail lookup
+  _renderedLoads=fl;
   el.querySelectorAll('.lr').forEach(function(r){r.addEventListener('click',function(){selLoad(this.dataset.id);});});
 }
+var _renderedLoads=[];
 
 /* SELECT LOAD */
 function selLoad(id){
-  selId=id; renderList(); renderDetail();
-  if(window.innerWidth<800)document.getElementById('dp').classList.add('on');
+  selId=id;
+  renderList();
+  // Find load in live loads or rendered list (history)
+  var load=null;
+  for(var i=0;i<loads.length;i++){if(loads[i].id===id){load=loads[i];break;}}
+  if(!load){for(var i=0;i<_renderedLoads.length;i++){if(_renderedLoads[i].id===id){load=_renderedLoads[i];break;}}}
+  if(load){
+    var wasIn=loads.some(function(l){return l.id===id;});
+    if(!wasIn) loads.push(load);
+    renderDetail();
+    if(!wasIn) loads=loads.filter(function(l){return l.id!==id;});
+  }
+}
+
+/* CLOSE DETAIL — just clears selection */
+function closeDetailPanel(){
+  selId=null;
+  stopDispatcherMap();
+  document.getElementById('dc').style.display='none';
+  document.getElementById('dph').style.display='flex';
+  renderList();
 }
 
 /* RENDER DETAIL */
@@ -603,7 +686,6 @@ function renderDetail(){
   var custPhone=load.customerPhone?'<div class="dr"><span class="drl">Phone</span><span class="drv"><a href="tel:'+esc(load.customerPhone)+'">'+esc(load.customerPhone)+'</a></span></div>':'';
 
   var html=''
-    +'<button class="btn btn-sm back-btn" id="d-back">← Back</button>'
     +'<div class="dhdr"><div><h2>'+esc(load.loadNumber)+'</h2><div class="dhdr-sub">'+esc(load.description||'')+'</div></div><span class="'+bc(load.status)+'">'+esc(load.status)+'</span></div>'
 
     +'<div class="sec"><div class="sec-h">Load Details</div>'
@@ -672,7 +754,6 @@ function renderDetail(){
   el.innerHTML=html;
 
   // Wire events
-  document.getElementById('d-back').addEventListener('click',function(){stopDispatcherMap();document.getElementById('dp').classList.remove('on');selId=null;renderList();});
   document.getElementById('d-status').addEventListener('change',function(){updStatus(selId,this.value);});
   document.getElementById('d-notify').addEventListener('change',function(){notifyOn=this.checked;});
   document.getElementById('d-send').addEventListener('click',function(){sendLink(selId);});
@@ -729,11 +810,14 @@ function stopDispatcherMap(){
 function startDispatcherMap(load){
   stopDispatcherMap();
   if(!isLive()||!load.trackingToken||(load.status!=='In Transit'&&load.status!=='Assigned'))return;
+  // Seed last-loc timestamp to NOW so the stale timer doesn't fire immediately
+  // on a freshly-opened panel (the last DB timestamp could be old).
+  _lastLocTimestamp=Date.now();
   // Immediate first fetch
   pollDispatcherMap(load.trackingToken);
   // Then every 15 seconds
   _dispPollTimer=setInterval(function(){pollDispatcherMap(load.trackingToken);},15000);
-  // Check for stale signal every 30 seconds
+  // Check for stale signal every 30 seconds (starts after first poll has run)
   _dispStaleTimer=setInterval(function(){checkStaleSignal();},30000);
 }
 
@@ -742,8 +826,8 @@ function checkStaleSignal(){
   var msg=document.getElementById('disp-stale-msg');
   if(!warn)return;
   if(!_lastLocTimestamp){warn.classList.remove('on');return;}
-  var age=Date.now()-_lastLocTimestamp; // ms since last update
-  var STALE_MS=2*60*1000; // 2 minutes
+  var age=Date.now()-_lastLocTimestamp; // ms since last live poll update
+  var STALE_MS=5*60*1000; // 5 minutes of no new data from the live poll
   if(age>=STALE_MS){
     var mins=Math.floor(age/60000);
     if(msg) msg.textContent='No location update for '+mins+' min — driver signal may be lost.';
@@ -753,19 +837,20 @@ function checkStaleSignal(){
   }
 }
 
-// Keep only location points from the last 4 hours — filters out stale
-// DynamoDB records from previous test sessions that cause phantom lines.
+// Keep only location points from the last 24 hours — prevents truly ancient
+// DynamoDB records from drawing phantom trails, but doesn't hide today's trip.
 function filterRecentLocations(history){
   if(!history||!history.length)return[];
-  var cutoff=Date.now()-(4*60*60*1000);
+  var cutoff=Date.now()-(24*60*60*1000);
   return history.filter(function(p){
     if(!p.timestamp)return true;
     return new Date(p.timestamp).getTime()>=cutoff;
   });
 }
 function isRecentPoint(p){
+  // Accept any point from the last 24 hours
   if(!p||!p.timestamp)return false;
-  return new Date(p.timestamp).getTime()>=(Date.now()-(4*60*60*1000));
+  return new Date(p.timestamp).getTime()>=(Date.now()-(24*60*60*1000));
 }
 
 // Snap GPS points to actual roads using OSRM public API (free, no key).
@@ -822,14 +907,14 @@ function pollDispatcherMap(token){
       var el=document.getElementById('disp-map-inner');
       if(!el)return;
 
-      // Filter out stale history points from previous trips/sessions
+      // Filter history to current 24-hour window
       var recentHistory=filterRecentLocations(data.locationHistory);
 
-      // Use the most recent point from filtered history as the position,
-      // falling back to data.lastLocation only if history is empty.
+      // Use the most recent point from history as position,
+      // always fall back to lastLocation (no age check — show last known position)
       var loc=recentHistory.length
         ? recentHistory[recentHistory.length-1]
-        : (data.lastLocation && isRecentPoint(data.lastLocation) ? data.lastLocation : null);
+        : (data.lastLocation || null);
 
       if(!loc){
         // No fresh location yet — driver hasn't started or data is stale
@@ -873,8 +958,8 @@ function pollDispatcherMap(token){
         document.getElementById('dms-lat').textContent=lat.toFixed(5);
         document.getElementById('dms-lng').textContent=lng.toFixed(5);
         document.getElementById('dms-updated').textContent=loc.timestamp?new Date(loc.timestamp).toLocaleTimeString():'—';
-        // Track when this location was recorded (for stale-signal detection)
-        _lastLocTimestamp=loc.timestamp?new Date(loc.timestamp).getTime():Date.now();
+        // Update stale clock to NOW (time of this successful poll), not the stored GPS timestamp
+        _lastLocTimestamp=Date.now();
         checkStaleSignal();
       }
     })
@@ -908,7 +993,13 @@ function assignDriver(loadId, driverId, driverName, driverEmail, driverPhone){
 
 /* UPDATE STATUS */
 function updStatus(id,s){
-  for(var i=0;i<loads.length;i++){if(loads[i].id===id){loads[i].status=s;break;}}
+  var load=null;
+  for(var i=0;i<loads.length;i++){if(loads[i].id===id){loads[i].status=s;load=loads[i];break;}}
+  // Archive to 30-day history when a load is completed
+  if(load&&(s==='Delivered'||s==='Cancelled')){
+    load.completedAt=new Date().toISOString();
+    archiveToHistory(load);
+  }
   renderList(); renderDetail();
   if(!isLive()){localStorage.setItem('cmp_loads',JSON.stringify(loads));toast('Status: '+s);return;}
   fetch(API+'/loads/'+id+'/status',{method:'PATCH',headers:ah(),body:JSON.stringify({status:s})})
@@ -944,7 +1035,7 @@ function sendLink(id){
   var pickupStr=load.pickupDate?new Date(load.pickupDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
 
   var msgText='Hi '+(load.assignedDriverName||'Driver')+',\n\n'
-    +'You have a new load assigned by CMP Logistics.\n\n'
+    +'You have a new load assigned by CMP Freight.\n\n'
     +'LOAD #: '+(load.loadNumber||'--')+'\n'
     +'PICKUP: '+(load.pickupAddress||'--')+'\n'
     +'DELIVERY: '+(load.deliveryAddress||'--')+'\n'
@@ -1024,13 +1115,21 @@ function sendLink(id){
 /* DELETE LOAD */
 function delLoad(id){
   if(!confirm('Delete this load? Cannot be undone.'))return;
-  loads=loads.filter(function(l){return l.id!==id;}); selId=null;
-  document.getElementById('dph').style.display='';
-  document.getElementById('dc').style.display='none';
-  document.getElementById('dp').classList.remove('on');
+  // Remove from history (covers Delivered/Cancelled loads stored in localStorage)
+  var hist=loadHistory().filter(function(l){return l.id!==id;});
+  localStorage.setItem('cmp_history',JSON.stringify(hist));
+  // Add to tombstone so it never resurfaces from API
+  addDeletedID(id);
+  loads=loads.filter(function(l){return l.id!==id;});
+  closeDetailPanel();
   renderList();
   if(!isLive()){localStorage.setItem('cmp_loads',JSON.stringify(loads));toast('Deleted');return;}
-  fetch(API+'/loads/'+id,{method:'DELETE',headers:ah()}).then(function(){toast('Deleted');}).catch(function(e){toast('Error: '+e.message);});
+  fetch(API+'/loads/'+id,{method:'DELETE',headers:ah()})
+    .then(function(r){
+      if(!r.ok) return r.json().then(function(d){throw new Error(d.error||r.status);});
+      toast('Deleted');
+    })
+    .catch(function(e){toast('Failed: '+e.message);});
 }
 
 /* COPY */
@@ -1038,9 +1137,115 @@ function copyText(t){
   navigator.clipboard?navigator.clipboard.writeText(t).then(function(){toast('📋 Copied!');}):(function(){var e=document.createElement('textarea');e.value=t;document.body.appendChild(e);e.select();document.execCommand('copy');document.body.removeChild(e);toast('📋 Copied!');})();
 }
 
+/* ── 30-DAY HISTORY ─────────────────────────────────────────────────────── */
+var HISTORY_DAYS=30;
+
+function archiveToHistory(load){
+  var hist=loadHistory();
+  // Upsert by id
+  var idx=-1; for(var i=0;i<hist.length;i++){if(hist[i].id===load.id){idx=i;break;}}
+  var entry=JSON.parse(JSON.stringify(load));
+  if(!entry.completedAt) entry.completedAt=new Date().toISOString();
+  if(idx>=0){hist[idx]=entry;}else{hist.push(entry);}
+  hist=pruneHistory(hist);
+  localStorage.setItem('cmp_history',JSON.stringify(hist));
+}
+
+function loadHistory(){
+  return pruneHistory(JSON.parse(localStorage.getItem('cmp_history')||'[]'));
+}
+
+function pruneHistory(arr){
+  var cutoff=Date.now()-HISTORY_DAYS*86400000;
+  return arr.filter(function(l){
+    var t=l.completedAt?new Date(l.completedAt).getTime():new Date(l.deliveryDate||0).getTime();
+    return t>=cutoff;
+  });
+}
+
+function deleteHistoryEntry(id){
+  if(!confirm('Remove this entry from history?')) return;
+  var hist=loadHistory().filter(function(l){return l.id!==id;});
+  localStorage.setItem('cmp_history',JSON.stringify(hist));
+  renderHistory();
+}
+
+function weekLabel(dateStr){
+  var d=new Date(dateStr), now=new Date();
+  // Start of current week (Sunday)
+  var startOfWeek=new Date(now); startOfWeek.setHours(0,0,0,0); startOfWeek.setDate(now.getDate()-now.getDay());
+  var startOfLast=new Date(startOfWeek); startOfLast.setDate(startOfWeek.getDate()-7);
+  if(d>=startOfWeek) return 'This Week';
+  if(d>=startOfLast) return 'Last Week';
+  // Week range label
+  var ws=new Date(d); ws.setDate(d.getDate()-d.getDay()); ws.setHours(0,0,0,0);
+  var we=new Date(ws); we.setDate(ws.getDate()+6);
+  var mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return mo[ws.getMonth()]+' '+ws.getDate()+' – '+mo[we.getMonth()]+' '+we.getDate();
+}
+
+function renderHistory(){
+  var hist=loadHistory();
+  var q=(document.getElementById('hq').value||'').toLowerCase();
+  if(q) hist=hist.filter(function(l){
+    return (l.loadNumber||'').toLowerCase().indexOf(q)>-1||
+           (l.customerName||'').toLowerCase().indexOf(q)>-1||
+           (l.assignedDriverName||'').toLowerCase().indexOf(q)>-1;
+  });
+  document.getElementById('hn-all').textContent=hist.length;
+  document.getElementById('hn-de').textContent=hist.filter(function(l){return l.status==='Delivered';}).length;
+  document.getElementById('hn-ca').textContent=hist.filter(function(l){return l.status==='Cancelled';}).length;
+
+  var el=document.getElementById('hl');
+  if(!hist.length){
+    el.innerHTML='<div class="empty-list"><div class="ei">📂</div><h3>No History</h3><p>Delivered and cancelled loads appear here for 30 days.</p></div>';
+    return;
+  }
+  hist.sort(function(a,b){return new Date(b.completedAt||b.deliveryDate||0)-new Date(a.completedAt||a.deliveryDate||0);});
+  var groups={}, order=[];
+  hist.forEach(function(l){
+    var lbl=weekLabel(l.completedAt||l.deliveryDate||new Date().toISOString());
+    if(order.indexOf(lbl)===-1) order.push(lbl);
+    if(!groups[lbl]) groups[lbl]=[];
+    groups[lbl].push(l);
+  });
+  var html='';
+  order.forEach(function(lbl){
+    html+='<div class="hist-week-hdr">'+esc(lbl)+'</div>';
+    groups[lbl].forEach(function(l){
+      var dateStr=l.completedAt?new Date(l.completedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'';
+      html+='<div class="lcard" data-id="'+esc(l.id)+'">'
+           +'<div class="lcard-top"><span class="lcard-num">'+esc(l.loadNumber)+'</span><span class="'+bc(l.status)+'">'+esc(l.status)+'</span></div>'
+           +'<div class="lcard-desc">'+esc(l.description||'--')+'</div>'
+           +'<div class="lcard-meta"><span>🏢 '+esc(l.customerName||'--')+'</span>'+(l.assignedDriverName?'<span>👤 '+esc(l.assignedDriverName)+'</span>':'')+'<span style="margin-left:auto">📅 '+esc(dateStr)+'</span></div>'
+           +'<div class="lcard-addr">'
+           +'<span><span style="color:var(--blue)">↑</span>'+esc(l.pickupAddress||'--')+'</span>'
+           +'<span><span style="color:var(--green)">↓</span>'+esc(l.deliveryAddress||'--')+'</span>'
+           +'</div>'
+           +'<div style="margin-top:10px;text-align:right"><button class="btn btn-sm btn-outline" style="color:var(--red);border-color:var(--red);font-size:11px" onclick="event.stopPropagation();deleteHistoryEntry(\''+esc(l.id)+'\')">🗑 Remove</button></div>'
+           +'</div>';
+    });
+  });
+  el.innerHTML=html;
+  el.querySelectorAll('.lcard').forEach(function(r){
+    r.addEventListener('click',function(){
+      // Show history detail in slide panel (read-only view)
+      var hid=this.dataset.id;
+      var hload=null; var hh=loadHistory(); for(var i=0;i<hh.length;i++){if(hh[i].id===hid){hload=hh[i];break;}}
+      if(!hload)return;
+      // Temporarily add to loads for renderDetail, then remove
+      var existed=loads.some(function(l){return l.id===hid;});
+      if(!existed) loads.push(hload);
+      selId=hid;
+      renderDetail();
+      document.getElementById('detail-panel').classList.add('on');
+      if(!existed) loads=loads.filter(function(l){return l.id!==hid;});
+    });
+  });
+}
+
 /* MODAL - ADD LOAD */
 document.getElementById('btn-new').addEventListener('click',openModal);
-document.getElementById('btn-new2').addEventListener('click',openModal);
 document.getElementById('m-close').addEventListener('click',closeModal);
 document.getElementById('m-cancel').addEventListener('click',closeModal);
 document.getElementById('send-modal-close').addEventListener('click',function(){ document.getElementById('send-modal-ov').classList.remove('on'); });

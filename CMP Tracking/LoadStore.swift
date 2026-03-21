@@ -25,8 +25,16 @@ final class LoadStore {
         NSUbiquitousKeyValueStore.default.synchronize()
     }
 
-    private let iCloudKey    = "cmp.loads"
-    private let fallbackKey  = "cmp.loads.local"
+    private let iCloudKey       = "cmp.loads"
+    private let fallbackKey     = "cmp.loads.local"
+    /// Persists IDs that have been explicitly deleted so that stale iCloud
+    /// snapshots can never resurrect them.
+    private let deletedIDsKey   = "cmp.loads.deletedIDs"
+    /// 30-day rolling history of delivered / cancelled loads.
+    private let historyKey      = "cmp.loads.history"
+    private let historyFallback = "cmp.loads.history.local"
+
+    static let historyRetentionDays: Double = 30
 
     // MARK: - Encoder / Decoder
 
@@ -54,23 +62,37 @@ final class LoadStore {
 
         // 2. UserDefaults fallback (instant, offline)
         UserDefaults.standard.set(data, forKey: fallbackKey)
+
+        // 3. Prune deleted-ID tombstones that are no longer needed
+        //    (i.e. the ID was never in this save anyway — it's fully gone)
+        let currentIDs = Set(loads.map { $0.id })
+        var deleted = loadDeletedIDs()
+        let before = deleted.count
+        deleted = deleted.filter { currentIDs.contains($0) == false }
+        // Only write back if something changed, to avoid spurious KV updates
+        if deleted.count != before {
+            saveDeletedIDs(deleted)
+        }
     }
 
     // MARK: - Load
 
     /// Returns persisted loads — tries iCloud first, then UserDefaults.
+    /// Deleted-ID tombstones are always filtered out.
     func load() -> [Load] {
+        let deleted = loadDeletedIDs()
+
         // Try iCloud KV store first
         if let data = NSUbiquitousKeyValueStore.default.data(forKey: iCloudKey),
            let loads = try? decoder.decode([Load].self, from: data) {
             // Keep UserDefaults in sync
             UserDefaults.standard.set(data, forKey: fallbackKey)
-            return loads
+            return loads.filter { !deleted.contains($0.id) }
         }
         // Fallback to UserDefaults (simulator / no iCloud)
         if let data = UserDefaults.standard.data(forKey: fallbackKey),
            let loads = try? decoder.decode([Load].self, from: data) {
-            return loads
+            return loads.filter { !deleted.contains($0.id) }
         }
         return []
     }
@@ -88,9 +110,86 @@ final class LoadStore {
     }
 
     func delete(id: String) {
+        // 1. Record the tombstone FIRST so the load() call below already filters it
+        var deleted = loadDeletedIDs()
+        deleted.insert(id)
+        saveDeletedIDs(deleted)
+
+        // 2. Remove from the persisted list
         var loads = self.load()
         loads.removeAll { $0.id == id }
         save(loads)
+    }
+
+    // MARK: - Deleted-ID Tombstones (private)
+
+    private func loadDeletedIDs() -> Set<String> {
+        if let arr = NSUbiquitousKeyValueStore.default.array(forKey: deletedIDsKey) as? [String] {
+            return Set(arr)
+        }
+        if let arr = UserDefaults.standard.stringArray(forKey: deletedIDsKey) {
+            return Set(arr)
+        }
+        return []
+    }
+
+    private func saveDeletedIDs(_ ids: Set<String>) {
+        let arr = Array(ids)
+        NSUbiquitousKeyValueStore.default.set(arr, forKey: deletedIDsKey)
+        NSUbiquitousKeyValueStore.default.synchronize()
+        UserDefaults.standard.set(arr, forKey: deletedIDsKey)
+    }
+
+    // MARK: - 30-Day History
+
+    /// Archives a completed (delivered / cancelled) load into the 30-day history.
+    /// If the load already exists in history (same id) it is updated in place.
+    /// Entries older than 30 days are pruned automatically.
+    func saveToHistory(_ load: Load) {
+        var history = loadHistory()
+        // Upsert
+        if let idx = history.firstIndex(where: { $0.id == load.id }) {
+            history[idx] = load
+        } else {
+            history.append(load)
+        }
+        history = pruneHistory(history)
+        persistHistory(history)
+    }
+
+    /// Returns all history entries from the last 30 days, newest first.
+    func loadHistory() -> [Load] {
+        let raw: [Load]
+        if let data = NSUbiquitousKeyValueStore.default.data(forKey: historyKey),
+           let loads = try? decoder.decode([Load].self, from: data) {
+            raw = loads
+        } else if let data = UserDefaults.standard.data(forKey: historyFallback),
+                  let loads = try? decoder.decode([Load].self, from: data) {
+            raw = loads
+        } else {
+            raw = []
+        }
+        return pruneHistory(raw).sorted { ($0.completedAt ?? $0.deliveryDate) > ($1.completedAt ?? $1.deliveryDate) }
+    }
+
+    /// Removes a single entry from history (e.g. when permanently deleting a completed load).
+    func removeFromHistory(id: String) {
+        var history = loadHistory()
+        history.removeAll { $0.id == id }
+        persistHistory(history)
+    }
+
+    @discardableResult
+    private func pruneHistory(_ loads: [Load]) -> [Load] {
+        let cutoff = Date().addingTimeInterval(-LoadStore.historyRetentionDays * 86_400)
+        return loads.filter { ($0.completedAt ?? $0.deliveryDate) >= cutoff }
+    }
+
+    private func persistHistory(_ loads: [Load]) {
+        guard let data = try? encoder.encode(loads) else { return }
+        NSUbiquitousKeyValueStore.default.set(data, forKey: historyKey)
+        NSUbiquitousKeyValueStore.default.synchronize()
+        UserDefaults.standard.set(data, forKey: historyFallback)
     }
 
     // MARK: - iCloud Remote Change
