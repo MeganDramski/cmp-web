@@ -1,5 +1,5 @@
 /**
- * CMP Freight — Driver Tracking Service Worker
+ * CMP Logistics — Driver Tracking Service Worker
  *
  * Responsibilities:
  *  1. Cache the page shell so the driver can open it even with no signal.

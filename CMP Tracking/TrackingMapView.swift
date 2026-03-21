@@ -27,6 +27,7 @@ import MapKit
 struct RoadSnappingMapView: UIViewRepresentable {
     let annotations: [TrackAnnotation]
     let rawTrail: [CLLocationCoordinate2D]
+    var destinationCoordinate: CLLocationCoordinate2D?
     @Binding var region: MKCoordinateRegion
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -52,10 +53,13 @@ struct RoadSnappingMapView: UIViewRepresentable {
             mv.setRegion(region, animated: true)
         }
 
-        // ── Sync truck annotation ────────────────────────────────────────
+        // ── Sync truck + destination annotations ─────────────────────────
         mv.removeAnnotations(mv.annotations)
         for ann in annotations {
             mv.addAnnotation(TrackPin(annotation: ann))
+        }
+        if let dest = destinationCoordinate {
+            mv.addAnnotation(DestinationPin(coordinate: dest))
         }
 
         // ── Update raw trail overlay immediately ─────────────────────────
@@ -168,17 +172,43 @@ struct RoadSnappingMapView: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-            guard let pin = annotation as? TrackPin else { return nil }
-            let view = MKAnnotationView(annotation: pin, reuseIdentifier: "truck")
-            let host = UIHostingController(rootView:
-                TruckAnnotationView(speed: pin.trackAnnotation.speed,
-                                    heading: pin.trackAnnotation.heading))
-            host.view.backgroundColor = .clear
-            host.view.frame = CGRect(x: 0, y: 0, width: 48, height: 48)
-            view.addSubview(host.view)
-            view.frame = host.view.frame
-            view.centerOffset = CGPoint(x: 0, y: -24)
-            return view
+            if let pin = annotation as? TrackPin {
+                let view = MKAnnotationView(annotation: pin, reuseIdentifier: "truck")
+                let host = UIHostingController(rootView:
+                    TruckAnnotationView(speed: pin.trackAnnotation.speed,
+                                        heading: pin.trackAnnotation.heading))
+                host.view.backgroundColor = .clear
+                host.view.frame = CGRect(x: 0, y: 0, width: 48, height: 48)
+                view.addSubview(host.view)
+                view.frame = host.view.frame
+                view.centerOffset = CGPoint(x: 0, y: -24)
+                return view
+            }
+            if annotation is DestinationPin {
+                let reuseId = "destination"
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: reuseId)
+                    ?? MKAnnotationView(annotation: annotation, reuseIdentifier: reuseId)
+                view.annotation = annotation
+                let host = UIHostingController(rootView: DestinationAnnotationView())
+                host.view.backgroundColor = .clear
+                host.view.frame = CGRect(x: 0, y: 0, width: 64, height: 72)
+                // Remove old subviews first
+                view.subviews.forEach { $0.removeFromSuperview() }
+                view.addSubview(host.view)
+                view.frame = host.view.frame
+                view.centerOffset = CGPoint(x: 0, y: -36)
+                // Drop-in animation
+                view.layer.anchorPoint = CGPoint(x: 0.5, y: 1.0)
+                view.transform = CGAffineTransform(translationX: 0, y: -200)
+                UIView.animate(withDuration: 0.6, delay: 0.1,
+                               usingSpringWithDamping: 0.55,
+                               initialSpringVelocity: 0.8,
+                               options: []) {
+                    view.transform = .identity
+                }
+                return view
+            }
+            return nil
         }
     }
 }
@@ -190,12 +220,84 @@ class TrackPin: NSObject, MKAnnotation {
     init(annotation: TrackAnnotation) { self.trackAnnotation = annotation }
 }
 
+/// MKAnnotation for the delivery destination
+class DestinationPin: NSObject, MKAnnotation {
+    var coordinate: CLLocationCoordinate2D
+    init(coordinate: CLLocationCoordinate2D) { self.coordinate = coordinate }
+}
+
+// MARK: - Destination Annotation View
+
+struct DestinationAnnotationView: View {
+    var body: some View {
+        VStack(spacing: 2) {
+            // Flag sign
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.green)
+                    .frame(width: 56, height: 30)
+                    .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 2)
+                Text("Destination")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            // Stem
+            Rectangle()
+                .fill(Color.green)
+                .frame(width: 3, height: 16)
+            // Pin base dot
+            Circle()
+                .fill(Color.green)
+                .frame(width: 10, height: 10)
+                .shadow(color: .black.opacity(0.3), radius: 3)
+        }
+        .frame(width: 64, height: 72)
+    }
+}
+
+// MARK: - Arrived Banner View
+
+struct ArrivedBannerView: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "mappin.circle.fill")
+                .font(.system(size: 28))
+                .foregroundColor(.white)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("You have arrived!")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                Text("You've reached your destination")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.85))
+            }
+            Spacer()
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 22))
+                .foregroundColor(.white.opacity(0.9))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(
+            LinearGradient(
+                colors: [Color.green, Color.green.opacity(0.85)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 4)
+        .padding(.horizontal, 16)
+    }
+}
+
 // MARK: - Tracking Map View
 
 struct TrackingMapView: View {
     let loadId: String
     let initialLocation: LocationUpdate
     let loadNumber: String
+    var destinationCoordinate: CLLocationCoordinate2D? = nil
 
     @StateObject private var network = NetworkManager.shared
     @State private var mapRegion: MKCoordinateRegion
@@ -203,6 +305,7 @@ struct TrackingMapView: View {
     @State private var rawTrail: [CLLocationCoordinate2D] = []   // raw GPS points fed to RoadSnappingMapView
     @State private var pollingTimer: Timer?
     @State private var lastUpdate: LocationUpdate?
+    @State private var isArrived = false
     @Environment(\.dismiss) var dismiss
 
     init(loadId: String, initialLocation: LocationUpdate, loadNumber: String) {
@@ -226,9 +329,20 @@ struct TrackingMapView: View {
                 RoadSnappingMapView(
                     annotations: annotations,
                     rawTrail: rawTrail,
+                    destinationCoordinate: destinationCoordinate,
                     region: $mapRegion
                 )
                 .ignoresSafeArea(edges: .top)
+
+                // ── Arrived Banner ────────────────────────────────────────
+                if isArrived {
+                    ArrivedBannerView()
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .zIndex(10)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .padding(.top, 60)
+                        .allowsHitTesting(false)
+                }
 
                 // ── Info Panel ───────────────────────────────────────────────
                 infoPanel
@@ -367,6 +481,21 @@ struct TrackingMapView: View {
         annotations = [TrackAnnotation(location: update)]
         rawTrail.append(coord)
 
+        // ── Arrival detection ────────────────────────────────────────────
+        if !isArrived, let dest = destinationCoordinate {
+            let truckLoc = CLLocation(latitude: coord.latitude, longitude: coord.longitude)
+            let destLoc  = CLLocation(latitude: dest.latitude,  longitude: dest.longitude)
+            if truckLoc.distance(from: destLoc) <= 402 { // ~0.25 miles = 402 m
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                    isArrived = true
+                }
+                ArrivalNotificationService.fireArrivalNotification(
+                    loadNumber: loadNumber,
+                    address: "your delivery destination"
+                )
+            }
+        }
+
         // Only move the map center if the truck has drifted outside
         // the currently visible region — this way manual zoom/pan is preserved.
         let visibleLatDelta = mapRegion.span.latitudeDelta
@@ -484,6 +613,8 @@ struct CustomerTrackingView: View {
         span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
     )
     @State private var annotations: [TrackAnnotation] = []
+    @State private var destinationCoordinate: CLLocationCoordinate2D? = nil
+    @State private var isArrived = false
 
     var body: some View {
         NavigationView {
@@ -507,6 +638,20 @@ struct CustomerTrackingView: View {
             let coord = update.coordinate
             annotations = [TrackAnnotation(location: update)]
             rawTrail.append(coord)
+            // Arrival detection
+            if !isArrived, let dest = destinationCoordinate {
+                let truckLoc = CLLocation(latitude: coord.latitude, longitude: coord.longitude)
+                let destLoc  = CLLocation(latitude: dest.latitude,  longitude: dest.longitude)
+                if truckLoc.distance(from: destLoc) <= 402 {
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                        isArrived = true
+                    }
+                    ArrivalNotificationService.fireArrivalNotification(
+                        loadNumber: load.loadNumber,
+                        address: load.deliveryAddress
+                    )
+                }
+            }
             withAnimation { mapRegion.center = coord }
         }
     }
@@ -520,10 +665,11 @@ struct CustomerTrackingView: View {
 
 
                 // ── Live Map ─────────────────────────────────────────────────
-                ZStack(alignment: .topLeading) {
+                ZStack(alignment: .top) {
                     RoadSnappingMapView(
                         annotations: annotations,
                         rawTrail: rawTrail,
+                        destinationCoordinate: destinationCoordinate,
                         region: $mapRegion
                     )
                     .frame(height: 280)
@@ -538,6 +684,7 @@ struct CustomerTrackingView: View {
                         .background(.ultraThinMaterial)
                         .cornerRadius(20)
                         .padding(12)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     }
 
                     // No location yet overlay
@@ -551,6 +698,15 @@ struct CustomerTrackingView: View {
                                     .font(.caption).foregroundColor(.white)
                             }
                         }
+                        .frame(height: 280)
+                    }
+
+                    // Arrived banner
+                    if isArrived {
+                        ArrivedBannerView()
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                            .padding(.top, 8)
+                            .allowsHitTesting(false)
                     }
                 }
 
@@ -561,7 +717,7 @@ struct CustomerTrackingView: View {
                         Image(systemName: "truck.box.fill")
                             .font(.title2).foregroundColor(.accentColor)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("CMP Freight")
+                            Text("CMP Logistics")
                                 .font(.headline)
                             Text("Load \(load.loadNumber)")
                                 .font(.subheadline).foregroundColor(.secondary)
@@ -664,7 +820,7 @@ struct CustomerTrackingView: View {
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
-            Text("Contact CMP Freight: 1-800-CMP-LOAD")
+            Text("Contact CMP Logistics: 1-800-CMP-LOAD")
                 .font(.caption).foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -757,6 +913,13 @@ struct CustomerTrackingView: View {
                         )
                         // Seed trail with current location; more points arrive via WebSocket
                         self.rawTrail = [loc.coordinate]
+                    }
+                    // Geocode delivery address → destination pin
+                    let geocoder = CLGeocoder()
+                    geocoder.geocodeAddressString(resolvedLoad.deliveryAddress) { placemarks, _ in
+                        if let coord = placemarks?.first?.location?.coordinate {
+                            DispatchQueue.main.async { self.destinationCoordinate = coord }
+                        }
                     }
                     // Connect WebSocket to receive live pushes for THIS load only
                     NetworkManager.shared.connectWebSocket(forLoadId: resolvedLoad.id)
