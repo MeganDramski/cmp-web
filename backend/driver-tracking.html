@@ -1,4 +1,7 @@
-notifications <!DOCTYPE html>
+'
+
+
+'notifications <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -642,9 +645,16 @@ notifications <!DOCTYPE html>
         document.getElementById("btn-start").style.display = "none";
         document.getElementById("gps-card").style.display  = "none";
         document.getElementById("delivered-screen").style.display = "flex";
-      } else if (data.status === "Assigned") {
-        // Show accept card, hide tracking controls until driver accepts
-        badge.textContent = "⏳ Assigned";
+      } else if (data.status === "Accepted") {
+        badge.className   = "status-badge accepted";
+        badge.textContent = "✅ Accepted";
+        document.getElementById("gps-card").style.display  = "block";
+        document.getElementById("btn-start").style.display = "flex";
+      } else {
+        // Assigned, Pending, or anything else — always show Accept card
+        // (Pending means the link was sent before status was saved as Assigned,
+        //  but the driver still needs to accept and start tracking)
+        badge.textContent = "⏳ " + (data.status || "Pending");
         document.getElementById("gps-card").style.display   = "none";
         document.getElementById("btn-start").style.display  = "none";
         var acceptCard = document.getElementById("accept-card");
@@ -656,15 +666,27 @@ notifications <!DOCTYPE html>
               hour: "2-digit", minute: "2-digit"
             });
         }
-      } else if (data.status === "Accepted") {
-        badge.className   = "status-badge accepted";
-        badge.textContent = "✅ Accepted";
-        document.getElementById("gps-card").style.display  = "block";
-        document.getElementById("btn-start").style.display = "flex";
-      } else {
-        badge.textContent = "⏳ " + (data.status || "Pending");
-        document.getElementById("gps-card").style.display  = "none";
-        document.getElementById("btn-start").style.display = "none";
+        // If we have a live backend, check whether the status has already been
+        // updated (e.g. dispatcher changed it after sending the link)
+        if (isLive() && (TOKEN || LOAD_ID)) {
+          var liveUrl = TOKEN ? API_BASE + '/track/' + TOKEN
+                              : API_BASE + '/loads/' + LOAD_ID;
+          fetch(liveUrl)
+            .then(function(r){ return r.ok ? r.json() : null; })
+            .then(function(live){
+              if (!live) return;
+              var liveStatus = live.status || data.status;
+              if (liveStatus !== data.status) {
+                // Backend has a newer status — re-render with it
+                live.pickupDate    = live.pickupDate    || data.pickupDate;
+                live.deliveryDate  = live.deliveryDate  || data.deliveryDate;
+                live.pickupAddress = live.pickupAddress || data.pickupAddress;
+                live.deliveryAddress = live.deliveryAddress || data.deliveryAddress;
+                populateLoad(live);
+              }
+            })
+            .catch(function(){});
+        }
       }
     }
 

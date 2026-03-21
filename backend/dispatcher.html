@@ -789,7 +789,8 @@ function renderDetail(){
     weight:load.weight, customerName:load.customerName,
     customerEmail:load.customerEmail, dispatcherEmail:load.dispatcherEmail,
     notifyCustomer:load.notifyCustomer, notes:load.notes,
-    assignedDriverName:load.assignedDriverName, status:load.status,
+    assignedDriverName:load.assignedDriverName,
+    status: (load.status === 'Pending' || !load.status) ? 'Assigned' : load.status,
     trackingToken:load.trackingToken
   };
   var dURL=base+'/driver-tracking.html?token='+esc(load.trackingToken)+'&loadId='+esc(load.id)+'&d='+encodeURIComponent(b64enc(JSON.stringify(loadPayload)));
@@ -1151,7 +1152,7 @@ function sendLink(id){
     assignedDriverName:load.assignedDriverName||'',
     assignedDriverEmail:load.assignedDriverEmail||'',
     assignedDriverPhone:load.assignedDriverPhone||'',
-    status:load.status||'Pending',
+    status: (load.status === 'Pending' || !load.status) ? 'Assigned' : load.status,
     trackingToken:load.trackingToken||''
   };
   var encoded='';
