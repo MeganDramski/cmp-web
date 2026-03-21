@@ -1,0 +1,44 @@
+STEPS TO GET SMS PRODUCTION ACCESS (AWS)
+=========================================
+
+STEP 1 — Open this link in your browser:
+https://support.console.aws.amazon.com/support/home#/case/create?issueType=service-limit-increase
+
+
+STEP 2 — Fill out the form exactly like this:
+
+  • Service:        Service Quotas
+  • Category:       AWS End User Messaging SMS (Pinpoint)
+  • Severity:       General Limits
+  • Region:         us-east-1
+  • Resource Type:  General Limits
+  • Quota:          SMS Production Access
+  • New quota value: 1
+
+
+STEP 3 — In the Description box, copy and paste this:
+
+------------------------------------------------------------------
+We are CMP Logistics, a freight and trucking dispatch company.
+We use AWS SNS/Pinpoint to send transactional SMS messages to
+truck drivers containing their load details and a GPS tracking
+link. Messages are sent only to our own employed drivers in the
+US and Canada. Drivers opt-in by being onboarded as employees.
+We do not send any promotional or marketing messages.
+
+Website: https://main.dkyps2bncnu4g.amplifyapp.com
+Message type: Transactional
+Countries: United States and Canada
+Opt-in process: Employee onboarding
+------------------------------------------------------------------
+
+
+STEP 4 — Choose your preferred language and click Submit.
+
+
+NOTES:
+  - AWS typically responds within 24 hours.
+  - Make sure you have sent at least one test SMS from your
+    account before submitting (you likely already have).
+  - If you use multiple AWS regions, submit a separate
+    request for each one.
