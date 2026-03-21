@@ -22,6 +22,7 @@ Globals:
         TWILIO_FROM_NUMBER: !Ref TwilioFromNumber
         AMPLIFY_BASE_URL:   !Ref AmplifyBaseUrl
         TRACKING_BASE_URL: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+        APPROVAL_ADMINS:    !Ref ApprovalAdmins
   HttpApi:
     CorsConfiguration:
       AllowOrigins:
@@ -67,6 +68,11 @@ Parameters:
     Type: String
     Default: ""
     Description: Amplify frontend URL e.g. https://main.dkyps2bncnu4g.amplifyapp.com
+
+  ApprovalAdmins:
+    Type: String
+    Default: "megandramski@gmail.com,dispatch@cmplogistics.ca"
+    Description: Comma-separated list of admin emails that receive sign-up approval requests
 
 # ─────────────────────────────────────────────────────────────────
 # DynamoDB Tables
@@ -195,6 +201,21 @@ Resources:
           Properties:
             Path: /users/register
             Method: POST
+
+  # GET /users/approve?token= (admin clicks Approve/Deny in email)
+  ApproveUserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-approve-user
+      CodeUri: src/
+      Handler: handlers/approveUser.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /users/approve
+            Method: GET
 
   # POST /users/login
   LoginFunction:
@@ -391,4 +412,4 @@ Resources:
           Type: HttpApi
           Properties:
           Properties:
-            ApiId: !Ref HttpApief HttpApiief HttpApiief HttpApi
+            ApiId: !Ref HttpApief HttpApiief HttpApiief HttpApiief HttpApi

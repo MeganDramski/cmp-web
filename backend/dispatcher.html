@@ -215,12 +215,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     </div>
     <div class="aform" id="form-up">
       <div class="fg"><label>Full Name</label><input type="text" id="reg-name" placeholder="Jane Dispatcher"/></div>
-      <div class="fg"><label>Email</label><input type="email" id="reg-email" placeholder="dispatcher@cmpfreight.com"/></div>
+      <div class="fg"><label>Work Email</label><input type="email" id="reg-email" placeholder="dispatcher@cmplogistics.ca"/></div>
       <div class="fg"><label>Phone (optional)</label><input type="tel" id="reg-phone" placeholder="+1 312 555 0100"/></div>
       <div class="fg"><label>Password (min 6 chars)</label><input type="password" id="reg-pw" placeholder="Password"/></div>
-      <button class="btn btn-p btn-full" id="btn-up">Create Account</button>
+      <button class="btn btn-p btn-full" id="btn-up">Request Access</button>
     </div>
-    <p class="anote">Dispatcher accounts only. Drivers use the SMS link.</p>
+    <!-- Shown after a successful request submission -->
+    <div class="aform" id="form-pending" style="text-align:center;padding:8px 0">
+      <div style="font-size:48px;margin-bottom:12px">📬</div>
+      <div style="font-size:17px;font-weight:700;margin-bottom:8px">Request Sent!</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:20px">
+        Your sign-up request has been sent to the CMP admin team.<br>
+        You'll receive an email at <span id="pending-email" style="color:var(--text);font-weight:600"></span> once your account is approved.
+      </div>
+      <button class="btn btn-full" style="background:var(--s2)" onclick="document.getElementById('tab-in').click()">Back to Sign In</button>
+    </div>
+    <p class="anote">Access requires admin approval. Drivers use the SMS link.</p>
   </div>
 </div>
 
@@ -410,14 +420,31 @@ function doSignIn(){
   }
   fetch(API+'/users/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})})
     .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
-    .then(function(res){if(!res.ok)throw new Error(res.d.error||'Sign-in failed.');if(res.d.user.role!=='dispatcher')throw new Error('Dispatcher accounts only.');session={token:res.d.token,user:res.d.user};localStorage.setItem('cmp_session',JSON.stringify(session));enterApp();})
+    .then(function(res){
+      if(!res.ok){
+        var msg=res.d.error||'Sign-in failed.';
+        if(res.d.status==='pending') msg='⏳ Your account is pending approval. Check your email — you\'ll be notified once an admin approves your request.';
+        if(res.d.status==='denied')  msg='❌ Your account request was not approved. Contact dispatch@cmplogistics.ca for help.';
+        throw new Error(msg);
+      }
+      if(res.d.user.role!=='dispatcher')throw new Error('Dispatcher accounts only.');
+      session={token:res.d.token,user:res.d.user};localStorage.setItem('cmp_session',JSON.stringify(session));enterApp();
+    })
     .catch(function(e){aerr(e.message&&e.message!=='Failed to fetch'?e.message:'Cannot reach the server. The backend may not be deployed yet.');})
     .finally(function(){btn.disabled=false;btn.textContent='Sign In';});
 }
 
-/* REGISTER */
+/* REGISTER / REQUEST ACCESS */
 document.getElementById('btn-up').addEventListener('click', doRegister);
 document.getElementById('reg-pw').addEventListener('keydown',function(e){if(e.key==='Enter')doRegister();});
+
+function showPendingScreen(email){
+  document.getElementById('form-up').classList.remove('on');
+  document.getElementById('form-pending').classList.add('on');
+  document.getElementById('pending-email').textContent=email;
+  // Hide the tabs so the user can't accidentally go back to Create Account
+  document.getElementById('tab-up').style.display='none';
+}
 
 function doRegister(){
   aclr();
@@ -427,24 +454,25 @@ function doRegister(){
   var pass=document.getElementById('reg-pw').value;
   if(!name||!email||!pass)return aerr('Name, email, and password are required.');
   if(pass.length<6)return aerr('Password must be at least 6 characters.');
-  var btn=document.getElementById('btn-up'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Creating…';
+  var btn=document.getElementById('btn-up'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Sending request…';
   if(!isLive()){
+    // Offline/local mode — save as pending locally and show the waiting screen
     var accs=JSON.parse(localStorage.getItem('cmp_accounts')||'[]');
-    for(var i=0;i<accs.length;i++){if(accs[i].email===email){btn.disabled=false;btn.textContent='Create Account';return aerr('An account with that email already exists.');}}
-    var h=sha256(pass);
-    accs.push({name:name,email:email,phone:phone,role:'dispatcher',passwordHash:h});
+    for(var i=0;i<accs.length;i++){if(accs[i].email===email){btn.disabled=false;btn.textContent='Request Access';return aerr('An account with that email already exists.');}}
+    accs.push({name:name,email:email,phone:phone,role:'dispatcher',passwordHash:sha256(pass),status:'pending'});
     localStorage.setItem('cmp_accounts',JSON.stringify(accs));
-    session={token:'local',user:{name:name,email:email,role:'dispatcher'}};
-    localStorage.setItem('cmp_session',JSON.stringify(session));
-    btn.disabled=false;btn.textContent='Create Account'; enterApp(); return;
+    btn.disabled=false; btn.textContent='Request Access';
+    showPendingScreen(email); return;
   }
   fetch(API+'/users/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,email:email,phone:phone,password:pass,role:'dispatcher'})})
     .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
-    .then(function(res){if(!res.ok)throw new Error(res.d.error||'Registration failed.');return fetch(API+'/users/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})});})
-    .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
-    .then(function(res){if(!res.ok)throw new Error('Auto sign-in failed.');session={token:res.d.token,user:res.d.user};localStorage.setItem('cmp_session',JSON.stringify(session));enterApp();})
-    .catch(function(e){aerr(e.message&&e.message!=='Failed to fetch'?e.message:'Cannot reach the server. The backend may not be deployed yet.');})
-    .finally(function(){btn.disabled=false;btn.textContent='Create Account';});
+    .then(function(res){
+      if(!res.ok)throw new Error(res.d.error||'Request failed.');
+      // status === 'pending' — show the waiting screen
+      showPendingScreen(email);
+    })
+    .catch(function(e){aerr(e.message&&e.message!=='Failed to fetch'?e.message:'Cannot reach the server. Try again later.');})
+    .finally(function(){btn.disabled=false;btn.textContent='Request Access';});
 }
 
 /* SIGN OUT */
