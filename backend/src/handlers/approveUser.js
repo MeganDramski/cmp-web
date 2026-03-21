@@ -4,7 +4,7 @@
 // Verifies the HMAC-signed token, updates the user's status in DynamoDB,
 // sends a confirmation email to the applicant, and returns a styled HTML page.
 
-const { DynamoDBClient, GetItemCommand, UpdateItemCommand } = require("@aws-sdk/client-dynamodb");
+const { DynamoDBClient, GetItemCommand, PutItemCommand, DeleteItemCommand } = require("@aws-sdk/client-dynamodb");
 const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 const crypto = require("crypto");
@@ -12,10 +12,11 @@ const crypto = require("crypto");
 const db  = new DynamoDBClient({});
 const ses = new SESClient({});
 
-const TABLE        = process.env.USERS_TABLE;
-const SES_FROM     = process.env.SES_FROM_EMAIL;
-const AMPLIFY_BASE = process.env.AMPLIFY_BASE_URL || "https://main.d1j00v80wf0na9.amplifyapp.com";
-const SECRET       = process.env.JWT_SECRET || "cmp-secret";
+const TABLE         = process.env.USERS_TABLE;   // cmp-users
+const PENDING_TABLE = process.env.PENDING_TABLE || "cmp-pending"; // cmp-pending
+const SES_FROM      = process.env.SES_FROM_EMAIL;
+const AMPLIFY_BASE  = process.env.AMPLIFY_BASE_URL || "https://main.d1j00v80wf0na9.amplifyapp.com";
+const SECRET        = process.env.JWT_SECRET || "cmp-secret";
 
 /** Verify token and extract { email, action } */
 function parseToken(raw) {
@@ -47,35 +48,42 @@ exports.handler = async (event) => {
     return html(400, "❌ Invalid Action", "Unknown action in this link.");
   }
 
-  // Fetch existing user
+  // Fetch from cmp-pending table
   const existing = await db.send(new GetItemCommand({
-    TableName: TABLE,
+    TableName: PENDING_TABLE,
     Key: marshall({ email }),
   }));
 
   if (!existing.Item) {
-    return html(404, "👤 User Not Found", `No sign-up request found for <strong>${email}</strong>.`);
+    // Maybe already approved — check cmp-users
+    const inUsers = await db.send(new GetItemCommand({
+      TableName: TABLE,
+      Key: marshall({ email }),
+    }));
+    if (inUsers.Item && action === "approve") {
+      return html(200, "✅ Already Approved", `<strong>${email}</strong> was already approved and can sign in.`);
+    }
+    return html(404, "👤 Request Not Found", `No pending sign-up request found for <strong>${email}</strong>. It may have already been actioned.`);
   }
 
   const user = unmarshall(existing.Item);
 
-  // Idempotency: already actioned
-  if (user.status === "approved" && action === "approve") {
-    return html(200, "✅ Already Approved", `<strong>${user.name}</strong> (${email}) was already approved and can sign in.`);
-  }
-  if (user.status === "denied" && action === "deny") {
-    return html(200, "Already Denied", `<strong>${user.name}</strong> (${email}) was already denied.`);
+  if (action === "approve") {
+    // Write to cmp-users with status=approved
+    await db.send(new PutItemCommand({
+      TableName: TABLE,
+      Item: marshall({
+        ...user,
+        status:     "approved",
+        approvedAt: new Date().toISOString(),
+      }),
+    }));
   }
 
-  const newStatus = action === "approve" ? "approved" : "denied";
-
-  // Update status in DynamoDB
-  await db.send(new UpdateItemCommand({
-    TableName: TABLE,
+  // Remove from cmp-pending either way (approve or deny)
+  await db.send(new DeleteItemCommand({
+    TableName: PENDING_TABLE,
     Key: marshall({ email }),
-    UpdateExpression: "SET #s = :s, approvedAt = :t",
-    ExpressionAttributeNames:  { "#s": "status" },
-    ExpressionAttributeValues: marshall({ ":s": newStatus, ":t": new Date().toISOString() }),
   }));
 
   // Email the applicant
