@@ -291,8 +291,10 @@ class DispatcherViewModel: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             guard let self else { return }
-            let updated = self.store.load()
-            if !updated.isEmpty { self.loads = updated }
+            // Always accept the result from store.load() — it already filters
+            // deleted-ID tombstones, so even a stale iCloud snapshot that still
+            // contains a deleted load will be correctly suppressed.
+            self.loads = self.store.load()
         }
     }
 
@@ -346,7 +348,8 @@ class DispatcherViewModel: ObservableObject {
 
     func deleteLoad(_ load: Load) {
         loads.removeAll { $0.id == load.id }
-        store.save(loads)
+        // store.delete records a tombstone so iCloud can never resurrect the load
+        store.delete(id: load.id)
         firebase.deleteLoad(id: load.id)
     }
 }
@@ -578,7 +581,7 @@ struct LoadDetailView: View {
 
     private func openSMSFallback(driverPhone: String) {
         let link = load.webTrackingURL
-        let msg = "CMP Logistics – Load \(load.loadNumber)\nPickup: \(load.pickupAddress)\nDelivery: \(load.deliveryAddress)\n\nTap here to start tracking:\n\(link)"
+        let msg = "CMP Freight – Load \(load.loadNumber)\nPickup: \(load.pickupAddress)\nDelivery: \(load.deliveryAddress)\n\nTap here to start tracking:\n\(link)"
         let encoded = msg.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let smsTarget = driverPhone.filter { $0.isNumber || $0 == "+" }
         let urlStr = smsTarget.isEmpty ? "sms:?body=\(encoded)" : "sms:\(smsTarget)?body=\(encoded)"
