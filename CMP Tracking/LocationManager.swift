@@ -35,7 +35,8 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// Geocoded coordinate of the current load's delivery address
     private var deliveryCoordinate: CLLocationCoordinate2D?
     /// How close (meters) the driver must be to the delivery address to start the timer
-    private let deliveryRadiusMeters: CLLocationDistance = 300
+    /// ~100 ft = 30 meters
+    private let deliveryRadiusMeters: CLLocationDistance = 30
     /// How long (seconds) the driver must be still near the delivery address
     private let stillnessThreshold: TimeInterval = 3 * 60   // 3 minutes
     /// Timer that fires the reminder after stillness threshold
@@ -43,7 +44,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// Last location used to detect movement
     private var lastMovementLocation: CLLocation?
     /// Minimum movement (meters) to reset the stillness timer
-    private let movementResetDistance: CLLocationDistance = 30
+    private let movementResetDistance: CLLocationDistance = 15
 
     // MARK: - Init
     override init() {
