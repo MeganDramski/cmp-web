@@ -288,9 +288,27 @@
       display: flex; align-items: center; justify-content: center;
       font-size: 40px;
     }
+
+    /* Connection status bar */
+    #conn-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 9999;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      display: none;
+      transition: opacity 0.3s;
+    }
+    #conn-bar.offline     { display: block; background: rgba(255,59,48,0.92);  color: #fff; }
+    #conn-bar.back-online { display: block; background: rgba(52,199,89,0.92); color: #fff; }
   </style>
 </head>
 <body>
+
+  <!-- Connection status bar -->
+  <div id="conn-bar"></div>
 
   <p class="logo">CMP Logistics</p>
 
@@ -369,14 +387,44 @@
       : null;
     const UPDATE_INTERVAL_MS = 15000;
 
-    let watchId      = null;
-    let intervalId   = null;
-    let lastPosition = null;
-    let isTracking   = false;
-    let updateCount  = 0;
-    let loadData     = null;
+    let watchId          = null;
+    let intervalId       = null;
+    let lastPosition     = null;
+    let isTracking       = false;
+    let updateCount      = 0;
+    let loadData         = null;
+    let offlineQueue     = [];          // unsent location payloads
+    let gpsRestartTimer  = null;        // watchPosition auto-restart timer
+    let gpsRestartDelay  = 5000;        // ms before restarting GPS after error
 
     function isLive() { return !!API_BASE; }
+
+    // ── Connection status bar ─────────────────────────────────────────────────
+    var _connHideTimer = null;
+    function setConnBar(state) { // 'offline' | 'online' | ''
+      var bar = document.getElementById('conn-bar');
+      if (state === 'offline') {
+        bar.textContent = '📵 No connection — locations queued, will retry when back online';
+        bar.className = 'offline';
+        if (_connHideTimer) { clearTimeout(_connHideTimer); _connHideTimer = null; }
+      } else if (state === 'online') {
+        bar.textContent = '✅ Back online — syncing queued locations…';
+        bar.className = 'back-online';
+        _connHideTimer = setTimeout(function() {
+          bar.className = '';
+          bar.textContent = '';
+        }, 4000);
+      } else {
+        bar.className = '';
+        bar.textContent = '';
+      }
+    }
+
+    window.addEventListener('offline', function() { setConnBar('offline'); });
+    window.addEventListener('online',  function() {
+      setConnBar('online');
+      flushOfflineQueue();
+    });
 
     (function init() {
       if (!TOKEN && !LOAD_ID) {
@@ -627,29 +675,46 @@
 
     // ── GPS Helpers ───────────────────────────────────────────────────────────
     function startGPS(fresh) {
+      if (gpsRestartTimer) { clearTimeout(gpsRestartTimer); gpsRestartTimer = null; }
+      if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+
       watchId = navigator.geolocation.watchPosition(
         function(pos) {
+          gpsRestartDelay = 5000; // reset back-off on success
           lastPosition = pos;
           updateGPSDisplay(pos);
         },
         function(err) {
-          if (err.code === 1) { // PERMISSION_DENIED
+          if (err.code === 1) { // PERMISSION_DENIED — permanent, don't retry
             showError('denied');
           } else {
-            showError("GPS error: " + err.message);
+            // Timeout or POSITION_UNAVAILABLE — auto-restart after delay
+            addLog('⚠️ GPS lost (' + err.message + ') — retrying in ' + (gpsRestartDelay / 1000) + 's…');
+            navigator.geolocation.clearWatch(watchId);
+            watchId = null;
+            if (isTracking) {
+              gpsRestartTimer = setTimeout(function() {
+                if (isTracking) startGPS(false);
+              }, gpsRestartDelay);
+              // Exponential back-off, cap at 60 s
+              gpsRestartDelay = Math.min(gpsRestartDelay * 2, 60000);
+            }
           }
         },
-        { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
       );
 
-      intervalId = setInterval(function() {
-        if (lastPosition && isTracking) {
-          postLocation(lastPosition);
-        }
-      }, UPDATE_INTERVAL_MS);
+      if (!intervalId) {
+        intervalId = setInterval(function() {
+          if (lastPosition && isTracking) {
+            postLocation(lastPosition);
+          }
+        }, UPDATE_INTERVAL_MS);
+      }
     }
 
     function stopGPS() {
+      if (gpsRestartTimer) { clearTimeout(gpsRestartTimer); gpsRestartTimer = null; }
       if (watchId != null)    { navigator.geolocation.clearWatch(watchId); watchId = null; }
       if (intervalId != null) { clearInterval(intervalId); intervalId = null; }
     }
@@ -792,22 +857,48 @@
       updateMap(c.latitude, c.longitude, c.accuracy);
     }
 
-    // ── POST location to API ──────────────────────────────────────────────────
+    // ── POST location to API (with offline queue + auto-retry) ─────────────
     function postLocation(pos) {
       updateCount++;
       addLog("📍 Location updated (" + updateCount + ")");
       if (!isLive()) return;
       var c = pos.coords;
+      var payload = {
+        latitude:  c.latitude,
+        longitude: c.longitude,
+        speed:     c.speed   != null ? c.speed * 2.237 : 0,
+        heading:   c.heading != null ? c.heading : 0,
+        timestamp: new Date().toISOString(),
+      };
+
+      if (!navigator.onLine) {
+        offlineQueue.push(payload);
+        setConnBar('offline');
+        addLog("📦 Queued offline (" + offlineQueue.length + " pending)");
+        return;
+      }
+
+      sendLocationPayload(payload);
+    }
+
+    function sendLocationPayload(payload) {
       fetch(API_BASE + "/track/" + TOKEN + "/location", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          latitude:  c.latitude,
-          longitude: c.longitude,
-          speed:     c.speed   != null ? c.speed * 2.237 : 0,
-          heading:   c.heading != null ? c.heading : 0,
-        }),
-      }).catch(function() { addLog("⚠️ Offline — will retry"); });
+        body: JSON.stringify(payload),
+      }).catch(function() {
+        offlineQueue.push(payload);
+        setConnBar('offline');
+        addLog("⚠️ Send failed — queued for retry (" + offlineQueue.length + " pending)");
+      });
+    }
+
+    function flushOfflineQueue() {
+      if (!isLive() || offlineQueue.length === 0) return;
+      var queue = offlineQueue.slice();
+      offlineQueue = [];
+      addLog("🔄 Flushing " + queue.length + " queued location(s)…");
+      queue.forEach(function(payload) { sendLocationPayload(payload); });
     }
 
     // ── Log helpers ───────────────────────────────────────────────────────────
@@ -946,7 +1037,47 @@
       if (wakeLock !== null && document.visibilityState === "visible") {
         navigator.wakeLock.request("screen").then(function(wl){ wakeLock=wl; }).catch(function(){});
       }
+      // When the driver comes back to the tab while tracking, restart GPS if it dropped
+      if (isTracking && document.visibilityState === "visible" && watchId === null) {
+        addLog("📲 Tab visible again — restarting GPS…");
+        startGPS(false);
+      }
+      // Flush any queued locations when coming back online
+      if (document.visibilityState === "visible" && navigator.onLine) {
+        flushOfflineQueue();
+      }
     });
+
+    // ── Service Worker registration (background sync + keep-alive) ────────────
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('driver-tracking-sw.js')
+        .then(function(reg) {
+          console.log('[SW] registered, scope:', reg.scope);
+          // Request background sync when back online
+          window.addEventListener('online', function() {
+            if (reg.sync) {
+              reg.sync.register('cmp-location-sync').catch(function(){});
+            }
+          });
+        })
+        .catch(function(err) {
+          console.warn('[SW] registration failed:', err);
+        });
+
+      // Listen for keep-alive pings from the service worker
+      navigator.serviceWorker.addEventListener('message', function(evt) {
+        if (evt.data && evt.data.type === 'SW_KEEPALIVE') {
+          // Re-request wake lock and restart GPS if it dropped
+          if (wakeLock === null && isTracking && 'wakeLock' in navigator) {
+            navigator.wakeLock.request('screen').then(function(wl){ wakeLock = wl; }).catch(function(){});
+          }
+          if (isTracking && watchId === null && !gpsRestartTimer) {
+            addLog('📲 Keep-alive: restarting GPS…');
+            startGPS(false);
+          }
+        }
+      });
+    }
   </script>
 </body>
 </html>
