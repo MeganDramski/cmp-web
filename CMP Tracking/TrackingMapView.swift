@@ -68,9 +68,9 @@ struct RoadSnappingMapView: UIViewRepresentable {
         coordinator.rawOverlay = rawPolyline
         mv.addOverlay(rawPolyline, level: .aboveRoads)
 
-        // ── Schedule debounced OSRM snap (2 s after last GPS update) ─────
+        // ── Schedule debounced OSRM snap (3 s after last GPS update) ─────
         coordinator.debounceTimer?.invalidate()
-        coordinator.debounceTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { _ in
+        coordinator.debounceTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
             coordinator.snapToRoads(rawTrail, mapView: mv)
         }
     }
@@ -83,51 +83,65 @@ struct RoadSnappingMapView: UIViewRepresentable {
         var debounceTimer: Timer?
         var currentTask: URLSessionDataTask?
 
-        // MARK: OSRM snap
+        // MARK: OSRM map-match snap
+        // Uses /match/v1 (GPS trace → road) instead of /route/v1 (A→B routing).
+        // /match is specifically designed to snap a recorded GPS track onto roads.
         func snapToRoads(_ trail: [CLLocationCoordinate2D], mapView mv: MKMapView) {
             guard trail.count >= 2 else { return }
 
-            // Sample down to ≤25 waypoints (OSRM /route limit)
+            // Sample down to ≤100 waypoints — more points = better accuracy on curves
+            // but OSRM match caps at 100 per request.
             var pts = trail
-            if pts.count > 25 {
-                let step = Double(pts.count - 1) / 24.0
+            if pts.count > 100 {
+                let step = Double(pts.count - 1) / 99.0
                 var sampled: [CLLocationCoordinate2D] = []
-                for i in 0..<24 { sampled.append(pts[Int((Double(i) * step).rounded())]) }
+                for i in 0..<99 { sampled.append(pts[Int((Double(i) * step).rounded())]) }
                 sampled.append(pts[pts.count - 1])
                 pts = sampled
             }
 
-            let coordStr = pts.map { "\($0.longitude),\($0.latitude)" }.joined(separator: ";")
-            let urlStr = "https://router.project-osrm.org/route/v1/driving/\(coordStr)?overview=full&geometries=geojson&steps=false"
+            let coordStr   = pts.map { "\($0.longitude),\($0.latitude)" }.joined(separator: ";")
+            // radiuses: tell OSRM how far (meters) each GPS point may be from the road.
+            // 25m is a good default for automotive GPS accuracy.
+            let radiusStr  = Array(repeating: "25", count: pts.count).joined(separator: ";")
+            // Synthetic timestamps spaced 5s apart so OSRM can infer speed per segment
+            let timestamps = (0..<pts.count).map { "\($0 * 5)" }.joined(separator: ";")
+
+            let urlStr = "https://router.project-osrm.org/match/v1/driving/\(coordStr)"
+                       + "?overview=full&geometries=geojson&steps=false"
+                       + "&radiuses=\(radiusStr)"
+                       + "&timestamps=\(timestamps)"
+                       + "&tidy=true"   // remove impossible jumps / GPS noise
             guard let url = URL(string: urlStr) else { return }
 
             currentTask?.cancel()
             var request = URLRequest(url: url)
-            request.timeoutInterval = 10
+            request.timeoutInterval = 15
             currentTask = URLSession.shared.dataTask(with: request) { data, _, _ in
                 guard let data = data,
                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                       (json["code"] as? String) == "Ok",
-                      let routes = json["routes"] as? [[String: Any]],
-                      let first = routes.first,
-                      let geometry = first["geometry"] as? [String: Any],
-                      let coordsArray = geometry["coordinates"] as? [[Double]]
+                      let matchings = json["matchings"] as? [[String: Any]]
                 else {
-                    // OSRM failed — raw trail already visible, nothing to do
+                    // OSRM match failed — raw trail remains visible
                     return
                 }
 
-                // Decode GeoJSON coordinates from route geometry
+                // Collect all road-snapped coordinates from every matching segment
                 var roadCoords: [CLLocationCoordinate2D] = []
-                for c in coordsArray {
-                    guard c.count >= 2 else { continue }
-                    roadCoords.append(CLLocationCoordinate2D(latitude: c[1], longitude: c[0]))
+                for match in matchings {
+                    guard let geometry  = match["geometry"] as? [String: Any],
+                          let coordsArr = geometry["coordinates"] as? [[Double]]
+                    else { continue }
+                    for c in coordsArr {
+                        guard c.count >= 2 else { continue }
+                        roadCoords.append(CLLocationCoordinate2D(latitude: c[1], longitude: c[0]))
+                    }
                 }
                 guard roadCoords.count >= 2 else { return }
 
                 DispatchQueue.main.async {
-                    // Remove raw overlay, add snapped one
-                    if let raw = self.rawOverlay { mv.removeOverlay(raw) }
+                    if let raw = self.rawOverlay    { mv.removeOverlay(raw) }
                     if let old = self.snappedOverlay { mv.removeOverlay(old) }
                     var snapped = roadCoords
                     let snappedPolyline = MKPolyline(coordinates: &snapped, count: snapped.count)
