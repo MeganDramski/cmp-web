@@ -548,49 +548,72 @@ var _knownStatuses = {}; // loadId → status string
 var _bgPollTimer   = null;
 
 function startBackgroundPoll(){
-  if(!isLive()) return; // only meaningful when we have a real backend
   if(_bgPollTimer) return;
   // Snapshot current statuses so we don't fire on first load
   loads.forEach(function(l){ _knownStatuses[l.id] = l.status; });
-  _bgPollTimer = setInterval(bgPollLoads, 30000); // every 30 s
+  // Poll every 10 seconds (live backend) or 5 seconds (localStorage)
+  var interval = isLive() ? 10000 : 5000;
+  _bgPollTimer = setInterval(bgPollLoads, interval);
+  // Also poll immediately when tab regains focus or becomes visible
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible') bgPollLoads();
+  });
+  window.addEventListener('focus', bgPollLoads);
 }
 
 function bgPollLoads(){
-  if(!isLive()) return;
-  fetch(API+'/loads', {headers:ah()})
-    .then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(fresh){
-      if(!Array.isArray(fresh)) return;
-      fresh = filterDeleted(fresh);
-      fresh.forEach(function(l){
-        var prev = _knownStatuses[l.id];
-        if(prev === undefined){ _knownStatuses[l.id] = l.status; return; } // new load, no alert
-        if(prev === l.status) return; // no change
-        // Status changed — fire a notification
-        var driverName = l.assignedDriverName || 'Driver';
-        var loadNum    = l.loadNumber || l.id;
-        if(l.status === 'Accepted'){
-          webNotify('✅ Load Accepted', driverName+' accepted load '+loadNum+'. Ready at pickup time.');
-          toast('✅ '+driverName+' accepted '+loadNum);
-        } else if(l.status === 'In Transit'){
-          webNotify('🚛 Driver Started Tracking', driverName+' is now on the way for load '+loadNum+'.');
-          toast('🚛 '+driverName+' started tracking '+loadNum);
-        } else if(l.status === 'Delivered'){
-          webNotify('📦 Load Delivered', 'Load '+loadNum+' has been delivered by '+driverName+'.');
-          toast('📦 '+loadNum+' delivered by '+driverName);
-        } else if(l.status === 'Cancelled'){
-          webNotify('❌ Load Cancelled', 'Load '+loadNum+' has been cancelled.');
-        }
-        _knownStatuses[l.id] = l.status;
-        // Refresh the loads list so the UI reflects the change
-        for(var i=0;i<loads.length;i++){
-          if(loads[i].id===l.id){ loads[i]=l; break; }
-        }
+  if(isLive()){
+    fetch(API+'/loads', {headers:ah()})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(fresh){
+        if(!Array.isArray(fresh)) return;
+        fresh = filterDeleted(fresh);
+        fresh.forEach(function(l){ checkStatusChange(l); });
+        // Also add any loads we don't have yet (new assignments from another session)
+        fresh.forEach(function(l){
+          if(!loads.some(function(x){ return x.id===l.id; })){
+            loads.push(l);
+            _knownStatuses[l.id] = l.status;
+          }
+        });
         renderList();
-        if(selId===l.id) renderDetail();
-      });
-    })
-    .catch(function(){});
+      })
+      .catch(function(){});
+  } else {
+    // No backend — watch localStorage for changes made by driver page or another tab
+    var stored = filterDeleted(JSON.parse(localStorage.getItem('cmp_loads') || '[]'));
+    stored.forEach(function(l){ checkStatusChange(l); });
+    renderList();
+  }
+}
+
+function checkStatusChange(l){
+  var prev = _knownStatuses[l.id];
+  if(prev === undefined){ _knownStatuses[l.id] = l.status; return; }
+  if(prev === l.status) return;
+  // Status changed — fire notification and update local loads array
+  var driverName = l.assignedDriverName || 'Driver';
+  var loadNum    = l.loadNumber || l.id;
+  if(l.status === 'Accepted'){
+    webNotify('👍 Load Accepted', driverName+' accepted load '+loadNum+'. Ready at pickup time.');
+    toast('👍 '+driverName+' accepted '+loadNum);
+  } else if(l.status === 'In Transit'){
+    webNotify('🚛 Driver Started Tracking', driverName+' is now on the way for load '+loadNum+'.');
+    toast('🚛 '+driverName+' started tracking '+loadNum);
+  } else if(l.status === 'Delivered'){
+    webNotify('📦 Load Delivered', 'Load '+loadNum+' has been delivered by '+driverName+'.');
+    toast('📦 '+loadNum+' delivered by '+driverName);
+  } else if(l.status === 'Cancelled'){
+    webNotify('❌ Load Cancelled', 'Load '+loadNum+' has been cancelled.');
+  }
+  _knownStatuses[l.id] = l.status;
+  // Update local loads array
+  var found = false;
+  for(var i=0;i<loads.length;i++){
+    if(loads[i].id===l.id){ loads[i]=l; found=true; break; }
+  }
+  if(!found) loads.push(l);
+  if(selId===l.id) renderDetail();
 }
 
 /* LOAD DRIVERS */

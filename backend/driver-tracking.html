@@ -753,6 +753,14 @@ notifications <!DOCTYPE html>
 
       // Try backend accept endpoint
       if (isLive() && loadId) {
+        // Always update status via the proven PATCH endpoint first
+        fetch(API_BASE + '/loads/' + loadId + '/status', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'Accepted' }),
+        }).catch(function(){});
+
+        // Also call the dedicated accept endpoint (sends dispatcher email)
         fetch(API_BASE + '/loads/' + loadId + '/accept', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -766,15 +774,9 @@ notifications <!DOCTYPE html>
         .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
         .then(function() { onAccepted(); })
         .catch(function(err) {
-          // Graceful fallback — still show tracking even if server unreachable
+          // Graceful fallback — status already patched above, just show UI
           console.warn('Accept endpoint error:', err);
           onAccepted();
-          // Try mailto dispatcher as last resort
-          if (loadData && loadData.dispatcherEmail) {
-            var subject = 'Load ' + loadNumber + ' Accepted by ' + driverName;
-            var body    = driverName + ' has accepted load ' + loadNumber + '.\nThey are ready to start tracking at pickup time.';
-            openMailtoDispatcher(subject, body);
-          }
         });
       } else {
         // No backend — update locally and open mailto
@@ -860,10 +862,20 @@ notifications <!DOCTYPE html>
 
     function updateLocalStatus(newStatus) {
       var stored = JSON.parse(localStorage.getItem("cmp_loads") || "[]");
+      var updated = false;
       for (var i = 0; i < stored.length; i++) {
-        if ((TOKEN && stored[i].trackingToken === TOKEN) || (LOAD_ID && stored[i].id === LOAD_ID)) {
-          stored[i].status = newStatus; break;
+        if ((TOKEN  && stored[i].trackingToken === TOKEN)  ||
+            (LOAD_ID && stored[i].id           === LOAD_ID)) {
+          stored[i].status = newStatus;
+          updated = true;
+          break;
         }
+      }
+      // If not found in stored loads, add a minimal record so dispatcher can see it
+      if (!updated && loadData) {
+        var entry = JSON.parse(JSON.stringify(loadData));
+        entry.status = newStatus;
+        stored.push(entry);
       }
       localStorage.setItem("cmp_loads", JSON.stringify(stored));
       if (loadData) loadData.status = newStatus;
