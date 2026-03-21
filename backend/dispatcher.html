@@ -65,55 +65,47 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 #app-screen.on{display:flex}
 
 /* TOP TAB BAR */
-.tab-bar{display:flex;align-items:center;gap:4px;padding:0 16px;height:54px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tab-bar{display:flex;align-items:center;gap:4px;padding:0 16px;height:50px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
 .tab-bar::-webkit-scrollbar{display:none}
-.tab-btn{flex-shrink:0;display:flex;align-items:center;gap:7px;padding:8px 16px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--muted);white-space:nowrap;transition:all .18s;position:relative}
+.tab-btn{flex-shrink:0;display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--muted);white-space:nowrap;transition:all .18s;position:relative}
 .tab-btn:hover{background:var(--s2);color:var(--text)}
 .tab-btn.on{background:var(--s2);color:var(--text)}
-.tab-btn.on::after{content:'';position:absolute;bottom:-2px;left:16px;right:16px;height:2px;border-radius:2px;background:var(--blue)}
-.tab-btn#tab-hi.on::after{background:#AF52DE}
-.tab-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:10px;font-size:11px;font-weight:700;padding:0 5px;background:rgba(255,255,255,.12);color:var(--text)}
+.tab-btn.on::after{content:'';position:absolute;bottom:-2px;left:14px;right:14px;height:2px;border-radius:2px;background:var(--blue)}
+.tab-count{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;border-radius:10px;font-size:11px;font-weight:700;padding:0 5px;background:rgba(255,255,255,.1);color:var(--text)}
 .tab-btn.on .tab-count{background:var(--blue);color:#fff}
-.tab-btn#tab-hi.on .tab-count{background:#AF52DE}
 .tab-spacer{flex:1}
 
-/* MAIN CONTENT */
+/* MAIN — 50/50 SPLIT */
 .main-wrap{display:flex;flex:1;overflow:hidden}
 
-/* LOAD GRID AREA */
-#content-area{flex:1;overflow-y:auto;padding:20px 20px 40px}
-.content-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
-.content-toolbar h2{font-size:18px;font-weight:700;margin-right:auto}
-.search-wrap{position:relative;flex:1;min-width:180px;max-width:340px}
-.search-wrap input{width:100%;padding:8px 12px 8px 32px;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;outline:none}
+/* LEFT: LOAD LIST */
+#list-panel{width:50%;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.list-toolbar{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)}
+.list-toolbar h2{font-size:15px;font-weight:700;margin-right:auto;white-space:nowrap}
+.search-wrap{position:relative;flex:1;max-width:260px}
+.search-wrap input{width:100%;padding:7px 11px 7px 30px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:13px;outline:none}
 .search-wrap input:focus{border-color:var(--blue)}
-.search-wrap .si{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:13px;pointer-events:none}
+.search-wrap .si{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:12px;pointer-events:none}
+#ll{flex:1;overflow-y:auto}
 
-/* CARD GRID */
-.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
-.lcard{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;cursor:pointer;transition:border-color .15s,transform .1s}
-.lcard:hover{border-color:var(--blue);transform:translateY(-1px)}
-.lcard.on{border-color:var(--blue);background:rgba(0,122,255,.06)}
-.lcard-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;gap:8px}
-.lcard-num{font-weight:700;font-size:15px}
-.lcard-desc{font-size:13px;color:var(--muted);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lcard-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--muted);margin-bottom:10px}
-.lcard-addr{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
-.lcard-addr span{display:flex;align-items:baseline;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* LOAD ROWS */
+.lr{padding:14px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+.lr:hover{background:var(--s2)}
+.lr.on{background:rgba(0,122,255,.08);border-left:3px solid var(--blue)}
+.lrt{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px;gap:8px}
+.lrn{font-weight:700;font-size:14px}
+.lrd{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:6px}
+.lrm{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--muted);margin-bottom:6px}
+.lra{font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:2px}
+.lra span{display:flex;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-/* HISTORY CARD GRID */
-.hist-week-hdr{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding:16px 0 8px;grid-column:1/-1}
-.hist-stats{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
-.hstat-card{flex:1;min-width:120px;background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:14px 16px;text-align:center}
-.hstat-card .hn{font-size:26px;font-weight:700}.hstat-card .hl-{font-size:11px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.5px}
-.hstat-card.de .hn{color:var(--green)}.hstat-card.ca .hn{color:var(--red)}
-
-/* SLIDE-OVER PANEL */
-#detail-panel{width:420px;flex-shrink:0;border-left:1px solid var(--border);background:var(--bg);overflow-y:auto;display:none;flex-direction:column}
-#detail-panel.on{display:flex}
-#dp{padding:22px}
-.dpclose{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
-.dpclose button{background:var(--s2);border:none;color:var(--muted);width:30px;height:30px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+/* RIGHT: DETAIL PANEL — always visible */
+#detail-panel{width:50%;flex-shrink:0;background:var(--bg);overflow-y:auto;display:flex;flex-direction:column;border-left:1px solid var(--border)}
+#dp{padding:20px;flex:1}
+.dph{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;gap:14px;color:var(--muted);text-align:center}
+.dph .di{font-size:56px}
+.dph h3{font-size:17px;font-weight:600;color:var(--text)}
+.dph p{font-size:13px;line-height:1.6}
 .dhdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px}
 .dhdr h2{font-size:20px;font-weight:700}
 .dhdr-sub{font-size:13px;color:var(--muted);margin-top:2px}
@@ -143,15 +135,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .driver-picker select:focus{border-color:var(--blue)}
 .driver-picker .dp-note{font-size:11px;color:var(--muted);margin-top:5px}
 
-/* Mobile: panel is full screen */
+/* Mobile: stack vertically */
 @media(max-width:799px){
-  #detail-panel{position:fixed;inset:0;width:100%;z-index:50;display:none;overflow-y:auto}
-  #detail-panel.on{display:flex;flex-direction:column}
-  .tab-bar{height:48px}
+  .main-wrap{flex-direction:column}
+  #list-panel{width:100%;border-right:none;border-bottom:1px solid var(--border);max-height:45vh}
+  #detail-panel{width:100%;min-height:55vh}
 }
 
 /* LIVE MAP */
-#disp-map{width:100%;height:320px;border-radius:0;background:#1a1a2e}
+#disp-map{width:100%;height:260px;background:#1a1a2e}
 .map-header{display:flex;align-items:center;justify-content:space-between;padding:8px 15px;background:var(--s2);border-bottom:1px solid var(--border)}
 .map-header-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
 .live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);animation:lpulse 2s ease-in-out infinite;margin-right:5px}
@@ -161,14 +153,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .map-stat:last-child{border-right:none}
 .map-stat-val{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
 .map-stat-lbl{font-size:10px;color:var(--muted);margin-top:1px}
-.map-no-loc{display:flex;flex-direction:column;align-items:center;justify-content:center;height:160px;color:var(--muted);font-size:13px;gap:6px;text-align:center;padding:16px}
+.map-no-loc{display:flex;flex-direction:column;align-items:center;justify-content:center;height:140px;color:var(--muted);font-size:13px;gap:6px;text-align:center;padding:16px}
 .stale-warn{display:none;align-items:center;gap:8px;padding:8px 15px;background:rgba(255,149,0,.15);border-top:1px solid rgba(255,149,0,.35);color:var(--orange);font-size:12px;font-weight:600}
 .stale-warn.on{display:flex}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}.stale-icon{animation:blink 1.2s ease-in-out infinite;font-size:15px}
 
-.empty-list{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px;text-align:center;color:var(--muted);gap:12px;grid-column:1/-1}
-.empty-list .ei{font-size:52px}
-.empty-list h3{font-size:18px;font-weight:600;color:var(--text)}
+.empty-list{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center;color:var(--muted);gap:10px}
+.empty-list .ei{font-size:44px}
+.empty-list h3{font-size:16px;font-weight:600;color:var(--text)}
 
 /* BADGE */
 .badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
@@ -250,7 +242,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 
 <!-- APP -->
 <div id="app-screen">
-  <!-- Top Nav -->
   <nav class="nav">
     <div class="brand">🚛 CMP Logistics</div>
     <div class="spacer"></div>
@@ -258,55 +249,31 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     <button class="btn btn-sm" id="btn-out">Sign Out</button>
     <button class="btn btn-p btn-sm" id="btn-new">+ New Load</button>
   </nav>
-  <!-- Tab Bar -->
   <div class="tab-bar">
     <button class="tab-btn on" id="tab-all">📋 All <span class="tab-count" id="cn-all">0</span></button>
     <button class="tab-btn" id="tab-it">🚛 Active <span class="tab-count" id="cn-it">0</span></button>
     <button class="tab-btn" id="tab-as">👤 Assigned <span class="tab-count" id="cn-as">0</span></button>
     <button class="tab-btn" id="tab-pe">⏰ Pending <span class="tab-count" id="cn-pe">0</span></button>
     <button class="tab-btn" id="tab-de">✅ Delivered <span class="tab-count" id="cn-de">0</span></button>
-    <button class="tab-btn" id="tab-hi">🕐 History <span class="tab-count" id="cn-hi">0</span></button>
     <div class="tab-spacer"></div>
-    <button class="btn btn-sm" id="btn-rf" style="flex-shrink:0">🔄</button>
+    <button class="btn btn-sm" id="btn-rf" style="flex-shrink:0;margin-right:4px">🔄</button>
   </div>
-  <!-- Main -->
   <div class="main-wrap">
-    <!-- Content Area -->
-    <div id="content-area">
-      <!-- Loads grid -->
-      <div id="view-loads">
-        <div class="content-toolbar">
-          <h2 id="view-title">All Loads</h2>
-          <div class="search-wrap"><span class="si">🔍</span><input type="search" id="q" placeholder="Search loads, customers, drivers…"/></div>
-        </div>
-        <div class="card-grid" id="ll"></div>
+    <div id="list-panel">
+      <div class="list-toolbar">
+        <h2 id="view-title">All Loads</h2>
+        <div class="search-wrap"><span class="si">🔍</span><input type="search" id="q" placeholder="Search…"/></div>
       </div>
-      <!-- History grid -->
-      <div id="view-history" style="display:none">
-        <div class="content-toolbar">
-          <h2>History <span style="font-size:13px;font-weight:400;color:var(--muted)">— last 30 days</span></h2>
-          <div class="search-wrap"><span class="si">🔍</span><input type="search" id="hq" placeholder="Search history…"/></div>
-        </div>
-        <div class="hist-stats">
-          <div class="hstat-card"><div class="hn" id="hn-all">0</div><div class="hl-">Total</div></div>
-          <div class="hstat-card de"><div class="hn" id="hn-de">0</div><div class="hl-">Delivered</div></div>
-          <div class="hstat-card ca"><div class="hn" id="hn-ca">0</div><div class="hl-">Cancelled</div></div>
-        </div>
-        <div class="card-grid" id="hl"></div>
-      </div>
+      <div id="ll"></div>
     </div>
-    <!-- Slide-over Detail Panel -->
     <div id="detail-panel">
       <div id="dp">
-        <div class="dpclose">
-          <span style="font-size:13px;font-weight:600;color:var(--muted)">Load Details</span>
-          <button id="dp-close-btn" onclick="closeDetailPanel()">✕</button>
+        <div id="dph" class="dph">
+          <div class="di">📋</div>
+          <h3>Select a load</h3>
+          <p>Click any load on the left<br>to view its full details here.</p>
         </div>
-        <div id="dph" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:12px;color:var(--muted);text-align:center">
-          <div style="font-size:48px">📋</div>
-          <h3 style="font-size:16px;color:var(--text)">Select a load to view details</h3>
-        </div>
-        <div id="dc"></div>
+        <div id="dc" style="display:none"></div>
       </div>
     </div>
   </div>
@@ -570,45 +537,53 @@ var TAB_FILTER={'tab-all':null,'tab-it':'In Transit','tab-as':'Assigned','tab-pe
 ['tab-all','tab-it','tab-as','tab-pe','tab-de'].forEach(function(id){
   document.getElementById(id).addEventListener('click',function(){
     filt=TAB_FILTER[id];
-    showLoadsPanel();
     document.getElementById('view-title').textContent=TAB_LABELS[id];
+    renderList();
   });
 });
-document.getElementById('tab-hi').addEventListener('click',showHistoryPanel);
 document.getElementById('q').addEventListener('input',renderList);
-document.getElementById('hq').addEventListener('input',renderHistory);
 function setF(f){filt=f;renderList();}
 
-/* CLOSE DETAIL PANEL */
-function closeDetailPanel(){
-  selId=null;
-  document.getElementById('detail-panel').classList.remove('on');
-  stopDispatcherMap();
-  document.getElementById('dc').style.display='none';
-  document.getElementById('dph').style.display='flex';
-  renderList();
-}
-
-/* RENDER LIST */
+/* RENDER LIST — always uses .lr rows, Delivered tab merges live + 30-day archived */
 function renderList(){
   var q=(document.getElementById('q').value||'').toLowerCase();
-  var hist=loadHistory();
+  // Count live loads
   document.getElementById('cn-all').textContent=loads.length;
   document.getElementById('cn-it').textContent=loads.filter(function(l){return l.status==='In Transit';}).length;
   document.getElementById('cn-as').textContent=loads.filter(function(l){return l.status==='Assigned';}).length;
   document.getElementById('cn-pe').textContent=loads.filter(function(l){return l.status==='Pending';}).length;
-  document.getElementById('cn-de').textContent=loads.filter(function(l){return l.status==='Delivered';}).length;
-  document.getElementById('cn-hi').textContent=hist.length;
-  // Update active tab highlight
-  ['tab-all','tab-it','tab-as','tab-pe','tab-de','tab-hi'].forEach(function(id){document.getElementById(id).classList.remove('on');});
+  // Delivered tab: live delivered + 30-day history
+  var hist=loadHistory();
+  var deliveredCount=loads.filter(function(l){return l.status==='Delivered';}).length+hist.filter(function(l){return l.status==='Delivered';}).length;
+  var cancelledInHist=hist.filter(function(l){return l.status==='Cancelled';}).length;
+  document.getElementById('cn-de').textContent=deliveredCount+cancelledInHist;
+  // Highlight active tab
+  ['tab-all','tab-it','tab-as','tab-pe','tab-de'].forEach(function(id){document.getElementById(id).classList.remove('on');});
   var tabMap={null:'tab-all','In Transit':'tab-it','Assigned':'tab-as','Pending':'tab-pe','Delivered':'tab-de'};
-  var activeTab=tabMap[filt===null?null:filt]; if(activeTab)document.getElementById(activeTab).classList.add('on');
+  var activeTab=tabMap[filt===null?null:filt]; if(activeTab) document.getElementById(activeTab).classList.add('on');
 
-  var fl=loads.filter(function(l){
-    return (!filt||l.status===filt)&&
-           (!q||(l.loadNumber||'').toLowerCase().indexOf(q)>-1||(l.customerName||'').toLowerCase().indexOf(q)>-1||(l.assignedDriverName||'').toLowerCase().indexOf(q)>-1||(l.description||'').toLowerCase().indexOf(q)>-1);
-  });
   var el=document.getElementById('ll');
+  var fl;
+
+  if(filt==='Delivered'){
+    // Merge live delivered/cancelled + 30-day history, dedup by id, newest first
+    var liveCompleted=loads.filter(function(l){return l.status==='Delivered'||l.status==='Cancelled';});
+    var merged=liveCompleted.slice();
+    hist.forEach(function(h){
+      if(!merged.some(function(l){return l.id===h.id;})) merged.push(h);
+    });
+    if(q) merged=merged.filter(function(l){
+      return (l.loadNumber||'').toLowerCase().indexOf(q)>-1||(l.customerName||'').toLowerCase().indexOf(q)>-1||(l.assignedDriverName||'').toLowerCase().indexOf(q)>-1;
+    });
+    merged.sort(function(a,b){return new Date(b.completedAt||b.deliveryDate||0)-new Date(a.completedAt||a.deliveryDate||0);});
+    fl=merged;
+  } else {
+    fl=loads.filter(function(l){
+      return (!filt||l.status===filt)&&
+             (!q||(l.loadNumber||'').toLowerCase().indexOf(q)>-1||(l.customerName||'').toLowerCase().indexOf(q)>-1||(l.assignedDriverName||'').toLowerCase().indexOf(q)>-1||(l.description||'').toLowerCase().indexOf(q)>-1);
+    });
+  }
+
   if(!fl.length){
     el.innerHTML='<div class="empty-list"><div class="ei">📦</div><h3>No Loads Found</h3><p>'+(loads.length===0?'Tap "+ New Load" to create your first load.':'Try adjusting your filter or search.')+'</p></div>';
     return;
@@ -616,26 +591,47 @@ function renderList(){
   var html='';
   for(var i=0;i<fl.length;i++){
     var l=fl[i];
-    html+='<div class="lcard'+(l.id===selId?' on':'')+'" data-id="'+esc(l.id)+'">'
-         +'<div class="lcard-top"><span class="lcard-num">'+esc(l.loadNumber)+'</span><span class="'+bc(l.status)+'">'+esc(l.status)+'</span></div>'
-         +'<div class="lcard-desc">'+esc(l.description||'--')+'</div>'
-         +'<div class="lcard-meta"><span>🏢 '+esc(l.customerName||'--')+'</span>'+(l.assignedDriverName?'<span>👤 '+esc(l.assignedDriverName)+'</span>':'')+'</div>'
-         +'<div class="lcard-addr">'
+    var dateStr=l.completedAt?'<span style="margin-left:auto;color:var(--muted)">📅 '+new Date(l.completedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})+'</span>':'';
+    html+='<div class="lr'+(l.id===selId?' on':'')+'" data-id="'+esc(l.id)+'">'
+         +'<div class="lrt"><span class="lrn">'+esc(l.loadNumber)+'</span><span class="'+bc(l.status)+'">'+esc(l.status)+'</span></div>'
+         +'<div class="lrd">'+esc(l.description||'--')+'</div>'
+         +'<div class="lrm"><span>🏢 '+esc(l.customerName||'--')+'</span>'+(l.assignedDriverName?'<span>👤 '+esc(l.assignedDriverName)+'</span>':'')+dateStr+'</div>'
+         +'<div class="lra">'
          +'<span><span style="color:var(--blue)">↑</span>'+esc(l.pickupAddress||'--')+'</span>'
          +'<span><span style="color:var(--green)">↓</span>'+esc(l.deliveryAddress||'--')+'</span>'
          +'</div>'
          +'</div>';
   }
   el.innerHTML=html;
-  el.querySelectorAll('.lcard').forEach(function(r){r.addEventListener('click',function(){selLoad(this.dataset.id);});});
+  // Store merged list for history detail lookup
+  _renderedLoads=fl;
+  el.querySelectorAll('.lr').forEach(function(r){r.addEventListener('click',function(){selLoad(this.dataset.id);});});
 }
+var _renderedLoads=[];
 
 /* SELECT LOAD */
 function selLoad(id){
   selId=id;
   renderList();
-  renderDetail();
-  document.getElementById('detail-panel').classList.add('on');
+  // Find load in live loads or rendered list (history)
+  var load=null;
+  for(var i=0;i<loads.length;i++){if(loads[i].id===id){load=loads[i];break;}}
+  if(!load){for(var i=0;i<_renderedLoads.length;i++){if(_renderedLoads[i].id===id){load=_renderedLoads[i];break;}}}
+  if(load){
+    var wasIn=loads.some(function(l){return l.id===id;});
+    if(!wasIn) loads.push(load);
+    renderDetail();
+    if(!wasIn) loads=loads.filter(function(l){return l.id!==id;});
+  }
+}
+
+/* CLOSE DETAIL — just clears selection */
+function closeDetailPanel(){
+  selId=null;
+  stopDispatcherMap();
+  document.getElementById('dc').style.display='none';
+  document.getElementById('dph').style.display='flex';
+  renderList();
 }
 
 /* RENDER DETAIL */
