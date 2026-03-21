@@ -1,7 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: CMP Tracking Backend - API Gateway + Lambda + DynamoDB
+Description: CMP Tracking Backend – API Gateway + Lambda + DynamoDB
 
+# ─────────────────────────────────────────────────────────────────
+# Globals
+# ─────────────────────────────────────────────────────────────────
 Globals:
   Function:
     Runtime: nodejs20.x
@@ -9,70 +12,81 @@ Globals:
     MemorySize: 256
     Environment:
       Variables:
-        USERS_TABLE:        !Ref UsersTable
-        LOADS_TABLE:        !Ref LoadsTable
-        LOCATIONS_TABLE:    !Ref LocationsTable
-        JWT_SECRET:         !Ref JwtSecret
-        SES_FROM_EMAIL:     !Ref SesFromEmail
+        USERS_TABLE:     !Ref UsersTable
+        LOADS_TABLE:     !Ref LoadsTable
+        LOCATIONS_TABLE: !Ref LocationsTable
+        JWT_SECRET:        !Ref JwtSecret
+        SES_FROM_EMAIL:    !Ref SesFromEmail
         TWILIO_ACCOUNT_SID: !Ref TwilioAccountSid
         TWILIO_AUTH_TOKEN:  !Ref TwilioAuthToken
         TWILIO_FROM_NUMBER: !Ref TwilioFromNumber
         AMPLIFY_BASE_URL:   !Ref AmplifyBaseUrl
         TRACKING_BASE_URL:  !Ref TrackingBaseUrl
         APPROVAL_ADMINS:    !Ref ApprovalAdmins
+  HttpApi:
+    CorsConfiguration:
+      AllowOrigins:
+        - "*"
+      AllowHeaders:
+        - Content-Type
+        - Authorization
+      AllowMethods:
+        - GET
+        - POST
+        - PATCH
+        - DELETE
+        - OPTIONS
 
 Parameters:
   JwtSecret:
     Type: String
     NoEcho: true
     Default: ""
+    Description: JWT signing secret. Pass via --parameter-overrides JwtSecret=<value>
+
   SesFromEmail:
     Type: String
     Default: "no-reply@yourdomain.com"
+    Description: >
+      SES-verified sender address used for dispatcher & customer emails.
+      Must be verified in Amazon SES before deploying.
+
   TwilioAccountSid:
     Type: String
     Default: ""
+    Description: Twilio Account SID from twilio.com/console
   TwilioAuthToken:
     Type: String
     NoEcho: true
     Default: ""
+    Description: Twilio Auth Token
   TwilioFromNumber:
     Type: String
     Default: ""
+    Description: Twilio phone number e.g. +15005550006
   AmplifyBaseUrl:
     Type: String
     Default: ""
-  TrackingBaseUrl:
-    Type: String
-    Default: "https://0hn5wgrru8.execute-api.us-east-1.amazonaws.com"
-    Description: API Gateway base URL
+    Description: Amplify frontend URL e.g. https://main.dkyps2bncnu4g.amplifyapp.com
+
   ApprovalAdmins:
     Type: String
     Default: "megandramski@gmail.com,dispatch@cmplogistics.ca"
+    Description: Comma-separated admin emails that receive sign-up approval requests
 
+  TrackingBaseUrl:
+    Type: String
+    Default: ""
+    Description: API Gateway base URL e.g. https://0hn5wgrru8.execute-api.us-east-1.amazonaws.com
+
+# ─────────────────────────────────────────────────────────────────
+# DynamoDB Tables
+# ─────────────────────────────────────────────────────────────────
 Resources:
 
-  # Explicit HttpApi resource — keeps the same logical ID as the deployed stack
-  HttpApi:
-    Type: AWS::Serverless::HttpApi
-    Properties:
-      CorsConfiguration:
-        AllowOrigins:
-          - "*"
-        AllowHeaders:
-          - Content-Type
-          - Authorization
-        AllowMethods:
-          - GET
-          - POST
-          - PUT
-          - PATCH
-          - DELETE
-          - OPTIONS
-
+  # Users table  (PK = email)
   UsersTable:
     Type: AWS::DynamoDB::Table
-    DeletionPolicy: Retain
     Properties:
       TableName: cmp-users
       BillingMode: PAY_PER_REQUEST
@@ -83,9 +97,9 @@ Resources:
         - AttributeName: email
           KeyType: HASH
 
+  # Loads table  (PK = id)
   LoadsTable:
     Type: AWS::DynamoDB::Table
-    DeletionPolicy: Retain
     Properties:
       TableName: cmp-loads
       BillingMode: PAY_PER_REQUEST
@@ -105,9 +119,9 @@ Resources:
           Projection:
             ProjectionType: ALL
 
+  # Locations table  (PK = loadId, SK = timestamp)
   LocationsTable:
     Type: AWS::DynamoDB::Table
-    DeletionPolicy: Retain
     Properties:
       TableName: cmp-locations
       BillingMode: PAY_PER_REQUEST
@@ -122,6 +136,9 @@ Resources:
         - AttributeName: timestamp
           KeyType: RANGE
 
+# ─────────────────────────────────────────────────────────────────
+# Shared IAM Role for all Lambdas
+# ─────────────────────────────────────────────────────────────────
   LambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -158,16 +175,24 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: [ses:SendEmail, ses:SendRawEmail]
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
                 Resource: "*"
         - PolicyName: SNSAccess
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: [sns:Publish, sns:SetSMSAttributes]
+                Action:
+                  - sns:Publish
                 Resource: "*"
 
+# ─────────────────────────────────────────────────────────────────
+# Lambda Functions
+# ─────────────────────────────────────────────────────────────────
+
+  # POST /users/register
   RegisterFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -181,8 +206,8 @@ Resources:
           Properties:
             Path: /users/register
             Method: POST
-            ApiId: !Ref HttpApi
 
+  # GET /users/approve?token= (admin clicks Approve/Deny in email)
   ApproveUserFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -196,8 +221,23 @@ Resources:
           Properties:
             Path: /users/approve
             Method: GET
-            ApiId: !Ref HttpApi
 
+  # GET /users/approve?token= (admin clicks Approve/Deny in email)
+  ApproveUserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-approve-user
+      CodeUri: src/
+      Handler: handlers/approveUser.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /users/approve
+            Method: GET
+
+  # POST /users/login
   LoginFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -211,23 +251,8 @@ Resources:
           Properties:
             Path: /users/login
             Method: POST
-            ApiId: !Ref HttpApi
 
-  GetUsersFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: cmp-get-users
-      CodeUri: src/
-      Handler: handlers/getUsers.handler
-      Role: !GetAtt LambdaRole.Arn
-      Events:
-        Api:
-          Type: HttpApi
-          Properties:
-            Path: /users
-            Method: GET
-            ApiId: !Ref HttpApi
-
+  # GET /loads  (dispatcher – all loads)
   GetLoadsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -241,8 +266,8 @@ Resources:
           Properties:
             Path: /loads
             Method: GET
-            ApiId: !Ref HttpApi
 
+  # POST /loads  (dispatcher – create load)
   CreateLoadFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -256,7 +281,22 @@ Resources:
           Properties:
             Path: /loads
             Method: POST
+
+  # PATCH /loads/{id}/status
+  UpdateLoadStatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-update-load-status
+      CodeUri: src/
+      Handler: handlers/updateLoadStatus.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
             ApiId: !Ref HttpApi
+            Path: /loads/{id}/status
+            Method: PATCH
 
   UpdateLoadFunction:
     Type: AWS::Serverless::Function
@@ -269,25 +309,26 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
+            ApiId: !Ref HttpApi
             Path: /loads/{id}
             Method: PUT
-            ApiId: !Ref HttpApi
-
-  UpdateLoadStatusFunction:
+  # DELETE /loads/{id}
+  DeleteLoadFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: cmp-update-load-status
+      FunctionName: cmp-delete-load
       CodeUri: src/
-      Handler: handlers/updateLoadStatus.handler
+      Handler: handlers/deleteLoad.handler
       Role: !GetAtt LambdaRole.Arn
       Events:
         Api:
           Type: HttpApi
           Properties:
-            Path: /loads/{id}/status
-            Method: PATCH
             ApiId: !Ref HttpApi
+            Path: /loads/{id}
+            Method: DELETE
 
+  # PATCH /loads/{id}/assign
   AssignDriverFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -299,25 +340,27 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
+            ApiId: !Ref HttpApi
             Path: /loads/{id}/assign
             Method: PATCH
-            ApiId: !Ref HttpApi
 
-  SendDriverLinkFunction:
+  # GET /users  (dispatcher – list drivers/dispatchers)
+  GetUsersFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: cmp-send-driver-link
+      FunctionName: cmp-get-users
       CodeUri: src/
-      Handler: handlers/sendDriverLink.handler
+      Handler: handlers/getUsers.handler
       Role: !GetAtt LambdaRole.Arn
       Events:
         Api:
           Type: HttpApi
           Properties:
-            Path: /loads/{id}/send-driver-link
-            Method: POST
             ApiId: !Ref HttpApi
+            Path: /users
+            Method: GET
 
+  # POST /locations  (driver – push GPS fix)
   PostLocationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -329,25 +372,10 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
-            Path: /track/{token}/location
+            Path: /locations
             Method: POST
-            ApiId: !Ref HttpApi
 
-  PostLocationPublicFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: cmp-post-location-public
-      CodeUri: src/
-      Handler: handlers/postLocationPublic.handler
-      Role: !GetAtt LambdaRole.Arn
-      Events:
-        Api:
-          Type: HttpApi
-          Properties:
-            Path: /track/{token}/location/public
-            Method: POST
-            ApiId: !Ref HttpApi
-
+  # GET /loads/{id}/location  (latest location for a load)
   GetLocationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -359,10 +387,10 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
-            Path: /track/{token}/location
+            Path: /loads/{id}/location
             Method: GET
-            ApiId: !Ref HttpApi
 
+  # GET /track/{token}  (public – customer tracking, no auth)
   TrackByTokenFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -376,8 +404,23 @@ Resources:
           Properties:
             Path: /track/{token}
             Method: GET
-            ApiId: !Ref HttpApi
 
+  # POST /loads/{id}/send-driver-link  (dispatcher – SMS driver with browser tracking link)
+  SendDriverLinkFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-send-driver-link
+      CodeUri: src/
+      Handler: handlers/sendDriverLink.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /loads/{id}/send-driver-link
+            Method: POST
+
+  # POST /track/{token}/start  (public – driver taps Start Tracking in browser)
   StartTrackingFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -391,9 +434,18 @@ Resources:
           Properties:
             Path: /track/{token}/start
             Method: POST
-            ApiId: !Ref HttpApi
 
-Outputs:
-  ApiUrl:
-    Description: API Gateway endpoint URL
-    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+  # POST /track/{token}/location  (public – driver browser posts GPS, no auth needed)
+  PostLocationPublicFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-post-location-public
+      CodeUri: src/
+      Handler: handlers/postLocationPublic.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+          Properties:
+            ApiId: !Ref HttpApief HttpApiief HttpApiief HttpApiief HttpApi

@@ -1085,16 +1085,21 @@ function sendLink(id){
 /* DELETE LOAD */
 function delLoad(id){
   if(!confirm('Delete this load? Cannot be undone.'))return;
-  var load=null; for(var i=0;i<loads.length;i++){if(loads[i].id===id){load=loads[i];break;}}
+  // Remove from history (covers Delivered/Cancelled loads stored in localStorage)
+  var hist=loadHistory().filter(function(l){return l.id!==id;});
+  localStorage.setItem('cmp_history',JSON.stringify(hist));
+  // Add to tombstone so it never resurfaces from API
   addDeletedID(id);
-  if(load&&(load.status==='Delivered'||load.status==='Cancelled')){
-    archiveToHistory(load);
-  }
   loads=loads.filter(function(l){return l.id!==id;});
   closeDetailPanel();
   renderList();
   if(!isLive()){localStorage.setItem('cmp_loads',JSON.stringify(loads));toast('Deleted');return;}
-  fetch(API+'/loads/'+id,{method:'DELETE',headers:ah()}).then(function(){toast('Deleted');}).catch(function(e){toast('Error: '+e.message);});
+  fetch(API+'/loads/'+id,{method:'DELETE',headers:ah()})
+    .then(function(r){
+      if(!r.ok) return r.json().then(function(d){throw new Error(d.error||r.status);});
+      toast('Deleted');
+    })
+    .catch(function(e){toast('Failed: '+e.message);});
 }
 
 /* COPY */
