@@ -61,71 +61,68 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .uchip strong{color:var(--text)}
 
 /* LAYOUT */
-.layout{display:flex;flex:1;overflow:hidden;height:calc(100vh - 52px)}
+#app-screen{display:none;flex-direction:column;height:100vh;overflow:hidden}
+#app-screen.on{display:flex}
 
-/* LIST PANEL */
-#lp{width:370px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-.ltop{padding:13px 13px 0;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
-#view-loads{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.srow{display:flex;gap:8px;padding-bottom:11px;overflow-x:auto}
-.srow::-webkit-scrollbar{display:none}
-.sc{flex-shrink:0;width:80px;height:80px;background:var(--s2);border-radius:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;border:2px solid transparent}
-.sc.on{border-color:var(--blue)}
-.sc-i{font-size:17px}.sc-n{font-size:20px;font-weight:700}.sc-l{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
-.sr{display:flex;gap:8px;padding:9px 0}
-.sw{flex:1;position:relative}
-.sw input{width:100%;padding:8px 12px 8px 30px;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;outline:none}
-.sw input:focus{border-color:var(--blue)}
-.si{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:13px;pointer-events:none}
-#ll{flex:1;overflow-y:auto}
-.lr{padding:12px 13px;border-bottom:1px solid var(--border);cursor:pointer}
-.lr:hover{background:var(--s2)}
-.lr.on{background:rgba(0,122,255,.08);border-left:3px solid var(--blue)}
-.lrt{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}
-.lrn{font-weight:700;font-size:14px}
-.lrd{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
-.lrm{display:flex;flex-wrap:wrap;gap:7px;font-size:11px;color:var(--muted)}
-.empty-list{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:44px 20px;text-align:center;color:var(--muted);gap:9px}
-.empty-list .ei{font-size:44px}
-.empty-list h3{font-size:16px;font-weight:600;color:var(--text)}
+/* TOP TAB BAR */
+.tab-bar{display:flex;align-items:center;gap:4px;padding:0 16px;height:54px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tab-bar::-webkit-scrollbar{display:none}
+.tab-btn{flex-shrink:0;display:flex;align-items:center;gap:7px;padding:8px 16px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--muted);white-space:nowrap;transition:all .18s;position:relative}
+.tab-btn:hover{background:var(--s2);color:var(--text)}
+.tab-btn.on{background:var(--s2);color:var(--text)}
+.tab-btn.on::after{content:'';position:absolute;bottom:-2px;left:16px;right:16px;height:2px;border-radius:2px;background:var(--blue)}
+.tab-btn#tab-hi.on::after{background:#AF52DE}
+.tab-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:10px;font-size:11px;font-weight:700;padding:0 5px;background:rgba(255,255,255,.12);color:var(--text)}
+.tab-btn.on .tab-count{background:var(--blue);color:#fff}
+.tab-btn#tab-hi.on .tab-count{background:#AF52DE}
+.tab-spacer{flex:1}
 
-/* BADGE */
-.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
-.bPending{background:rgba(142,142,160,.18);color:#aeaec0}
-.bAssigned{background:rgba(0,122,255,.18);color:var(--blue)}
-.bInTransit{background:rgba(255,149,0,.18);color:var(--orange)}
-.bDelivered{background:rgba(52,199,89,.18);color:var(--green)}
-.bCancelled{background:rgba(255,59,48,.18);color:var(--red)}
+/* MAIN CONTENT */
+.main-wrap{display:flex;flex:1;overflow:hidden}
 
-/* HISTORY VIEW */
-#view-history{flex:1;flex-direction:column;overflow:hidden;display:none}
-#view-history .htop{padding:13px 13px 0;background:var(--surface);border-bottom:1px solid var(--border)}
-#view-history .hstats{display:flex;gap:8px;padding-bottom:11px}
-.hstat{flex:1;background:var(--s2);border-radius:13px;padding:10px 8px;text-align:center}
-.hstat .hn{font-size:20px;font-weight:700}.hstat .hl-{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
-.hstat-de .hn{color:var(--green)}.hstat-ca .hn{color:var(--red)}
-#view-history .hsr{padding:9px 13px;background:var(--surface);border-bottom:1px solid var(--border)}
-#view-history .hsr input{width:100%;padding:8px 12px 8px 30px;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;outline:none}
-#view-history .hsr input:focus{border-color:var(--blue)}
-.hsr-wrap{position:relative}.hsr-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:13px;pointer-events:none}
-#hl{flex:1;overflow-y:auto}
-.hwk-hdr{padding:8px 13px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);background:var(--bg);border-bottom:1px solid var(--border)}
+/* LOAD GRID AREA */
+#content-area{flex:1;overflow-y:auto;padding:20px 20px 40px}
+.content-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.content-toolbar h2{font-size:18px;font-weight:700;margin-right:auto}
+.search-wrap{position:relative;flex:1;min-width:180px;max-width:340px}
+.search-wrap input{width:100%;padding:8px 12px 8px 32px;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;outline:none}
+.search-wrap input:focus{border-color:var(--blue)}
+.search-wrap .si{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:13px;pointer-events:none}
 
-/* DETAIL PANEL */
-#dp{flex:1;overflow-y:auto;background:var(--bg)}
-.dph{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;color:var(--muted);text-align:center;padding:32px}
-.dph .di{font-size:52px}
-.dph h3{font-size:17px;color:var(--text)}
-#dc{padding:22px;display:none}
+/* CARD GRID */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.lcard{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;cursor:pointer;transition:border-color .15s,transform .1s}
+.lcard:hover{border-color:var(--blue);transform:translateY(-1px)}
+.lcard.on{border-color:var(--blue);background:rgba(0,122,255,.06)}
+.lcard-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;gap:8px}
+.lcard-num{font-weight:700;font-size:15px}
+.lcard-desc{font-size:13px;color:var(--muted);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lcard-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--muted);margin-bottom:10px}
+.lcard-addr{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
+.lcard-addr span{display:flex;align-items:baseline;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* HISTORY CARD GRID */
+.hist-week-hdr{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding:16px 0 8px;grid-column:1/-1}
+.hist-stats{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.hstat-card{flex:1;min-width:120px;background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:14px 16px;text-align:center}
+.hstat-card .hn{font-size:26px;font-weight:700}.hstat-card .hl-{font-size:11px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.5px}
+.hstat-card.de .hn{color:var(--green)}.hstat-card.ca .hn{color:var(--red)}
+
+/* SLIDE-OVER PANEL */
+#detail-panel{width:420px;flex-shrink:0;border-left:1px solid var(--border);background:var(--bg);overflow-y:auto;display:none;flex-direction:column}
+#detail-panel.on{display:flex}
+#dp{padding:22px}
+.dpclose{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.dpclose button{background:var(--s2);border:none;color:var(--muted);width:30px;height:30px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .dhdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px}
-.dhdr h2{font-size:21px;font-weight:700}
+.dhdr h2{font-size:20px;font-weight:700}
 .dhdr-sub{font-size:13px;color:var(--muted);margin-top:2px}
 .sec{background:var(--surface);border:1px solid var(--border);border-radius:13px;margin-bottom:12px;overflow:hidden}
 .sec-h{padding:8px 15px;background:var(--s2);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border-bottom:1px solid var(--border)}
 .dr{display:flex;align-items:flex-start;justify-content:space-between;padding:10px 15px;border-bottom:1px solid var(--border);gap:10px}
 .dr:last-child{border-bottom:none}
-.drl{font-size:13px;color:var(--muted);flex-shrink:0;min-width:105px}
-.drv{font-size:13px;text-align:right;word-break:break-word;max-width:60%}
+.drl{font-size:13px;color:var(--muted);flex-shrink:0;min-width:100px}
+.drv{font-size:13px;text-align:right;word-break:break-word;max-width:62%}
 .drv a{color:var(--blue)}
 .ssel{background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:5px 9px;font-size:13px;font-weight:600;outline:none;cursor:pointer}
 .lbox{display:flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:8px 11px;font-size:11px;color:var(--muted);word-break:break-all}
@@ -140,13 +137,46 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .tog input:checked+.togs{background:var(--green)}
 .tog input:checked+.togs::before{transform:translateX(18px)}
 .swrap{padding:11px 15px 14px}
-
-/* DRIVER PICKER inside detail */
 .driver-picker{padding:12px 15px;border-bottom:1px solid var(--border)}
 .driver-picker label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px}
 .driver-picker select{width:100%;padding:9px 12px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:13px;outline:none}
 .driver-picker select:focus{border-color:var(--blue)}
 .driver-picker .dp-note{font-size:11px;color:var(--muted);margin-top:5px}
+
+/* Mobile: panel is full screen */
+@media(max-width:799px){
+  #detail-panel{position:fixed;inset:0;width:100%;z-index:50;display:none;overflow-y:auto}
+  #detail-panel.on{display:flex;flex-direction:column}
+  .tab-bar{height:48px}
+}
+
+/* LIVE MAP */
+#disp-map{width:100%;height:320px;border-radius:0;background:#1a1a2e}
+.map-header{display:flex;align-items:center;justify-content:space-between;padding:8px 15px;background:var(--s2);border-bottom:1px solid var(--border)}
+.map-header-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);animation:lpulse 2s ease-in-out infinite;margin-right:5px}
+@keyframes lpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
+.map-stats{display:flex;gap:0;border-top:1px solid var(--border)}
+.map-stat{flex:1;padding:8px 12px;border-right:1px solid var(--border);text-align:center}
+.map-stat:last-child{border-right:none}
+.map-stat-val{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+.map-stat-lbl{font-size:10px;color:var(--muted);margin-top:1px}
+.map-no-loc{display:flex;flex-direction:column;align-items:center;justify-content:center;height:160px;color:var(--muted);font-size:13px;gap:6px;text-align:center;padding:16px}
+.stale-warn{display:none;align-items:center;gap:8px;padding:8px 15px;background:rgba(255,149,0,.15);border-top:1px solid rgba(255,149,0,.35);color:var(--orange);font-size:12px;font-weight:600}
+.stale-warn.on{display:flex}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}.stale-icon{animation:blink 1.2s ease-in-out infinite;font-size:15px}
+
+.empty-list{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px;text-align:center;color:var(--muted);gap:12px;grid-column:1/-1}
+.empty-list .ei{font-size:52px}
+.empty-list h3{font-size:18px;font-weight:600;color:var(--text)}
+
+/* BADGE */
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.bPending{background:rgba(142,142,160,.18);color:#aeaec0}
+.bAssigned{background:rgba(0,122,255,.18);color:var(--blue)}
+.bInTransit{background:rgba(255,149,0,.18);color:var(--orange)}
+.bDelivered{background:rgba(52,199,89,.18);color:var(--green)}
+.bCancelled{background:rgba(255,59,48,.18);color:var(--red)}
 
 /* MODAL */
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);z-index:200;display:none;align-items:flex-end;justify-content:center}
@@ -160,8 +190,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .mbody{flex:1;overflow-y:auto;padding:18px}
 .mftr{padding:13px 18px;border-top:1px solid var(--border);display:flex;gap:9px;flex-shrink:0}
 .merr{background:rgba(255,59,48,.12);border:1px solid rgba(255,59,48,.3);color:#FF3B30;border-radius:9px;padding:9px 13px;font-size:13px;margin-bottom:12px;display:none}
-
-/* Driver picker in modal */
 .driver-option{display:flex;align-items:center;gap:10px;padding:10px 13px;border:1px solid var(--border);border-radius:10px;cursor:pointer;margin-bottom:7px;transition:border-color .15s}
 .driver-option:hover{border-color:var(--blue)}
 .driver-option.sel{border-color:var(--blue);background:rgba(0,122,255,.08)}
@@ -175,37 +203,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 /* TOAST */
 #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:11px;padding:9px 18px;font-size:13px;font-weight:500;z-index:999;opacity:0;pointer-events:none;transition:opacity .3s;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.5)}
 #toast.on{opacity:1;pointer-events:auto}
-
-/* SPINNER */
 .spin{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
 @keyframes spin{to{transform:rotate(360deg)}}
-
-/* LIVE TRACKING MAP (dispatcher detail panel) */
-#disp-map-section{margin-bottom:12px}
-#disp-map{width:100%;height:420px;border-radius:13px;overflow:hidden;background:#1a1a2e}
-.map-header{display:flex;align-items:center;justify-content:space-between;padding:8px 15px;background:var(--s2);border-bottom:1px solid var(--border)}
-.map-header-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
-.live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);animation:lpulse 2s ease-in-out infinite;margin-right:5px}
-@keyframes lpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
-.map-stats{display:flex;gap:0;border-top:1px solid var(--border)}
-.map-stat{flex:1;padding:8px 12px;border-right:1px solid var(--border);text-align:center}
-.map-stat:last-child{border-right:none}
-.map-stat-val{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
-.map-stat-lbl{font-size:10px;color:var(--muted);margin-top:1px}
-.map-no-loc{display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;color:var(--muted);font-size:13px;gap:6px;text-align:center;padding:16px}
-.stale-warn{display:none;align-items:center;gap:8px;padding:8px 15px;background:rgba(255,149,0,.15);border-top:1px solid rgba(255,149,0,.35);color:var(--orange);font-size:12px;font-weight:600}
-.stale-warn.on{display:flex}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}.stale-icon{animation:blink 1.2s ease-in-out infinite;font-size:15px}
-
-@media(max-width:799px){
-  #lp{width:100%;border-right:none}
-  #dp{position:fixed;inset:52px 0 0;z-index:50;display:none}
-  #dp.on{display:block;overflow-y:auto}
-  .back-btn{display:inline-flex !important}
-}
-@media(min-width:800px){
-  .back-btn{display:none !important}
-}
 </style>
 </head>
 <body>
@@ -251,6 +250,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 
 <!-- APP -->
 <div id="app-screen">
+  <!-- Top Nav -->
   <nav class="nav">
     <div class="brand">🚛 CMP Freight</div>
     <div class="spacer"></div>
@@ -258,49 +258,56 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     <button class="btn btn-sm" id="btn-out">Sign Out</button>
     <button class="btn btn-p btn-sm" id="btn-new">+ New Load</button>
   </nav>
-  <div class="layout">
-    <!-- List panel -->
-    <div id="lp">
-      <div class="ltop">
-        <div class="srow">
-          <div class="sc on" id="sc-all"><span class="sc-i">📋</span><span class="sc-n" id="cn-all">0</span><span class="sc-l">All</span></div>
-          <div class="sc" id="sc-it"><span class="sc-i">🚛</span><span class="sc-n" id="cn-it">0</span><span class="sc-l">Active</span></div>
-          <div class="sc" id="sc-as"><span class="sc-i">👤</span><span class="sc-n" id="cn-as">0</span><span class="sc-l">Assigned</span></div>
-          <div class="sc" id="sc-pe"><span class="sc-i">⏰</span><span class="sc-n" id="cn-pe">0</span><span class="sc-l">Pending</span></div>
-          <div class="sc" id="sc-de"><span class="sc-i">✅</span><span class="sc-n" id="cn-de">0</span><span class="sc-l">Delivered</span></div>
-          <div class="sc" id="sc-hi"><span class="sc-i">🕐</span><span class="sc-n" id="cn-hi">30d</span><span class="sc-l">History</span></div>
+  <!-- Tab Bar -->
+  <div class="tab-bar">
+    <button class="tab-btn on" id="tab-all">📋 All <span class="tab-count" id="cn-all">0</span></button>
+    <button class="tab-btn" id="tab-it">🚛 Active <span class="tab-count" id="cn-it">0</span></button>
+    <button class="tab-btn" id="tab-as">👤 Assigned <span class="tab-count" id="cn-as">0</span></button>
+    <button class="tab-btn" id="tab-pe">⏰ Pending <span class="tab-count" id="cn-pe">0</span></button>
+    <button class="tab-btn" id="tab-de">✅ Delivered <span class="tab-count" id="cn-de">0</span></button>
+    <button class="tab-btn" id="tab-hi">🕐 History <span class="tab-count" id="cn-hi">0</span></button>
+    <div class="tab-spacer"></div>
+    <button class="btn btn-sm" id="btn-rf" style="flex-shrink:0">🔄</button>
+  </div>
+  <!-- Main -->
+  <div class="main-wrap">
+    <!-- Content Area -->
+    <div id="content-area">
+      <!-- Loads grid -->
+      <div id="view-loads">
+        <div class="content-toolbar">
+          <h2 id="view-title">All Loads</h2>
+          <div class="search-wrap"><span class="si">🔍</span><input type="search" id="q" placeholder="Search loads, customers, drivers…"/></div>
         </div>
-        <div class="sr">
-          <div class="sw"><span class="si">🔍</span><input type="search" id="q" placeholder="Search loads, customers, drivers…"/></div>
-          <button class="btn btn-sm" id="btn-rf">🔄</button>
-        </div>
+        <div class="card-grid" id="ll"></div>
       </div>
-      <!-- Active Loads view -->
-      <div id="view-loads" style="flex:1;flex-direction:column;overflow:hidden;display:flex">
-        <div id="ll"></div>
-      </div>
-      <!-- History view -->
-      <div id="view-history">
-        <div class="htop">
-          <div class="hstats">
-            <div class="hstat"><div class="hn" id="hn-all">0</div><div class="hl-">Total (30d)</div></div>
-            <div class="hstat hstat-de"><div class="hn" id="hn-de">0</div><div class="hl-">Delivered</div></div>
-            <div class="hstat hstat-ca"><div class="hn" id="hn-ca">0</div><div class="hl-">Cancelled</div></div>
-          </div>
+      <!-- History grid -->
+      <div id="view-history" style="display:none">
+        <div class="content-toolbar">
+          <h2>History <span style="font-size:13px;font-weight:400;color:var(--muted)">— last 30 days</span></h2>
+          <div class="search-wrap"><span class="si">🔍</span><input type="search" id="hq" placeholder="Search history…"/></div>
         </div>
-        <div class="hsr"><div class="hsr-wrap"><span class="hsr-icon">🔍</span><input type="search" id="hq" placeholder="Search history…"/></div></div>
-        <div id="hl"></div>
+        <div class="hist-stats">
+          <div class="hstat-card"><div class="hn" id="hn-all">0</div><div class="hl-">Total</div></div>
+          <div class="hstat-card de"><div class="hn" id="hn-de">0</div><div class="hl-">Delivered</div></div>
+          <div class="hstat-card ca"><div class="hn" id="hn-ca">0</div><div class="hl-">Cancelled</div></div>
+        </div>
+        <div class="card-grid" id="hl"></div>
       </div>
     </div>
-    <!-- Detail panel -->
-    <div id="dp">
-      <div class="dph" id="dph">
-        <div class="di">📋</div>
-        <h3>Select a Load</h3>
-        <p>Click any load to view details, assign a driver,<br>update status, or send a tracking link.</p>
-        <button class="btn btn-p" id="btn-new2">+ Create First Load</button>
+    <!-- Slide-over Detail Panel -->
+    <div id="detail-panel">
+      <div id="dp">
+        <div class="dpclose">
+          <span style="font-size:13px;font-weight:600;color:var(--muted)">Load Details</span>
+          <button id="dp-close-btn" onclick="closeDetailPanel()">✕</button>
+        </div>
+        <div id="dph" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:12px;color:var(--muted);text-align:center">
+          <div style="font-size:48px">📋</div>
+          <h3 style="font-size:16px;color:var(--text)">Select a load to view details</h3>
+        </div>
+        <div id="dc"></div>
       </div>
-      <div id="dc"></div>
     </div>
   </div>
 </div>
@@ -557,52 +564,78 @@ function loadData(){
     .finally(function(){btn.textContent='🔄';btn.disabled=false;});
 }
 
-/* FILTER */
-document.getElementById('sc-all').addEventListener('click',function(){showLoadsPanel();setF(null);});
-document.getElementById('sc-it').addEventListener('click',function(){showLoadsPanel();setF('In Transit');});
-document.getElementById('sc-as').addEventListener('click',function(){showLoadsPanel();setF('Assigned');});
-document.getElementById('sc-pe').addEventListener('click',function(){showLoadsPanel();setF('Pending');});
-document.getElementById('sc-de').addEventListener('click',function(){showLoadsPanel();setF('Delivered');});
-document.getElementById('sc-hi').addEventListener('click',showHistoryPanel);
+/* FILTER / TABS */
+var TAB_LABELS={'tab-all':'All Loads','tab-it':'Active Loads','tab-as':'Assigned Loads','tab-pe':'Pending Loads','tab-de':'Delivered Loads'};
+var TAB_FILTER={'tab-all':null,'tab-it':'In Transit','tab-as':'Assigned','tab-pe':'Pending','tab-de':'Delivered'};
+['tab-all','tab-it','tab-as','tab-pe','tab-de'].forEach(function(id){
+  document.getElementById(id).addEventListener('click',function(){
+    filt=TAB_FILTER[id];
+    showLoadsPanel();
+    document.getElementById('view-title').textContent=TAB_LABELS[id];
+  });
+});
+document.getElementById('tab-hi').addEventListener('click',showHistoryPanel);
 document.getElementById('q').addEventListener('input',renderList);
 document.getElementById('hq').addEventListener('input',renderHistory);
 function setF(f){filt=f;renderList();}
 
+/* CLOSE DETAIL PANEL */
+function closeDetailPanel(){
+  selId=null;
+  document.getElementById('detail-panel').classList.remove('on');
+  stopDispatcherMap();
+  document.getElementById('dc').style.display='none';
+  document.getElementById('dph').style.display='flex';
+  renderList();
+}
+
 /* RENDER LIST */
 function renderList(){
   var q=(document.getElementById('q').value||'').toLowerCase();
+  var hist=loadHistory();
   document.getElementById('cn-all').textContent=loads.length;
   document.getElementById('cn-it').textContent=loads.filter(function(l){return l.status==='In Transit';}).length;
   document.getElementById('cn-as').textContent=loads.filter(function(l){return l.status==='Assigned';}).length;
   document.getElementById('cn-pe').textContent=loads.filter(function(l){return l.status==='Pending';}).length;
   document.getElementById('cn-de').textContent=loads.filter(function(l){return l.status==='Delivered';}).length;
-  document.getElementById('cn-hi').textContent=loadHistory().length||'30d';
-  ['sc-all','sc-it','sc-as','sc-pe','sc-de','sc-hi'].forEach(function(id){document.getElementById(id).classList.remove('on');});
-  var map={null:'sc-all','In Transit':'sc-it','Assigned':'sc-as','Pending':'sc-pe','Delivered':'sc-de'};
-  var k=filt===null?'null':filt; if(map[k])document.getElementById(map[k]).classList.add('on');
+  document.getElementById('cn-hi').textContent=hist.length;
+  // Update active tab highlight
+  ['tab-all','tab-it','tab-as','tab-pe','tab-de','tab-hi'].forEach(function(id){document.getElementById(id).classList.remove('on');});
+  var tabMap={null:'tab-all','In Transit':'tab-it','Assigned':'tab-as','Pending':'tab-pe','Delivered':'tab-de'};
+  var activeTab=tabMap[filt===null?null:filt]; if(activeTab)document.getElementById(activeTab).classList.add('on');
+
   var fl=loads.filter(function(l){
     return (!filt||l.status===filt)&&
            (!q||(l.loadNumber||'').toLowerCase().indexOf(q)>-1||(l.customerName||'').toLowerCase().indexOf(q)>-1||(l.assignedDriverName||'').toLowerCase().indexOf(q)>-1||(l.description||'').toLowerCase().indexOf(q)>-1);
   });
   var el=document.getElementById('ll');
-  if(!fl.length){el.innerHTML='<div class="empty-list"><div class="ei">📦</div><h3>No Loads Found</h3><p>'+(loads.length===0?'Tap "+ New Load" to create your first load.':'Try adjusting your search or filter.')+'</p></div>';return;}
+  if(!fl.length){
+    el.innerHTML='<div class="empty-list"><div class="ei">📦</div><h3>No Loads Found</h3><p>'+(loads.length===0?'Tap "+ New Load" to create your first load.':'Try adjusting your filter or search.')+'</p></div>';
+    return;
+  }
   var html='';
   for(var i=0;i<fl.length;i++){
     var l=fl[i];
-    html+='<div class="lr'+(l.id===selId?' on':'')+'" data-id="'+esc(l.id)+'">'
-         +'<div class="lrt"><span class="lrn">'+esc(l.loadNumber)+'</span><span class="'+bc(l.status)+'">'+esc(l.status)+'</span></div>'
-         +'<div class="lrd">'+esc(l.description||'--')+'</div>'
-         +'<div class="lrm"><span>🏢 '+esc(l.customerName||'--')+'</span>'+(l.assignedDriverName?'<span>👤 '+esc(l.assignedDriverName)+'</span>':'')+'</div>'
+    html+='<div class="lcard'+(l.id===selId?' on':'')+'" data-id="'+esc(l.id)+'">'
+         +'<div class="lcard-top"><span class="lcard-num">'+esc(l.loadNumber)+'</span><span class="'+bc(l.status)+'">'+esc(l.status)+'</span></div>'
+         +'<div class="lcard-desc">'+esc(l.description||'--')+'</div>'
+         +'<div class="lcard-meta"><span>🏢 '+esc(l.customerName||'--')+'</span>'+(l.assignedDriverName?'<span>👤 '+esc(l.assignedDriverName)+'</span>':'')+'</div>'
+         +'<div class="lcard-addr">'
+         +'<span><span style="color:var(--blue)">↑</span>'+esc(l.pickupAddress||'--')+'</span>'
+         +'<span><span style="color:var(--green)">↓</span>'+esc(l.deliveryAddress||'--')+'</span>'
+         +'</div>'
          +'</div>';
   }
   el.innerHTML=html;
-  el.querySelectorAll('.lr').forEach(function(r){r.addEventListener('click',function(){selLoad(this.dataset.id);});});
+  el.querySelectorAll('.lcard').forEach(function(r){r.addEventListener('click',function(){selLoad(this.dataset.id);});});
 }
 
 /* SELECT LOAD */
 function selLoad(id){
-  selId=id; renderList(); renderDetail();
-  if(window.innerWidth<800)document.getElementById('dp').classList.add('on');
+  selId=id;
+  renderList();
+  renderDetail();
+  document.getElementById('detail-panel').classList.add('on');
 }
 
 /* RENDER DETAIL */
@@ -642,7 +675,6 @@ function renderDetail(){
   var custPhone=load.customerPhone?'<div class="dr"><span class="drl">Phone</span><span class="drv"><a href="tel:'+esc(load.customerPhone)+'">'+esc(load.customerPhone)+'</a></span></div>':'';
 
   var html=''
-    +'<button class="btn btn-sm back-btn" id="d-back">← Back</button>'
     +'<div class="dhdr"><div><h2>'+esc(load.loadNumber)+'</h2><div class="dhdr-sub">'+esc(load.description||'')+'</div></div><span class="'+bc(load.status)+'">'+esc(load.status)+'</span></div>'
 
     +'<div class="sec"><div class="sec-h">Load Details</div>'
@@ -711,7 +743,6 @@ function renderDetail(){
   el.innerHTML=html;
 
   // Wire events
-  document.getElementById('d-back').addEventListener('click',function(){stopDispatcherMap();document.getElementById('dp').classList.remove('on');selId=null;renderList();});
   document.getElementById('d-status').addEventListener('change',function(){updStatus(selId,this.value);});
   document.getElementById('d-notify').addEventListener('change',function(){notifyOn=this.checked;});
   document.getElementById('d-send').addEventListener('click',function(){sendLink(selId);});
@@ -1043,18 +1074,13 @@ function sendLink(id){
 /* DELETE LOAD */
 function delLoad(id){
   if(!confirm('Delete this load? Cannot be undone.'))return;
-  // Find the load before removing
   var load=null; for(var i=0;i<loads.length;i++){if(loads[i].id===id){load=loads[i];break;}}
-  // Record tombstone so it never comes back on refresh/login
   addDeletedID(id);
-  // If delivered/cancelled, archive to history
   if(load&&(load.status==='Delivered'||load.status==='Cancelled')){
     archiveToHistory(load);
   }
-  loads=loads.filter(function(l){return l.id!==id;}); selId=null;
-  document.getElementById('dph').style.display='';
-  document.getElementById('dc').style.display='none';
-  document.getElementById('dp').classList.remove('on');
+  loads=loads.filter(function(l){return l.id!==id;});
+  closeDetailPanel();
   renderList();
   if(!isLive()){localStorage.setItem('cmp_loads',JSON.stringify(loads));toast('Deleted');return;}
   fetch(API+'/loads/'+id,{method:'DELETE',headers:ah()}).then(function(){toast('Deleted');}).catch(function(e){toast('Error: '+e.message);});
@@ -1120,7 +1146,6 @@ function renderHistory(){
            (l.customerName||'').toLowerCase().indexOf(q)>-1||
            (l.assignedDriverName||'').toLowerCase().indexOf(q)>-1;
   });
-  // Update stat counts
   document.getElementById('hn-all').textContent=hist.length;
   document.getElementById('hn-de').textContent=hist.filter(function(l){return l.status==='Delivered';}).length;
   document.getElementById('hn-ca').textContent=hist.filter(function(l){return l.status==='Cancelled';}).length;
@@ -1130,7 +1155,6 @@ function renderHistory(){
     el.innerHTML='<div class="empty-list"><div class="ei">📂</div><h3>No History</h3><p>Delivered and cancelled loads appear here for 30 days.</p></div>';
     return;
   }
-  // Sort newest first, group by week
   hist.sort(function(a,b){return new Date(b.completedAt||b.deliveryDate||0)-new Date(a.completedAt||a.deliveryDate||0);});
   var groups={}, order=[];
   hist.forEach(function(l){
@@ -1141,39 +1165,56 @@ function renderHistory(){
   });
   var html='';
   order.forEach(function(lbl){
-    html+='<div class="hwk-hdr">'+esc(lbl)+'</div>';
+    html+='<div class="hist-week-hdr">'+esc(lbl)+'</div>';
     groups[lbl].forEach(function(l){
       var dateStr=l.completedAt?new Date(l.completedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'';
-      html+='<div class="lr">'
-           +'<div class="lrt"><span class="lrn">'+esc(l.loadNumber)+'</span><span class="'+bc(l.status)+'">'+esc(l.status)+'</span></div>'
-           +'<div class="lrd">'+esc(l.description||'--')+'</div>'
-           +'<div class="lrm"><span>🏢 '+esc(l.customerName||'--')+'</span>'+(l.assignedDriverName?'<span>👤 '+esc(l.assignedDriverName)+'</span>':'')+'<span style="margin-left:auto">📅 '+esc(dateStr)+'</span></div>'
-           +'<div class="lrm" style="margin-top:4px"><span>📍 '+esc(l.pickupAddress||'--')+'</span></div>'
-           +'<div class="lrm"><span>🏁 '+esc(l.deliveryAddress||'--')+'</span></div>'
-           +'<div style="margin-top:7px;text-align:right"><button class="btn btn-sm btn-outline" style="color:var(--red);border-color:var(--red);font-size:11px" onclick="deleteHistoryEntry(\''+esc(l.id)+'\')">🗑 Remove</button></div>'
+      html+='<div class="lcard" data-id="'+esc(l.id)+'">'
+           +'<div class="lcard-top"><span class="lcard-num">'+esc(l.loadNumber)+'</span><span class="'+bc(l.status)+'">'+esc(l.status)+'</span></div>'
+           +'<div class="lcard-desc">'+esc(l.description||'--')+'</div>'
+           +'<div class="lcard-meta"><span>🏢 '+esc(l.customerName||'--')+'</span>'+(l.assignedDriverName?'<span>👤 '+esc(l.assignedDriverName)+'</span>':'')+'<span style="margin-left:auto">📅 '+esc(dateStr)+'</span></div>'
+           +'<div class="lcard-addr">'
+           +'<span><span style="color:var(--blue)">↑</span>'+esc(l.pickupAddress||'--')+'</span>'
+           +'<span><span style="color:var(--green)">↓</span>'+esc(l.deliveryAddress||'--')+'</span>'
+           +'</div>'
+           +'<div style="margin-top:10px;text-align:right"><button class="btn btn-sm btn-outline" style="color:var(--red);border-color:var(--red);font-size:11px" onclick="event.stopPropagation();deleteHistoryEntry(\''+esc(l.id)+'\')">🗑 Remove</button></div>'
            +'</div>';
     });
   });
   el.innerHTML=html;
+  el.querySelectorAll('.lcard').forEach(function(r){
+    r.addEventListener('click',function(){
+      // Show history detail in slide panel (read-only view)
+      var hid=this.dataset.id;
+      var hload=null; var hh=loadHistory(); for(var i=0;i<hh.length;i++){if(hh[i].id===hid){hload=hh[i];break;}}
+      if(!hload)return;
+      // Temporarily add to loads for renderDetail, then remove
+      var existed=loads.some(function(l){return l.id===hid;});
+      if(!existed) loads.push(hload);
+      selId=hid;
+      renderDetail();
+      document.getElementById('detail-panel').classList.add('on');
+      if(!existed) loads=loads.filter(function(l){return l.id!==hid;});
+    });
+  });
 }
 
-/* show/hide history panel */
+/* show/hide panels */
 function showHistoryPanel(){
   document.getElementById('view-loads').style.display='none';
-  document.getElementById('view-history').style.display='flex';
-  document.getElementById('sc-hi').classList.add('on');
-  ['sc-all','sc-it','sc-as','sc-pe','sc-de'].forEach(function(id){document.getElementById(id).classList.remove('on');});
+  document.getElementById('view-history').style.display='block';
+  ['tab-all','tab-it','tab-as','tab-pe','tab-de'].forEach(function(id){document.getElementById(id).classList.remove('on');});
+  document.getElementById('tab-hi').classList.add('on');
   renderHistory();
 }
 function showLoadsPanel(){
   document.getElementById('view-history').style.display='none';
-  document.getElementById('view-loads').style.display='flex';
-  filt=null; renderList();
+  document.getElementById('view-loads').style.display='block';
+  document.getElementById('tab-hi').classList.remove('on');
+  renderList();
 }
 
 /* MODAL - ADD LOAD */
 document.getElementById('btn-new').addEventListener('click',openModal);
-document.getElementById('btn-new2').addEventListener('click',openModal);
 document.getElementById('m-close').addEventListener('click',closeModal);
 document.getElementById('m-cancel').addEventListener('click',closeModal);
 document.getElementById('send-modal-close').addEventListener('click',function(){ document.getElementById('send-modal-ov').classList.remove('on'); });
