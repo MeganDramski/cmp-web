@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#1a1a2e" />
-  <title>CMP Freight – Track Your Shipment</title>
+  <title>CMP Logistics – Track Your Shipment</title>
   <link rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -101,7 +101,7 @@
 </head>
 <body>
 
-  <p class="logo">CMP Freight</p>
+  <p class="logo">CMP Logistics</p>
 
   <div id="error-banner" class="error-banner"></div>
 
@@ -205,7 +205,7 @@
       if (!API_BASE) {
         showError(
           "Tracking is temporarily unavailable (configuration error). " +
-          "Please contact CMP Freight for assistance."
+          "Please contact CMP Logistics for assistance."
         );
         console.error(
           "CMP: API base URL is not configured. " +
@@ -225,6 +225,37 @@
         maxZoom: 19, attribution: "© OpenStreetMap",
       }).addTo(map);
     }
+
+    function snapToRoads(history, callback){
+  if(!history || history.length < 2){ callback(null); return; }
+
+  // Subsample: at most 25 points (OSRM /route waypoint limit)
+  var pts = history;
+  if(pts.length > 25){
+    var step = (pts.length - 1) / 24;
+    var sampled = [];
+    for(var i = 0; i < 24; i++) sampled.push(pts[Math.round(i * step)]);
+    sampled.push(pts[pts.length - 1]);
+    pts = sampled;
+  }
+
+  var coords = pts.map(function(p){ return p.longitude + ',' + p.latitude; }).join(';');
+  var url = 'https://router.project-osrm.org/route/v1/driving/' + coords
+          + '?overview=full&geometries=geojson&steps=false';
+
+  fetch(url)
+    .then(function(r){ return r.json().catch(function(){ return null; }); })
+    .then(function(data){
+      if(!data || data.code !== 'Ok' || !data.routes || !data.routes.length){
+        callback(null); return;
+      }
+      var roadCoords = data.routes[0].geometry.coordinates.map(function(c){
+        return [c[1], c[0]]; // GeoJSON [lng,lat] → Leaflet [lat,lng]
+      });
+      callback(roadCoords.length >= 2 ? roadCoords : null);
+    })
+    .catch(function(){ callback(null); });
+}
 
     async function fetchAndRender() {
       try {
@@ -264,18 +295,22 @@
           document.getElementById("stat-updated").textContent =
             loc.timestamp ? new Date(loc.timestamp).toLocaleTimeString() : "—";
 
-          // Draw trail — only recent points (last 4 hours) to avoid phantom lines
+          // Draw trail snapped to roads using OSRM (falls back to straight line)
           const recentHistory = filterRecentLocations(data.locationHistory);
           if (recentHistory.length >= 2) {
-            const trailCoords = recentHistory.map(p => [p.latitude, p.longitude]);
-            if (trailPolyline) {
-              trailPolyline.setLatLngs(trailCoords);
-            } else {
-              trailPolyline = L.polyline(trailCoords, {
-                color: '#007AFF', weight: 4, opacity: 0.8,
-                lineJoin: 'round', lineCap: 'round',
-              }).addTo(map);
-            }
+            snapToRoads(recentHistory, function(roadPts) {
+              const coords = (roadPts && roadPts.length >= 2)
+                ? roadPts
+                : recentHistory.map(p => [p.latitude, p.longitude]);
+              if (trailPolyline) {
+                trailPolyline.setLatLngs(coords);
+              } else {
+                trailPolyline = L.polyline(coords, {
+                  color: '#007AFF', weight: 4, opacity: 0.8,
+                  lineJoin: 'round', lineCap: 'round',
+                }).addTo(map);
+              }
+            });
           } else if (trailPolyline) {
             trailPolyline.setLatLngs([]);
           }

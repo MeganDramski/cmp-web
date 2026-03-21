@@ -23,6 +23,8 @@ struct DriverView: View {
     @State private var isSendingNotification = false
     /// Controls the pre-prompt sheet shown before the iOS system permission dialog
     @State private var showLocationPrePrompt = false
+    /// Shown when driver appears to have stopped at the delivery address
+    @State private var showDeliveryReminderAlert = false
     /// Start with a zero-span region; we snap to the real GPS on the first fix
     @State private var mapRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 0, longitude: 0),
@@ -141,6 +143,31 @@ struct DriverView: View {
                         }
                     }
                 }
+            }
+            .onReceive(locationManager.$deliveryReminderTriggered) { triggered in
+                if triggered {
+                    showDeliveryReminderAlert = true
+                }
+            }
+            .alert("Delivery Reminder", isPresented: $showDeliveryReminderAlert) {
+                Button("Mark as Delivered") {
+                    // Stop tracking and update load status to delivered
+                    locationManager.stopTracking()
+                    network.disconnectWebSocket()
+                    statusMessage = "Delivered at \(Date().formatted(date: .omitted, time: .shortened))"
+                    if var load = assignedLoad {
+                        load.status = .delivered
+                        assignedLoad = load
+                        LoadStore.shared.upsert(load)
+                        network.updateLoadStatus(loadId: load.id, status: .delivered)
+                    }
+                }
+                Button("Not Yet", role: .cancel) {
+                    // Dismiss — reset so it can fire again after another stillness period
+                    locationManager.deliveryReminderTriggered = false
+                }
+            } message: {
+                Text("You've been stopped near the delivery address for a while. Did you complete this delivery?")
             }
             .alert("Location Access Needed", isPresented: .constant(
                 locationManager.authorizationStatus == .denied
@@ -391,7 +418,7 @@ struct DriverView: View {
             network.connectWebSocket(forLoadId: load.id)
 
             // 2️⃣ Start GPS streaming
-            locationManager.startTracking(loadId: load.id, driverId: driver.id, interval: 5) { update in
+            locationManager.startTracking(loadId: load.id, driverId: driver.id, deliveryAddress: load.deliveryAddress, interval: 5) { update in
                 network.sendLocationOverWebSocket(update)
                 statusMessage = "Sent at \(update.timestamp.formatted(date: .omitted, time: .shortened))"
             }

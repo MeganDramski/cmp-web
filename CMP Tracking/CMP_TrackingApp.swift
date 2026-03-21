@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import UserNotifications
 
 @main
 struct CMP_TrackingApp: App {
@@ -44,6 +45,8 @@ struct CMP_TrackingApp: App {
                 if let account = authManager.currentAccount {
                     appState.login(from: account)
                 }
+                // Request permission to show local arrival notifications
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
             }
         }
         .modelContainer(modelContainer)

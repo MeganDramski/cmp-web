@@ -40,6 +40,14 @@ exports.handler = async (event) => {
       return respond(401, { error: "Incorrect password." });
     }
 
+    // Check approval status
+    if (user.status === "pending") {
+      return respond(403, { error: "Your account is pending approval. You will receive an email once an admin approves your request.", status: "pending" });
+    }
+    if (user.status === "denied") {
+      return respond(403, { error: "Your account request was not approved. Please contact dispatch@cmplogistics.ca if you think this is a mistake.", status: "denied" });
+    }
+
     // Issue JWT — expires in 30 days
     const token = jwt.sign(
       { email: user.email, role: user.role, name: user.name },

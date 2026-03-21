@@ -288,27 +288,9 @@
       display: flex; align-items: center; justify-content: center;
       font-size: 40px;
     }
-
-    /* Connection status bar */
-    #conn-bar {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      z-index: 9999;
-      padding: 10px 16px;
-      font-size: 13px;
-      font-weight: 600;
-      text-align: center;
-      display: none;
-      transition: opacity 0.3s;
-    }
-    #conn-bar.offline     { display: block; background: rgba(255,59,48,0.92);  color: #fff; }
-    #conn-bar.back-online { display: block; background: rgba(52,199,89,0.92); color: #fff; }
   </style>
 </head>
 <body>
-
-  <!-- Connection status bar -->
-  <div id="conn-bar"></div>
 
   <p class="logo">CMP Logistics</p>
 
@@ -371,7 +353,7 @@
 
   <!-- ── Update Log ──────────────────────────────────────────────────────── -->
   <div class="card" id="log-card" style="display:none;">
-    <p class="card-title">Activity</p>
+    <p class="card-title">Updates sent</p>
     <div id="log-list"></div>
   </div>
 
@@ -387,44 +369,14 @@
       : null;
     const UPDATE_INTERVAL_MS = 15000;
 
-    let watchId          = null;
-    let intervalId       = null;
-    let lastPosition     = null;
-    let isTracking       = false;
-    let updateCount      = 0;
-    let loadData         = null;
-    let offlineQueue     = [];          // unsent location payloads
-    let gpsRestartTimer  = null;        // watchPosition auto-restart timer
-    let gpsRestartDelay  = 5000;        // ms before restarting GPS after error
+    let watchId      = null;
+    let intervalId   = null;
+    let lastPosition = null;
+    let isTracking   = false;
+    let updateCount  = 0;
+    let loadData     = null;
 
     function isLive() { return !!API_BASE; }
-
-    // ── Connection status bar ─────────────────────────────────────────────────
-    var _connHideTimer = null;
-    function setConnBar(state) { // 'offline' | 'online' | ''
-      var bar = document.getElementById('conn-bar');
-      if (state === 'offline') {
-        bar.textContent = '📵 No connection — locations queued, will retry when back online';
-        bar.className = 'offline';
-        if (_connHideTimer) { clearTimeout(_connHideTimer); _connHideTimer = null; }
-      } else if (state === 'online') {
-        bar.textContent = '✅ Back online — syncing queued locations…';
-        bar.className = 'back-online';
-        _connHideTimer = setTimeout(function() {
-          bar.className = '';
-          bar.textContent = '';
-        }, 4000);
-      } else {
-        bar.className = '';
-        bar.textContent = '';
-      }
-    }
-
-    window.addEventListener('offline', function() { setConnBar('offline'); });
-    window.addEventListener('online',  function() {
-      setConnBar('online');
-      flushOfflineQueue();
-    });
 
     (function init() {
       if (!TOKEN && !LOAD_ID) {
@@ -563,7 +515,6 @@
           document.getElementById('btn-deliver').style.display = 'flex';
           document.getElementById('log-card').style.display    = 'block';
           showSuccess('✅ Tracking started! Dispatcher has been notified.');
-          addLog('🚛 Tracking started');
 
           postLocation(pos);
           startGPS(true);
@@ -676,55 +627,35 @@
 
     // ── GPS Helpers ───────────────────────────────────────────────────────────
     function startGPS(fresh) {
-      if (gpsRestartTimer) { clearTimeout(gpsRestartTimer); gpsRestartTimer = null; }
-      if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
-
       watchId = navigator.geolocation.watchPosition(
         function(pos) {
-          gpsRestartDelay = 5000; // reset back-off on success
           lastPosition = pos;
           updateGPSDisplay(pos);
         },
         function(err) {
-          if (err.code === 1) { // PERMISSION_DENIED — permanent, don't retry
+          if (err.code === 1) { // PERMISSION_DENIED
             showError('denied');
           } else {
-            // Timeout or POSITION_UNAVAILABLE — auto-restart after delay
-            navigator.geolocation.clearWatch(watchId);
-            watchId = null;
-            if (isTracking) {
-              gpsRestartTimer = setTimeout(function() {
-                if (isTracking) startGPS(false);
-              }, gpsRestartDelay);
-              // Exponential back-off, cap at 60 s
-              gpsRestartDelay = Math.min(gpsRestartDelay * 2, 60000);
-            }
+            showError("GPS error: " + err.message);
           }
         },
-        { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
       );
 
-      if (!intervalId) {
-        intervalId = setInterval(function() {
-          if (lastPosition && isTracking) {
-            postLocation(lastPosition);
-          }
-        }, UPDATE_INTERVAL_MS);
-      }
+      intervalId = setInterval(function() {
+        if (lastPosition && isTracking) {
+          postLocation(lastPosition);
+        }
+      }, UPDATE_INTERVAL_MS);
     }
 
     function stopGPS() {
-      if (gpsRestartTimer) { clearTimeout(gpsRestartTimer); gpsRestartTimer = null; }
       if (watchId != null)    { navigator.geolocation.clearWatch(watchId); watchId = null; }
       if (intervalId != null) { clearInterval(intervalId); intervalId = null; }
     }
 
     // ── Map setup ─────────────────────────────────────────────────────────────
-    var map = null, mapMarker = null, mapCircle = null, trailPolyline = null;
-    // trailPoints stores raw GPS coords as {lat, lng, ts} objects
-    var trailPoints = [];
-    var snapDebounceTimer = null;
-    var snapInFlight = false;
+    var map = null, mapMarker = null, mapCircle = null, trailPolyline = null, trailPoints = [];
 
     function initMap(lat, lng) {
       if (map) return;
@@ -740,82 +671,25 @@
       });
       mapMarker = L.marker([lat, lng], { icon: truckIcon }).addTo(map);
       mapCircle = L.circle([lat, lng], { radius: 20, color: '#007AFF', fillColor: '#007AFF', fillOpacity: 0.15, weight: 2 }).addTo(map);
-      // Trail polyline — updated by road-snap or raw fallback
-      trailPolyline = L.polyline([], {
+      // Start the trail polyline
+      trailPolyline = L.polyline(trailPoints, {
         color: '#007AFF',
-        weight: 5,
-        opacity: 0.85,
+        weight: 4,
+        opacity: 0.8,
         lineJoin: 'round',
         lineCap: 'round',
       }).addTo(map);
     }
 
-    // Snap trailPoints to roads via OSRM /route — works everywhere, no API key needed.
-    // Falls back to raw GPS if OSRM is unreachable.
-    function snapAndDrawTrail() {
-      if (!trailPolyline || trailPoints.length < 2) {
-        if (trailPolyline && trailPoints.length === 1) {
-          trailPolyline.setLatLngs([[trailPoints[0].lat, trailPoints[0].lng]]);
-        }
-        return;
-      }
-
-      // Sample down to ≤25 waypoints (OSRM /route limit)
-      var pts = trailPoints;
-      if (pts.length > 25) {
-        var step = (pts.length - 1) / 24;
-        var sampled = [];
-        for (var i = 0; i < 24; i++) sampled.push(pts[Math.round(i * step)]);
-        sampled.push(pts[pts.length - 1]);
-        pts = sampled;
-      }
-
-      var coords = pts.map(function(p) { return p.lng + ',' + p.lat; }).join(';');
-      var url = 'https://router.project-osrm.org/route/v1/driving/' + coords
-              + '?overview=full&geometries=geojson&steps=false';
-
-      snapInFlight = true;
-      fetch(url)
-        .then(function(r) { return r.json().catch(function() { return null; }); })
-        .then(function(data) {
-          snapInFlight = false;
-          if (data && data.code === 'Ok' && data.routes && data.routes.length) {
-            var roadCoords = data.routes[0].geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
-            if (roadCoords.length >= 2) {
-              trailPolyline.setLatLngs(roadCoords);
-              return;
-            }
-          }
-          // OSRM returned nothing useful — keep raw GPS trail
-          trailPolyline.setLatLngs(trailPoints.map(function(p) { return [p.lat, p.lng]; }));
-        })
-        .catch(function() {
-          snapInFlight = false;
-          if (trailPolyline) {
-            trailPolyline.setLatLngs(trailPoints.map(function(p) { return [p.lat, p.lng]; }));
-          }
-        });
-    }
-
-    // Debounce: wait 2 s after last GPS tick before calling OSRM
-    function scheduleSnap() {
-      if (snapDebounceTimer) clearTimeout(snapDebounceTimer);
-      snapDebounceTimer = setTimeout(function() {
-        if (!snapInFlight) snapAndDrawTrail();
-      }, 2000);
-    }
-
     function updateMap(lat, lng, accuracy) {
-      var ts = Math.floor(Date.now() / 1000);
-      trailPoints.push({ lat: lat, lng: lng, ts: ts });
+      // Append to trail
+      trailPoints.push([lat, lng]);
       if (!map) { initMap(lat, lng); return; }
       mapMarker.setLatLng([lat, lng]);
       mapCircle.setLatLng([lat, lng]);
       mapCircle.setRadius(accuracy || 20);
       map.panTo([lat, lng]);
-      // Draw raw trail immediately (no visual gap), then snap to roads asynchronously
-      trailPolyline.setLatLngs(trailPoints.map(function(p) { return [p.lat, p.lng]; }));
-      scheduleSnap();
+      if (trailPolyline) trailPolyline.setLatLngs(trailPoints);
     }
 
     // Load existing trail from API when resuming a trip
@@ -825,17 +699,10 @@
         .then(function(r) { return r.ok ? r.json() : null; })
         .then(function(data) {
           if (!data || !data.locationHistory || data.locationHistory.length < 2) return;
-          trailPoints = data.locationHistory.map(function(p) {
-            return {
-              lat: p.latitude,
-              lng: p.longitude,
-              ts: p.timestamp ? Math.floor(new Date(p.timestamp).getTime() / 1000) : 0
-            };
-          });
+          trailPoints = data.locationHistory.map(function(p) { return [p.latitude, p.longitude]; });
           if (trailPolyline) {
-            trailPolyline.setLatLngs(trailPoints.map(function(p) { return [p.lat, p.lng]; }));
+            trailPolyline.setLatLngs(trailPoints);
           }
-          snapAndDrawTrail();
         })
         .catch(function() {});
     }
@@ -857,44 +724,22 @@
       updateMap(c.latitude, c.longitude, c.accuracy);
     }
 
-    // ── POST location to API (with offline queue + auto-retry) ─────────────
+    // ── POST location to API ──────────────────────────────────────────────────
     function postLocation(pos) {
       updateCount++;
+      addLog("📍 Location updated (" + updateCount + ")");
       if (!isLive()) return;
       var c = pos.coords;
-      var payload = {
-        latitude:  c.latitude,
-        longitude: c.longitude,
-        speed:     c.speed   != null ? c.speed * 2.237 : 0,
-        heading:   c.heading != null ? c.heading : 0,
-        timestamp: new Date().toISOString(),
-      };
-
-      if (!navigator.onLine) {
-        offlineQueue.push(payload);
-        setConnBar('offline');
-        return;
-      }
-
-      sendLocationPayload(payload);
-    }
-
-    function sendLocationPayload(payload) {
       fetch(API_BASE + "/track/" + TOKEN + "/location", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      }).catch(function() {
-        offlineQueue.push(payload);
-        setConnBar('offline');
-      });
-    }
-
-    function flushOfflineQueue() {
-      if (!isLive() || offlineQueue.length === 0) return;
-      var queue = offlineQueue.slice();
-      offlineQueue = [];
-      queue.forEach(function(payload) { sendLocationPayload(payload); });
+        body: JSON.stringify({
+          latitude:  c.latitude,
+          longitude: c.longitude,
+          speed:     c.speed   != null ? c.speed * 2.237 : 0,
+          heading:   c.heading != null ? c.heading : 0,
+        }),
+      }).catch(function() { addLog("⚠️ Offline — will retry"); });
     }
 
     // ── Log helpers ───────────────────────────────────────────────────────────
@@ -1033,45 +878,7 @@
       if (wakeLock !== null && document.visibilityState === "visible") {
         navigator.wakeLock.request("screen").then(function(wl){ wakeLock=wl; }).catch(function(){});
       }
-      // When the driver comes back to the tab while tracking, restart GPS if it dropped
-      if (isTracking && document.visibilityState === "visible" && watchId === null) {
-        startGPS(false);
-      }
-      // Flush any queued locations when coming back online
-      if (document.visibilityState === "visible" && navigator.onLine) {
-        flushOfflineQueue();
-      }
     });
-
-    // ── Service Worker registration (background sync + keep-alive) ────────────
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('driver-tracking-sw.js')
-        .then(function(reg) {
-          console.log('[SW] registered, scope:', reg.scope);
-          // Request background sync when back online
-          window.addEventListener('online', function() {
-            if (reg.sync) {
-              reg.sync.register('cmp-location-sync').catch(function(){});
-            }
-          });
-        })
-        .catch(function(err) {
-          console.warn('[SW] registration failed:', err);
-        });
-
-      // Listen for keep-alive pings from the service worker
-      navigator.serviceWorker.addEventListener('message', function(evt) {
-        if (evt.data && evt.data.type === 'SW_KEEPALIVE') {
-          // Re-request wake lock and restart GPS if it dropped
-          if (wakeLock === null && isTracking && 'wakeLock' in navigator) {
-            navigator.wakeLock.request('screen').then(function(wl){ wakeLock = wl; }).catch(function(){});
-          }
-          if (isTracking && watchId === null && !gpsRestartTimer) {
-            startGPS(false);
-          }
-        }
-      });
-    }
   </script>
 </body>
 </html>

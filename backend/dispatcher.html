@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>CMP Freight - Dispatcher Portal</title>
+<title>CMP Logistics - Dispatcher Portal</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -167,7 +167,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 
 /* LIVE TRACKING MAP (dispatcher detail panel) */
 #disp-map-section{margin-bottom:12px}
-#disp-map{width:100%;height:280px;border-radius:13px;overflow:hidden;background:#1a1a2e}
+#disp-map{width:100%;height:420px;border-radius:13px;overflow:hidden;background:#1a1a2e}
 .map-header{display:flex;align-items:center;justify-content:space-between;padding:8px 15px;background:var(--s2);border-bottom:1px solid var(--border)}
 .map-header-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
 .live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);animation:lpulse 2s ease-in-out infinite;margin-right:5px}
@@ -178,6 +178,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .map-stat-val{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
 .map-stat-lbl{font-size:10px;color:var(--muted);margin-top:1px}
 .map-no-loc{display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;color:var(--muted);font-size:13px;gap:6px;text-align:center;padding:16px}
+.stale-warn{display:none;align-items:center;gap:8px;padding:8px 15px;background:rgba(255,149,0,.15);border-top:1px solid rgba(255,149,0,.35);color:var(--orange);font-size:12px;font-weight:600}
+.stale-warn.on{display:flex}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}.stale-icon{animation:blink 1.2s ease-in-out infinite;font-size:15px}
 
 @media(max-width:799px){
   #lp{width:100%;border-right:none}
@@ -197,7 +200,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   <div class="acard">
     <div class="alogo">
       <div class="ico">🚛</div>
-      <h1>CMP Freight</h1>
+      <h1>CMP Logistics</h1>
       <p>Dispatcher Portal</p>
     </div>
     <div class="atabs">
@@ -212,19 +215,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     </div>
     <div class="aform" id="form-up">
       <div class="fg"><label>Full Name</label><input type="text" id="reg-name" placeholder="Jane Dispatcher"/></div>
-      <div class="fg"><label>Email</label><input type="email" id="reg-email" placeholder="dispatcher@cmpfreight.com"/></div>
+      <div class="fg"><label>Work Email</label><input type="email" id="reg-email" placeholder="dispatcher@cmplogistics.ca"/></div>
       <div class="fg"><label>Phone (optional)</label><input type="tel" id="reg-phone" placeholder="+1 312 555 0100"/></div>
       <div class="fg"><label>Password (min 6 chars)</label><input type="password" id="reg-pw" placeholder="Password"/></div>
-      <button class="btn btn-p btn-full" id="btn-up">Create Account</button>
+      <button class="btn btn-p btn-full" id="btn-up">Request Access</button>
     </div>
-    <p class="anote">Dispatcher accounts only. Drivers use the SMS link.</p>
+    <!-- Shown after a successful request submission -->
+    <div class="aform" id="form-pending" style="text-align:center;padding:8px 0">
+      <div style="font-size:48px;margin-bottom:12px">📬</div>
+      <div style="font-size:17px;font-weight:700;margin-bottom:8px">Request Sent!</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:20px">
+        Your sign-up request has been sent to the CMP admin team.<br>
+        You'll receive an email at <span id="pending-email" style="color:var(--text);font-weight:600"></span> once your account is approved.
+      </div>
+      <button class="btn btn-full" style="background:var(--s2)" onclick="document.getElementById('tab-in').click()">Back to Sign In</button>
+    </div>
+    <p class="anote">Access requires admin approval. Drivers use the SMS link.</p>
   </div>
 </div>
 
 <!-- APP -->
 <div id="app-screen">
   <nav class="nav">
-    <div class="brand">🚛 CMP Freight</div>
+    <div class="brand">🚛 CMP Logistics</div>
     <div class="spacer"></div>
     <div class="uchip"><span>👤</span><strong id="nav-name">Dispatcher</strong></div>
     <button class="btn btn-sm" id="btn-out">Sign Out</button>
@@ -407,14 +420,31 @@ function doSignIn(){
   }
   fetch(API+'/users/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})})
     .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
-    .then(function(res){if(!res.ok)throw new Error(res.d.error||'Sign-in failed.');if(res.d.user.role!=='dispatcher')throw new Error('Dispatcher accounts only.');session={token:res.d.token,user:res.d.user};localStorage.setItem('cmp_session',JSON.stringify(session));enterApp();})
+    .then(function(res){
+      if(!res.ok){
+        var msg=res.d.error||'Sign-in failed.';
+        if(res.d.status==='pending') msg='⏳ Your account is pending approval. Check your email — you\'ll be notified once an admin approves your request.';
+        if(res.d.status==='denied')  msg='❌ Your account request was not approved. Contact dispatch@cmplogistics.ca for help.';
+        throw new Error(msg);
+      }
+      if(res.d.user.role!=='dispatcher')throw new Error('Dispatcher accounts only.');
+      session={token:res.d.token,user:res.d.user};localStorage.setItem('cmp_session',JSON.stringify(session));enterApp();
+    })
     .catch(function(e){aerr(e.message&&e.message!=='Failed to fetch'?e.message:'Cannot reach the server. The backend may not be deployed yet.');})
     .finally(function(){btn.disabled=false;btn.textContent='Sign In';});
 }
 
-/* REGISTER */
+/* REGISTER / REQUEST ACCESS */
 document.getElementById('btn-up').addEventListener('click', doRegister);
 document.getElementById('reg-pw').addEventListener('keydown',function(e){if(e.key==='Enter')doRegister();});
+
+function showPendingScreen(email){
+  document.getElementById('form-up').classList.remove('on');
+  document.getElementById('form-pending').classList.add('on');
+  document.getElementById('pending-email').textContent=email;
+  // Hide the tabs so the user can't accidentally go back to Create Account
+  document.getElementById('tab-up').style.display='none';
+}
 
 function doRegister(){
   aclr();
@@ -424,24 +454,25 @@ function doRegister(){
   var pass=document.getElementById('reg-pw').value;
   if(!name||!email||!pass)return aerr('Name, email, and password are required.');
   if(pass.length<6)return aerr('Password must be at least 6 characters.');
-  var btn=document.getElementById('btn-up'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Creating…';
+  var btn=document.getElementById('btn-up'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Sending request…';
   if(!isLive()){
+    // Offline/local mode — save as pending locally and show the waiting screen
     var accs=JSON.parse(localStorage.getItem('cmp_accounts')||'[]');
-    for(var i=0;i<accs.length;i++){if(accs[i].email===email){btn.disabled=false;btn.textContent='Create Account';return aerr('An account with that email already exists.');}}
-    var h=sha256(pass);
-    accs.push({name:name,email:email,phone:phone,role:'dispatcher',passwordHash:h});
+    for(var i=0;i<accs.length;i++){if(accs[i].email===email){btn.disabled=false;btn.textContent='Request Access';return aerr('An account with that email already exists.');}}
+    accs.push({name:name,email:email,phone:phone,role:'dispatcher',passwordHash:sha256(pass),status:'pending'});
     localStorage.setItem('cmp_accounts',JSON.stringify(accs));
-    session={token:'local',user:{name:name,email:email,role:'dispatcher'}};
-    localStorage.setItem('cmp_session',JSON.stringify(session));
-    btn.disabled=false;btn.textContent='Create Account'; enterApp(); return;
+    btn.disabled=false; btn.textContent='Request Access';
+    showPendingScreen(email); return;
   }
   fetch(API+'/users/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,email:email,phone:phone,password:pass,role:'dispatcher'})})
     .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
-    .then(function(res){if(!res.ok)throw new Error(res.d.error||'Registration failed.');return fetch(API+'/users/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})});})
-    .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
-    .then(function(res){if(!res.ok)throw new Error('Auto sign-in failed.');session={token:res.d.token,user:res.d.user};localStorage.setItem('cmp_session',JSON.stringify(session));enterApp();})
-    .catch(function(e){aerr(e.message&&e.message!=='Failed to fetch'?e.message:'Cannot reach the server. The backend may not be deployed yet.');})
-    .finally(function(){btn.disabled=false;btn.textContent='Create Account';});
+    .then(function(res){
+      if(!res.ok)throw new Error(res.d.error||'Request failed.');
+      // status === 'pending' — show the waiting screen
+      showPendingScreen(email);
+    })
+    .catch(function(e){aerr(e.message&&e.message!=='Failed to fetch'?e.message:'Cannot reach the server. Try again later.');})
+    .finally(function(){btn.disabled=false;btn.textContent='Request Access';});
 }
 
 /* SIGN OUT */
@@ -601,6 +632,7 @@ function renderDetail(){
         +'<div class="map-stat"><div class="map-stat-val" id="dms-lat">—</div><div class="map-stat-lbl">Latitude</div></div>'
         +'<div class="map-stat"><div class="map-stat-val" id="dms-lng">—</div><div class="map-stat-lbl">Longitude</div></div>'
         +'</div>'
+        +'<div class="stale-warn" id="disp-stale-warn"><span class="stale-icon">⚠️</span><span id="disp-stale-msg">No location update received — signal may be lost.</span></div>'
         +'</div>'
       : ''
     )
@@ -686,11 +718,12 @@ function renderDetail(){
 }
 
 /* ── DISPATCHER LIVE MAP ─────────────────────────────────────────────────── */
-var _dispMap=null, _dispMarker=null, _dispTrail=null, _dispTrailPts=[], _dispPollTimer=null;
+var _dispMap=null, _dispMarker=null, _dispTrail=null, _dispTrailPts=[], _dispPollTimer=null, _dispStaleTimer=null, _lastLocTimestamp=null;
 
 function stopDispatcherMap(){
   if(_dispPollTimer){clearInterval(_dispPollTimer);_dispPollTimer=null;}
-  _dispMap=null; _dispMarker=null; _dispTrail=null; _dispTrailPts=[];
+  if(_dispStaleTimer){clearInterval(_dispStaleTimer);_dispStaleTimer=null;}
+  _dispMap=null; _dispMarker=null; _dispTrail=null; _dispTrailPts=[]; _lastLocTimestamp=null;
 }
 
 function startDispatcherMap(load){
@@ -700,6 +733,24 @@ function startDispatcherMap(load){
   pollDispatcherMap(load.trackingToken);
   // Then every 15 seconds
   _dispPollTimer=setInterval(function(){pollDispatcherMap(load.trackingToken);},15000);
+  // Check for stale signal every 30 seconds
+  _dispStaleTimer=setInterval(function(){checkStaleSignal();},30000);
+}
+
+function checkStaleSignal(){
+  var warn=document.getElementById('disp-stale-warn');
+  var msg=document.getElementById('disp-stale-msg');
+  if(!warn)return;
+  if(!_lastLocTimestamp){warn.classList.remove('on');return;}
+  var age=Date.now()-_lastLocTimestamp; // ms since last update
+  var STALE_MS=2*60*1000; // 2 minutes
+  if(age>=STALE_MS){
+    var mins=Math.floor(age/60000);
+    if(msg) msg.textContent='No location update for '+mins+' min — driver signal may be lost.';
+    warn.classList.add('on');
+  } else {
+    warn.classList.remove('on');
+  }
 }
 
 // Keep only location points from the last 4 hours — filters out stale
@@ -715,6 +766,52 @@ function filterRecentLocations(history){
 function isRecentPoint(p){
   if(!p||!p.timestamp)return false;
   return new Date(p.timestamp).getTime()>=(Date.now()-(4*60*60*1000));
+}
+
+// Snap GPS points to actual roads using OSRM public API (free, no key).
+// Points are subsampled to max 100 to stay within URL length limits.
+// Calls callback(roadCoords) where roadCoords = [[lat,lng], ...]
+function snapToRoads(history, callback){
+  // Subsample: take at most 100 evenly-spaced points
+  var pts = history;
+  if(pts.length > 100){
+    var step = pts.length / 100;
+    var sampled = [];
+    for(var i=0;i<100;i++) sampled.push(pts[Math.floor(i*step)]);
+    // Always include the last point
+    sampled[sampled.length-1] = pts[pts.length-1];
+    pts = sampled;
+  }
+
+  // Build OSRM match URL: coordinates as lng,lat pairs
+  var coords = pts.map(function(p){ return p.longitude+','+p.latitude; }).join(';');
+  var timestamps = pts.map(function(p){
+    return p.timestamp ? Math.floor(new Date(p.timestamp).getTime()/1000) : 0;
+  });
+  // Only include timestamps if all are valid and monotonically increasing
+  var useTs = timestamps.every(function(t){ return t>0; }) &&
+              timestamps.every(function(t,i){ return i===0||t>=timestamps[i-1]; });
+
+  var url = 'https://router.project-osrm.org/match/v1/driving/' + coords
+          + '?overview=full&geometries=geojson&steps=false'
+          + (useTs ? '&timestamps='+timestamps.join(';') : '');
+
+  fetch(url)
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(data){
+      if(!data || !data.matchings || !data.matchings.length){
+        callback(null); return;
+      }
+      // Combine all matching segments into one coordinate array
+      var roadCoords = [];
+      data.matchings.forEach(function(m){
+        m.geometry.coordinates.forEach(function(c){
+          roadCoords.push([c[1], c[0]]); // GeoJSON is [lng,lat], Leaflet wants [lat,lng]
+        });
+      });
+      callback(roadCoords);
+    })
+    .catch(function(){ callback(null); });
 }
 
 function pollDispatcherMap(token){
@@ -754,10 +851,16 @@ function pollDispatcherMap(token){
         _dispMap.panTo([lat,lng]);
       }
 
-      // Trail: only draw when we have 2+ recent points (real movement)
+      // Trail: snap to roads using OSRM match API (free, no key needed)
       if(recentHistory.length>=2){
-        var pts=recentHistory.map(function(p){return[p.latitude,p.longitude];});
-        _dispTrail.setLatLngs(pts);
+        snapToRoads(recentHistory, function(roadPts){
+          if(roadPts && roadPts.length>=2){
+            _dispTrail.setLatLngs(roadPts);
+          } else {
+            // Fallback to straight line if OSRM fails
+            _dispTrail.setLatLngs(recentHistory.map(function(p){return[p.latitude,p.longitude];}));
+          }
+        });
       } else {
         _dispTrail.setLatLngs([]);
       }
@@ -770,6 +873,9 @@ function pollDispatcherMap(token){
         document.getElementById('dms-lat').textContent=lat.toFixed(5);
         document.getElementById('dms-lng').textContent=lng.toFixed(5);
         document.getElementById('dms-updated').textContent=loc.timestamp?new Date(loc.timestamp).toLocaleTimeString():'—';
+        // Track when this location was recorded (for stale-signal detection)
+        _lastLocTimestamp=loc.timestamp?new Date(loc.timestamp).getTime():Date.now();
+        checkStaleSignal();
       }
     })
     .catch(function(){/* silently ignore network errors */});
@@ -838,7 +944,7 @@ function sendLink(id){
   var pickupStr=load.pickupDate?new Date(load.pickupDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
 
   var msgText='Hi '+(load.assignedDriverName||'Driver')+',\n\n'
-    +'You have a new load assigned by CMP Freight.\n\n'
+    +'You have a new load assigned by CMP Logistics.\n\n'
     +'LOAD #: '+(load.loadNumber||'--')+'\n'
     +'PICKUP: '+(load.pickupAddress||'--')+'\n'
     +'DELIVERY: '+(load.deliveryAddress||'--')+'\n'

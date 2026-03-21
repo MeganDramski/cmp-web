@@ -10,6 +10,34 @@
 
 import SwiftUI
 import MessageUI
+import UserNotifications
+
+// MARK: - Arrival Notification Service
+
+/// Fires a local push notification when the driver arrives at the destination.
+/// Works whether the app is in the foreground or background.
+enum ArrivalNotificationService {
+
+    static func fireArrivalNotification(loadNumber: String, address: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "📍 You Have Arrived!"
+        content.body  = "Load \(loadNumber) has reached its destination: \(address)"
+        content.sound = .default
+
+        // Fire immediately (trigger = nil means "right now")
+        let request = UNNotificationRequest(
+            identifier: "arrival-\(loadNumber)-\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("⚠️ Arrival notification error: \(error.localizedDescription)")
+            }
+        }
+    }
+}
 
 // MARK: - Email Composer
 
@@ -115,7 +143,7 @@ struct SendTrackingView: View {
         </p>
         <p style="color:#999;font-size:11px;">
           This link is private and unique to your shipment.<br>
-          — CMP Freight
+          — CMP Logistics
         </p>
         </body></html>
         """
@@ -129,7 +157,7 @@ struct SendTrackingView: View {
     }
 
     private var smsBody: String {
-        "📦 CMP Freight: Your shipment \(load.loadNumber) is on its way! Track live: \(load.trackingURL)"
+        "📦 CMP Logistics: Your shipment \(load.loadNumber) is on its way! Track live: \(load.trackingURL)"
     }
 
     // MARK: Body
@@ -150,7 +178,7 @@ struct SendTrackingView: View {
         .sheet(isPresented: $showMailComposer) {
             MailComposer(
                 to: emailTo,
-                subject: "Your CMP Freight Shipment \(load.loadNumber) Is On Its Way!",
+                subject: "Your CMP Logistics Shipment \(load.loadNumber) Is On Its Way!",
                 body: emailBody
             ) { result in
                 showMailComposer = false
@@ -342,7 +370,7 @@ struct SimulatorTrackingTestView: View {
                     .padding(.vertical, 6)
                 Divider()
                 LabeledContent("Subject",
-                    value: "Your CMP Freight Shipment \(load.loadNumber) Is On Its Way!")
+                    value: "Your CMP Logistics Shipment \(load.loadNumber) Is On Its Way!")
                     .padding(.vertical, 6)
             }
             .padding(.horizontal)
