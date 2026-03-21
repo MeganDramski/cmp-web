@@ -39,6 +39,89 @@ enum ArrivalNotificationService {
     }
 }
 
+// MARK: - Pickup Reminder Notification Service
+
+/// Schedules (and cancels) local notifications that remind the driver to start driving.
+///
+/// Two notifications are scheduled for each assigned load:
+///  • **30-minute warning** — fires 30 min before `pickupDate`
+///  • **Pickup time alert**  — fires exactly at `pickupDate`
+///
+/// Tapping either notification deep-links the driver straight to DriverView
+/// via the `cmptracking://driver` URL scheme.
+enum PickupReminderService {
+
+    // Stable identifiers so we can cancel them later
+    private static func earlyID(loadId: String)  -> String { "pickup-early-\(loadId)"  }
+    private static func onTimeID(loadId: String) -> String { "pickup-ontime-\(loadId)" }
+
+    /// Schedule (or re-schedule) pickup reminders for a load.
+    /// Call this whenever a load is assigned or its pickup time changes.
+    static func schedule(load: Load) {
+        let center = UNUserNotificationCenter.current()
+
+        center.getNotificationSettings { settings in
+            guard settings.authorizationStatus == .authorized ||
+                  settings.authorizationStatus == .provisional else { return }
+
+            // Cancel any existing reminders for this load first
+            cancel(loadId: load.id)
+
+            let now = Date()
+
+            // ── 30-minute early warning ──────────────────────────────────
+            let earlyFireDate = load.pickupDate.addingTimeInterval(-30 * 60)
+            if earlyFireDate > now {
+                let content = UNMutableNotificationContent()
+                content.title = "🚛 Pickup in 30 Minutes"
+                content.body  = "Load \(load.loadNumber): head to \(load.pickupAddress)"
+                content.sound = .default
+                content.userInfo = ["loadId": load.id, "action": "openDriver"]
+
+                let comps = Calendar.current.dateComponents(
+                    [.year, .month, .day, .hour, .minute, .second],
+                    from: earlyFireDate
+                )
+                let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+                let request = UNNotificationRequest(identifier: earlyID(loadId: load.id),
+                                                    content: content,
+                                                    trigger: trigger)
+                center.add(request) { err in
+                    if let err { print("⚠️ Pickup early reminder error: \(err)") }
+                }
+            }
+
+            // ── On-time pickup alert ─────────────────────────────────────
+            if load.pickupDate > now {
+                let content = UNMutableNotificationContent()
+                content.title = "🚛 Time to Start Driving!"
+                content.body  = "Load \(load.loadNumber) pickup: \(load.pickupAddress)"
+                content.sound = .defaultCritical
+                content.userInfo = ["loadId": load.id, "action": "openDriver"]
+
+                let comps = Calendar.current.dateComponents(
+                    [.year, .month, .day, .hour, .minute, .second],
+                    from: load.pickupDate
+                )
+                let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+                let request = UNNotificationRequest(identifier: onTimeID(loadId: load.id),
+                                                    content: content,
+                                                    trigger: trigger)
+                center.add(request) { err in
+                    if let err { print("⚠️ Pickup on-time reminder error: \(err)") }
+                }
+            }
+        }
+    }
+
+    /// Cancel all pending pickup reminders for a load (call on unassign / deliver / cancel).
+    static func cancel(loadId: String) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(
+            withIdentifiers: [earlyID(loadId: loadId), onTimeID(loadId: loadId)]
+        )
+    }
+}
+
 // MARK: - Email Composer
 
 struct MailComposer: UIViewControllerRepresentable {

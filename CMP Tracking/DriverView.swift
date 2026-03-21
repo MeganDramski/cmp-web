@@ -11,6 +11,7 @@ import MapKit
 struct DriverView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var authManager: AuthManager
+    @EnvironmentObject var notifDelegate: AppNotificationDelegate
     @StateObject private var locationManager = LocationManager()
     @StateObject private var network = NetworkManager.shared
 
@@ -149,6 +150,17 @@ struct DriverView: View {
                     showDeliveryReminderAlert = true
                 }
             }
+            // Pickup reminder notification was tapped — prompt driver to start
+            .onChange(of: notifDelegate.shouldOpenDriverDashboard) { tapped in
+                guard tapped else { return }
+                notifDelegate.shouldOpenDriverDashboard = false
+                // Surface a banner nudging the driver to press Start Tracking
+                notificationBannerMessage = "🚛 It's pickup time! Tap Start Tracking to begin."
+                showNotificationBanner = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
+                    showNotificationBanner = false
+                }
+            }
             .alert("Delivery Reminder", isPresented: $showDeliveryReminderAlert) {
                 Button("Mark as Delivered") {
                     // Stop tracking and update load status to delivered
@@ -160,6 +172,7 @@ struct DriverView: View {
                         assignedLoad = load
                         LoadStore.shared.upsert(load)
                         network.updateLoadStatus(loadId: load.id, status: .delivered)
+                        PickupReminderService.cancel(loadId: load.id)
                     }
                 }
                 Button("Not Yet", role: .cancel) {
@@ -399,6 +412,15 @@ struct DriverView: View {
             return emailMatch || phoneMatch
         })
         assignedLoad = match
+
+        // Schedule (or cancel) pickup reminders based on the assigned load
+        if let load = match {
+            if load.status == .assigned || load.status == .inTransit {
+                PickupReminderService.schedule(load: load)
+            } else {
+                PickupReminderService.cancel(loadId: load.id)
+            }
+        }
     }
 
     private func toggleTracking() {
@@ -565,3 +587,4 @@ struct NotificationBanner: View {
     DriverView()
         .environmentObject(AppState.shared)
 }
+,
