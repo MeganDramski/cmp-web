@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+notifications <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -112,8 +112,43 @@
       margin-top: 14px;
     }
     .status-badge.pending   { background: rgba(142,142,160,0.15); color: var(--muted); }
+    .status-badge.accepted  { background: rgba(175,82,222,0.15);  color: #af52de; }
     .status-badge.active    { background: rgba(52,199,89,0.15);   color: var(--green); }
     .status-badge.stopped   { background: rgba(255,59,48,0.15);   color: var(--red); }
+
+    /* Accept Load card */
+    .accept-card {
+      width: 100%;
+      max-width: 400px;
+      background: rgba(175,82,222,0.08);
+      border: 1px solid rgba(175,82,222,0.3);
+      border-radius: 20px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+    }
+    .accept-card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .accept-icon {
+      font-size: 28px;
+      line-height: 1;
+    }
+    .accept-card-title {
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .accept-card-sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .btn-accept {
+      background: #af52de;
+      color: #fff;
+    }
 
     /* GPS card */
     .gps-grid {
@@ -339,8 +374,20 @@
     <div id="status-badge" class="status-badge pending">⏳ Pending</div>
   </div>
 
+  <!-- ── Accept Load Card (shown when status = Assigned) ──────────────────── -->
+  <div class="accept-card" id="accept-card" style="display:none;">
+    <div class="accept-card-header">
+      <div class="accept-icon">🔔</div>
+      <div>
+        <div class="accept-card-title">New Load Assigned</div>
+        <div class="accept-card-sub" id="accept-pickup-time">Pickup: —</div>
+      </div>
+    </div>
+    <button id="btn-accept" class="btn btn-accept" onclick="acceptLoad()">✅ Accept Load</button>
+  </div>
+
   <!-- ── GPS / Map Card ──────────────────────────────────────────────────── -->
-  <div class="card" id="gps-card">
+  <div class="card" id="gps-card" style="display:none;">
     <p class="card-title">Live Location</p>
     <div id="map"></div>
     <div class="map-coords">
@@ -365,7 +412,7 @@
   </div>
 
   <!-- ── Action Buttons ──────────────────────────────────────────────────── -->
-  <button id="btn-start"   class="btn btn-start"   onclick="startTracking()">🚛 Start Tracking</button>
+  <button id="btn-start"   class="btn btn-start"   onclick="startTracking()" style="display:none;">🚛 Start Tracking</button>
   <button id="btn-stop"    class="btn btn-stop"    onclick="stopTracking()"   style="display:none;">⏸ Pause Tracking</button>
   <button id="btn-deliver" class="btn"             onclick="markDelivered()"  style="display:none;background:#34C759;color:#fff;">✅ Mark as Delivered</button>
 
@@ -518,6 +565,7 @@
         badge.textContent = "🚛 In Transit";
         document.getElementById("btn-start").style.display = "none";
         document.getElementById("btn-stop").style.display  = "flex";
+        document.getElementById("gps-card").style.display  = "block";
         isTracking = true;
         loadTrailHistory();
         startGPS(false);
@@ -525,9 +573,31 @@
         badge.className   = "status-badge stopped";
         badge.textContent = "✅ Delivered";
         document.getElementById("btn-start").style.display = "none";
+        document.getElementById("gps-card").style.display  = "none";
         document.getElementById("delivered-screen").style.display = "flex";
+      } else if (data.status === "Assigned") {
+        // Show accept card, hide tracking controls until driver accepts
+        badge.textContent = "⏳ Assigned";
+        document.getElementById("gps-card").style.display   = "none";
+        document.getElementById("btn-start").style.display  = "none";
+        var acceptCard = document.getElementById("accept-card");
+        acceptCard.style.display = "block";
+        if (data.pickupDate) {
+          document.getElementById("accept-pickup-time").textContent =
+            "Pickup: " + new Date(data.pickupDate).toLocaleDateString("en-US", {
+              month: "short", day: "numeric", year: "numeric",
+              hour: "2-digit", minute: "2-digit"
+            });
+        }
+      } else if (data.status === "Accepted") {
+        badge.className   = "status-badge accepted";
+        badge.textContent = "✅ Accepted";
+        document.getElementById("gps-card").style.display  = "block";
+        document.getElementById("btn-start").style.display = "flex";
       } else {
         badge.textContent = "⏳ " + (data.status || "Pending");
+        document.getElementById("gps-card").style.display  = "none";
+        document.getElementById("btn-start").style.display = "none";
       }
     }
 
@@ -578,6 +648,70 @@
         },
         { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
       );
+    }
+
+    // ── Accept Load ───────────────────────────────────────────────────────────
+    function acceptLoad() {
+      var btn = document.getElementById('btn-accept');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Accepting…';
+
+      var loadId     = loadData ? loadData.id     : LOAD_ID;
+      var loadNumber = loadData ? loadData.loadNumber : '';
+      var driverName = loadData ? (loadData.assignedDriverName || 'Driver') : 'Driver';
+
+      function onAccepted() {
+        // Update local status
+        updateLocalStatus('Accepted');
+
+        // Update badge
+        var badge = document.getElementById('status-badge');
+        badge.className   = 'status-badge accepted';
+        badge.textContent = '✅ Accepted';
+
+        // Hide accept card, reveal tracking controls
+        document.getElementById('accept-card').style.display  = 'none';
+        document.getElementById('gps-card').style.display     = 'block';
+        document.getElementById('btn-start').style.display    = 'flex';
+
+        showSuccess('✅ Load accepted! Dispatcher has been notified. Tap Start Tracking when ready.');
+        addLog('✅ Load accepted');
+      }
+
+      // Try backend accept endpoint
+      if (isLive() && loadId) {
+        fetch(API_BASE + '/loads/' + loadId + '/accept', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            loadId:          loadId,
+            loadNumber:      loadNumber,
+            driverName:      driverName,
+            dispatcherEmail: loadData ? (loadData.dispatcherEmail || '') : ''
+          }),
+        })
+        .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+        .then(function() { onAccepted(); })
+        .catch(function(err) {
+          // Graceful fallback — still show tracking even if server unreachable
+          console.warn('Accept endpoint error:', err);
+          onAccepted();
+          // Try mailto dispatcher as last resort
+          if (loadData && loadData.dispatcherEmail) {
+            var subject = 'Load ' + loadNumber + ' Accepted by ' + driverName;
+            var body    = driverName + ' has accepted load ' + loadNumber + '.\nThey are ready to start tracking at pickup time.';
+            openMailtoDispatcher(subject, body);
+          }
+        });
+      } else {
+        // No backend — update locally and open mailto
+        onAccepted();
+        if (loadData && loadData.dispatcherEmail) {
+          var subject = 'Load ' + loadNumber + ' Accepted by ' + driverName;
+          var body    = driverName + ' has accepted load ' + loadNumber + '.\nThey are ready to start tracking at pickup time.';
+          openMailtoDispatcher(subject, body);
+        }
+      }
     }
 
     // ── Notify Dispatcher ─────────────────────────────────────────────────────
