@@ -1,5 +1,5 @@
 /**
- * CMP Logistics — Driver Tracking Service Worker  (v4)
+ * CMP Logistics — Driver Tracking Service Worker  (v5)
  *
  * Responsibilities:
  *  1. Cache the page shell so the driver can open it even with no signal.
@@ -12,7 +12,7 @@
  *     when the page JS is suspended by the OS.
  */
 
-const CACHE_NAME   = 'cmp-driver-v4';
+const CACHE_NAME   = 'cmp-driver-v5';
 const ASSETS_CACHE = [
   'driver-tracking.html',
   'config.js',
@@ -48,6 +48,13 @@ self.addEventListener('activate', function (evt) {
     })
   );
   self.clients.claim();
+});
+
+// ── Message: allow page to trigger immediate SW takeover ─────────────────
+self.addEventListener('message', function (evt) {
+  if (evt.data && evt.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // ── Fetch: network-first for API calls, cache-first for static assets ────

@@ -1843,11 +1843,24 @@
      navigator.serviceWorker.register('driver-tracking-sw.js')
        .then(function(reg) {
          console.log('[SW] registered, scope:', reg.scope);
+
+         // When a new SW version is found, skip waiting and reload the page
+         // so the driver always gets the latest HTML immediately.
+         reg.addEventListener('updatefound', function() {
+           var newSW = reg.installing;
+           if (!newSW) return;
+           newSW.addEventListener('statechange', function() {
+             if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+               // New SW installed — tell it to take over immediately
+               newSW.postMessage({ type: 'SKIP_WAITING' });
+             }
+           });
+         });
+
          window.addEventListener('online', function() {
            if (reg.sync) reg.sync.register('cmp-location-sync').catch(function(){});
          });
          // Register periodic background sync (Android Chrome only, requires HTTPS)
-         // This allows the SW to fire even when the page is fully closed
          if (reg.periodicSync) {
            navigator.permissions.query({ name: 'periodic-background-sync' })
              .then(function(status) {
@@ -1859,6 +1872,14 @@
          }
        })
        .catch(function(err) { console.warn('[SW] registration failed:', err); });
+
+     // When the new SW takes control, reload once to get fresh HTML
+     var _swRefreshing = false;
+     navigator.serviceWorker.addEventListener('controllerchange', function() {
+       if (_swRefreshing) return;
+       _swRefreshing = true;
+       window.location.reload();
+     });
 
      navigator.serviceWorker.addEventListener('message', function(evt) {
        if (evt.data && evt.data.type === 'SW_KEEPALIVE') {
