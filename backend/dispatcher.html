@@ -598,9 +598,27 @@ function bgPollLoads(){
           }
         });
         renderList();
-        // Only re-render the detail panel if the selected load actually
-        // changed — avoids destroying and rebuilding the map on every poll.
-        if(selId && _selLoadChanged(fresh)) renderDetail();
+        // Never call renderDetail() from the poll — it would destroy the map.
+        // Instead, patch just the status badge + dropdown in-place if the
+        // selected load's status changed.
+        if(selId){
+          var selLoad=null;
+          for(var i=0;i<loads.length;i++){if(loads[i].id===selId){selLoad=loads[i];break;}}
+          if(selLoad){
+            var badge=document.querySelector('#dc .dhdr .'+selLoad.status.replace(' ','-'));
+            // Update status dropdown value without re-rendering
+            var ssel=document.getElementById('d-status');
+            if(ssel && ssel.value!==selLoad.status) ssel.value=selLoad.status;
+            // Update status badge class/text
+            var allBadges=document.querySelectorAll('#dc .dhdr span[class]');
+            allBadges.forEach(function(b){
+              if(['Pending','Assigned','Accepted','In Transit','Delivered','Cancelled'].some(function(s){return b.textContent.trim()===s;})){
+                b.className=bc(selLoad.status);
+                b.textContent=selLoad.status;
+              }
+            });
+          }
+        }
       })
       .catch(function(){});
   } else {
@@ -637,7 +655,19 @@ function checkStatusChange(l){
     if(loads[i].id===l.id){ loads[i]=l; found=true; break; }
   }
   if(!found) loads.push(l);
-  if(selId===l.id) renderDetail();
+  // If this is the selected load, update the status badge/dropdown in-place
+  // rather than calling renderDetail() which would destroy the live map.
+  if(selId===l.id){
+    var ssel=document.getElementById('d-status');
+    if(ssel && ssel.value!==l.status) ssel.value=l.status;
+    var allBadges=document.querySelectorAll('#dc .dhdr span[class]');
+    allBadges.forEach(function(b){
+      if(['Pending','Assigned','Accepted','In Transit','Delivered','Cancelled'].some(function(s){return b.textContent.trim()===s;})){
+        b.className=bc(l.status);
+        b.textContent=l.status;
+      }
+    });
+  }
 }
 
 /* LOAD DRIVERS */
@@ -943,9 +973,6 @@ function renderDetail(){
       }
     }
   });
-
-  // Save a snapshot so bgPollLoads can skip re-renders when nothing changed.
-  _selLoadSnapshot = JSON.stringify(load);
 
   // Start live map polling for In Transit / Assigned loads
   startDispatcherMap(load);
