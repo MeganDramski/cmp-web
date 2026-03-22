@@ -600,7 +600,30 @@
    const API_BASE = (_rawBase && _rawBase !== "__API_BASE__")
      ? _rawBase.replace(/\/$/, "")
      : null;
-    const UPDATE_INTERVAL_MS = 5000; // post location every 5 s while page is open
+   const UPDATE_INTERVAL_MS = 5000;
+
+   // ── PWA token restore — MUST run before init() ───────────────────────────
+   // When the driver opens the app from the home screen icon, there are no
+   // URL params. Restore the saved token from localStorage and redirect so
+   // all existing code sees a normal ?token=... URL.
+   (function restorePWATokenEarly() {
+     if (TOKEN || LOAD_ID) return; // already have params — nothing to restore
+     var isStandalone = window.navigator.standalone === true ||
+                        window.matchMedia('(display-mode: standalone)').matches;
+     if (!isStandalone) return;
+     var savedToken  = '';
+     var savedLoadId = '';
+     try { savedToken  = localStorage.getItem('cmp_pwa_token')  || ''; } catch(e) {}
+     try { savedLoadId = localStorage.getItem('cmp_pwa_loadid') || ''; } catch(e) {}
+     if (savedToken || savedLoadId) {
+       var newURL = window.location.pathname
+         + '?token='  + encodeURIComponent(savedToken)
+         + '&loadId=' + encodeURIComponent(savedLoadId);
+       window.location.replace(newURL);
+       // Stop all further script execution — page will reload with params
+       throw new Error('PWA_REDIRECT');
+     }
+   })();
 
    // ── Persisted tracking state key ──────────────────────────────────────────
    // Stored in localStorage so GPS restarts automatically when the driver
@@ -1684,32 +1707,12 @@
    });
 
    // ── PWA: Save token so the home-screen icon always opens the right load ──
-   // When driver adds to home screen, start_url is just /driver-tracking.html
-   // (no query params). We save the token to localStorage so we can restore it.
    var PWA_TOKEN_KEY  = 'cmp_pwa_token';
    var PWA_LOADID_KEY = 'cmp_pwa_loadid';
 
    (function savePWAToken() {
-     // Always save/refresh the current token from the URL
      if (TOKEN)   try { localStorage.setItem(PWA_TOKEN_KEY,  TOKEN);   } catch(e) {}
      if (LOAD_ID) try { localStorage.setItem(PWA_LOADID_KEY, LOAD_ID); } catch(e) {}
-   })();
-
-   // ── PWA: If running as installed app with NO query params, restore token ──
-   (function restorePWAToken() {
-     var isStandalone = window.navigator.standalone === true ||
-                        window.matchMedia('(display-mode: standalone)').matches;
-     if (!isStandalone) return;           // normal browser — no restore needed
-     if (TOKEN || LOAD_ID) return;        // already have params in URL
-     var savedToken  = localStorage.getItem(PWA_TOKEN_KEY);
-     var savedLoadId = localStorage.getItem(PWA_LOADID_KEY);
-     if (savedToken || savedLoadId) {
-       // Rebuild URL with saved params and reload so all existing code just works
-       var newURL = window.location.pathname
-         + '?token='  + encodeURIComponent(savedToken  || '')
-         + '&loadId=' + encodeURIComponent(savedLoadId || '');
-       window.location.replace(newURL);
-     }
    })();
 
    // ── Android Chrome: capture beforeinstallprompt for one-tap install ──────

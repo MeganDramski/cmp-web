@@ -6,7 +6,7 @@
  * postLastKnownLocation now includes loadId for faster Lambda lookup.
  */
 
-const CACHE_NAME   = 'cmp-driver-v8';
+const CACHE_NAME   = 'cmp-driver-v9';
 const ASSETS_CACHE = [
   'driver-tracking.html',
   'config.js',
