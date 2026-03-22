@@ -569,12 +569,23 @@ function bgPollLoads(){
         if(!Array.isArray(fresh)) return;
         fresh = filterDeleted(fresh);
         fresh.forEach(function(l){ checkStatusChange(l); });
-        // Merge fresh data into loads[], but never downgrade a status
-        // that was already set optimistically by updStatus().
+        // Merge fresh data into loads[], but never overwrite a load that
+        // was edited more recently than what the API returned (handles
+        // DynamoDB eventual-consistency lag after a PUT).
         fresh.forEach(function(l){
           var existing = null;
           for(var i=0;i<loads.length;i++){if(loads[i].id===l.id){existing=loads[i];break;}}
           if(existing){
+            // If the local copy is newer, keep it — the PUT is still propagating.
+            var localTs  = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+            var remoteTs = l.updatedAt        ? new Date(l.updatedAt).getTime()        : 0;
+            if(localTs > remoteTs){
+              // Still protect status from being rolled back
+              if(_knownStatuses[l.id] && _knownStatuses[l.id] !== existing.status){
+                // noop — local is already correct
+              }
+              return; // keep existing local copy untouched
+            }
             // If _knownStatuses has a different (newer) status than what the API
             // returned, keep the local one — the PATCH is still in-flight.
             if(_knownStatuses[l.id] && _knownStatuses[l.id] !== l.status){
@@ -1542,7 +1553,13 @@ function saveLoad(){
     fetch(API+'/loads/'+editingLoadId,{method:'PUT',headers:ah(),body:JSON.stringify(load)})
       .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
       .then(function(res){
-        var updated=res.ok?res.d:load; // fall back to local if API doesn't return updated
+        // Always prefer the local `load` we just built — it has the correct
+        // updatedAt and all edited fields.  Only adopt res.d if it is newer
+        // (e.g. the server added extra fields), but fall back to local in
+        // every other case to avoid DynamoDB eventual-consistency reverting edits.
+        var apiTs  = (res.ok && res.d && res.d.updatedAt) ? new Date(res.d.updatedAt).getTime() : 0;
+        var localTs = new Date(load.updatedAt).getTime();
+        var updated = (res.ok && apiTs >= localTs) ? res.d : load;
         for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){loads[i]=updated;break;}}
         renderList();closeModal();selLoad(updated.id);toast('✅ Load updated');
       })
