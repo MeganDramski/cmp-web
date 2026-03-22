@@ -17,9 +17,6 @@ Globals:
         LOCATIONS_TABLE: !Ref LocationsTable
         JWT_SECRET:        !Ref JwtSecret
         SES_FROM_EMAIL:    !Ref SesFromEmail
-        TWILIO_ACCOUNT_SID: !Ref TwilioAccountSid
-        TWILIO_AUTH_TOKEN:  !Ref TwilioAuthToken
-        TWILIO_FROM_NUMBER: !Ref TwilioFromNumber
         AMPLIFY_BASE_URL:   !Ref AmplifyBaseUrl
         TRACKING_BASE_URL:  !Ref TrackingBaseUrl
         APPROVAL_ADMINS:    !Ref ApprovalAdmins
@@ -51,19 +48,6 @@ Parameters:
       SES-verified sender address used for dispatcher & customer emails.
       Must be verified in Amazon SES before deploying.
 
-  TwilioAccountSid:
-    Type: String
-    Default: ""
-    Description: Twilio Account SID from twilio.com/console
-  TwilioAuthToken:
-    Type: String
-    NoEcho: true
-    Default: ""
-    Description: Twilio Auth Token
-  TwilioFromNumber:
-    Type: String
-    Default: ""
-    Description: Twilio phone number e.g. +15005550006
   AmplifyBaseUrl:
     Type: String
     Default: ""
@@ -178,14 +162,6 @@ Resources:
                 Action:
                   - ses:SendEmail
                   - ses:SendRawEmail
-                Resource: "*"
-        - PolicyName: SNSAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - sns:Publish
                 Resource: "*"
 
 # ─────────────────────────────────────────────────────────────────
