@@ -1274,14 +1274,14 @@
      // Always clear and restart the interval so we never have a stale/missing one
      if (intervalId != null) { clearInterval(intervalId); intervalId = null; }
 
-     var _firstFix = true; // post immediately on the very first fix
+     var _firstFix = true;
 
      watchId = navigator.geolocation.watchPosition(
        function(pos) {
          gpsRestartDelay = 5000;
          lastPosition = pos;
          updateGPSDisplay(pos);
-         // Post immediately on the first fix — don't wait for the interval
+         // Post on first fix immediately, then let the heartbeat handle subsequent posts
          if (_firstFix) {
            _firstFix = false;
            if (isTracking) postLocation(pos);
@@ -1301,20 +1301,26 @@
            }
          }
        },
-       { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+       { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
      );
 
-     intervalId = setInterval(function() {
-       if (lastPosition && isTracking) {
-         postLocation(lastPosition);
-       }
-     }, UPDATE_INTERVAL_MS);
+     // Use recursive setTimeout instead of setInterval — more reliable on iOS
+     // when the page is backgrounded (setInterval gets throttled to ~1min).
+     // Post lastPosition every 5s while tracking is active.
+     function scheduleHeartbeat() {
+       intervalId = setTimeout(function() {
+         if (!isTracking) return; // stopped — don't reschedule
+         if (lastPosition) postLocation(lastPosition);
+         scheduleHeartbeat(); // reschedule immediately after post
+       }, UPDATE_INTERVAL_MS);
+     }
+     scheduleHeartbeat();
    }
 
    function stopGPS() {
      if (gpsRestartTimer) { clearTimeout(gpsRestartTimer); gpsRestartTimer = null; }
      if (watchId != null)    { navigator.geolocation.clearWatch(watchId); watchId = null; }
-     if (intervalId != null) { clearInterval(intervalId); intervalId = null; }
+     if (intervalId != null) { clearTimeout(intervalId); intervalId = null; }
    }
 
    // ── Map setup ─────────────────────────────────────────────────────────────
@@ -1606,45 +1612,40 @@
      }
    });
    document.addEventListener("visibilitychange", function() {
-     // ── Page going to background: fire one last location post before JS freezes ──
      if (document.visibilityState === "hidden" && isTracking && lastPosition) {
-       // keepalive:true ensures the request survives even if the page is killed
        var c = lastPosition.coords;
-       var payload = {
-         latitude:  c.latitude, longitude: c.longitude,
-         speed:     c.speed   != null ? c.speed * 2.237 : 0,
-         heading:   c.heading != null ? c.heading : 0,
-         timestamp: new Date().toISOString(),
-       };
        if (isLive() && navigator.onLine) {
          fetch(API_BASE + "/track/" + TOKEN + "/location", {
            method: "POST", keepalive: true,
            headers: { "Content-Type": "application/json" },
-           body: JSON.stringify(payload),
+           body: JSON.stringify({
+             latitude:  c.latitude, longitude: c.longitude,
+             speed:     c.speed   != null ? c.speed * 2.237 : 0,
+             heading:   c.heading != null ? c.heading : 0,
+             timestamp: new Date().toISOString(),
+             loadId:    loadData ? loadData.id : (LOAD_ID || undefined),
+           }),
          }).catch(function(){});
        }
      }
-     // Re-acquire wake lock when page becomes visible again
-     if (wakeLock !== null && document.visibilityState === "visible") {
-       navigator.wakeLock.request("screen").then(function(wl){ wakeLock=wl; }).catch(function(){});
-     }
      if (document.visibilityState === "visible") {
-       // Flush offline queue
+       if (wakeLock !== null) {
+         navigator.wakeLock.request("screen").then(function(wl){ wakeLock=wl; }).catch(function(){});
+       }
        if (navigator.onLine) flushOfflineQueue();
-       // If we were tracking but GPS/interval dropped while backgrounded,
-       // restart everything automatically — no user tap required.
        if (isTracking) {
-         var needsRestart = (watchId === null && !gpsRestartTimer) || (intervalId === null);
-         if (needsRestart) {
-           // Kill any stale timers first, then restart cleanly
-           stopGPS();
-           startGPS(false);
-           startNoSleep();
-           if ('wakeLock' in navigator) {
-             navigator.wakeLock.request('screen').then(function(wl){ wakeLock = wl; }).catch(function(){});
-           }
-           addLog('▶ GPS auto-resumed after screen lock');
+         // Always restart GPS when coming back to foreground — iOS silently
+         // freezes watchPosition callbacks without clearing watchId, so we
+         // cannot rely on watchId===null to detect a stale watch.
+         stopGPS();
+         startGPS(false);
+         startNoSleep();
+         if ('wakeLock' in navigator) {
+           navigator.wakeLock.request('screen').then(function(wl){ wakeLock = wl; }).catch(function(){});
          }
+         // Post immediately so dispatcher sees a fresh ping right away
+         if (lastPosition) postLocation(lastPosition);
+         addLog('▶ GPS restarted on foreground');
        }
      }
    });
