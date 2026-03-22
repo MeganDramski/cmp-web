@@ -43,8 +43,9 @@ exports.handler = async (event) => {
       customerEmail:       body.customerEmail,
       customerPhone:       body.customerPhone,
       notes:               body.notes          || "",
-      dispatcherEmail:     body.dispatcherEmail || user.email,  // always store so startTracking can email them
+      dispatcherEmail:     body.dispatcherEmail || user.email,
       notifyCustomer:      body.notifyCustomer  || false,
+      tenantId:            user.tenantId        || null,   // ← tenant scoping
       createdAt:           new Date().toISOString(),
       createdBy:           user.email,
     };

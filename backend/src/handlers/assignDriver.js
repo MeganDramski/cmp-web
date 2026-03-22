@@ -1,13 +1,7 @@
 // src/handlers/assignDriver.js
 // PATCH /loads/{id}/assign
-// Requires: Authorization: Bearer <token>  (dispatcher only)
-// Body: { assignedDriverId, assignedDriverName, assignedDriverEmail, assignedDriverPhone }
-
-const { DynamoDBClient, UpdateItemCommand } = require("@aws-sdk/client-dynamodb");
-const { marshall } = require("@aws-sdk/util-dynamodb");
-const { verifyToken, respond } = require("../utils/auth");
-
-const db = new DynamoDBClient({});
+const { DynamoDBClient, UpdateItemCommand, GetItemCommand } = require("@aws-sdk/client-dynamodb");
+const { marshall, un = new DynamoDBClient({});
 const TABLE = process.env.LOADS_TABLE;
 
 exports.handler = async (event) => {
@@ -19,6 +13,19 @@ exports.handler = async (event) => {
 
     const loadId = event.pathParameters?.id;
     if (!loadId) return respond(400, { error: "Load ID is required." });
+
+    // Tenant isolation check
+    if (user.tenantId) {
+      const existing = await db.send(new GetItemCommand({
+        TableName: TABLE,
+        Key: marshall({ id: loadId }),
+      }));
+      if (!existing.Item) return respond(404, { error: "Load not found." });
+      const existingLoad = unmarshall(existing.Item);
+      if (existingLoad.tenantId && existingLoad.tenantId !== user.tenantId) {
+        return respond(403, { error: "Access denied." });
+      }
+    }
 
     const body = JSON.parse(event.body || "{}");
     const {
