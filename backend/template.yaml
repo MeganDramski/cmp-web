@@ -460,8 +460,13 @@ Resources:
       Handler: handlers/updateStatusByToken.handler
       Role: !GetAtt LambdaRole.Arn
       Events:
-        Api:
+        ApiPatch:
           Type: HttpApi
           Properties:
             Path: /track/{token}/status
             Method: PATCH
+        ApiOptions:
+          Type: HttpApi
+          Properties:
+            Path: /track/{token}/status
+            Method: OPTIONS

@@ -708,8 +708,21 @@
           // Update status in URL-decoded load
           updateLocalStatus('In Transit');
 
-          // Notify dispatcher
+          // Notify dispatcher via /start (sets In Transit + sends email)
           notifyDispatcher(pos);
+
+          // Belt-and-suspenders: also PATCH status directly so DynamoDB is
+          // updated even if /start fails or is slow
+          if (isLive() && TOKEN) {
+            fetch(API_BASE + '/track/' + TOKEN + '/status', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                status: 'In Transit',
+                driverName: loadData ? (loadData.assignedDriverName || 'Driver') : 'Driver',
+              }),
+            }).catch(function(e) { console.warn('In Transit status patch failed:', e); });
+          }
 
           isTracking = true;
           document.getElementById('status-badge').className   = 'status-badge active';
@@ -857,11 +870,15 @@
     // ── Mark Delivered ────────────────────────────────────────────────────────
     function markDelivered() {
       if (!confirm("Mark this load as Delivered?")) return;
-      stopGPS();
-      isTracking = false;
-      updateLocalStatus("Delivered");
 
-      if (isLive() && TOKEN) {
+      var btn = document.getElementById('btn-deliver');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Saving…';
+
+      function doDeliver(attempt) {
+        if (!isLive() || !TOKEN) {
+          finishDelivered(); return;
+        }
         fetch(API_BASE + "/track/" + TOKEN + "/status", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -869,17 +886,38 @@
             status: "Delivered",
             driverName: loadData ? (loadData.assignedDriverName || "Driver") : "Driver",
           }),
-        }).catch(function() {});
+        })
+        .then(function(r) {
+          if (!r.ok) return r.json().then(function(d) { throw new Error(d.error || ("HTTP " + r.status)); });
+          finishDelivered();
+        })
+        .catch(function(err) {
+          console.error("markDelivered attempt " + attempt + " failed:", err);
+          if (attempt < 3) {
+            setTimeout(function() { doDeliver(attempt + 1); }, 2000 * attempt);
+          } else {
+            // All retries failed — still mark locally but warn driver
+            finishDelivered();
+            showError("⚠️ Could not reach server after 3 tries (" + (err.message || "network error") + "). Status saved locally — ask dispatcher to update manually if needed.");
+          }
+        });
       }
 
-      document.getElementById("btn-stop").style.display    = "none";
-      document.getElementById("btn-deliver").style.display = "none";
-      document.getElementById("status-badge").className    = "status-badge stopped";
-      document.getElementById("status-badge").textContent  = "✅ Delivered";
-      document.getElementById("delivered-screen").style.display = "flex";
-      addLog("✅ Marked as Delivered");
-      driverNotify('📦 Delivery Complete!',
-        'Load ' + (loadData ? loadData.loadNumber : '') + ' marked as delivered. Great work!');
+      function finishDelivered() {
+        stopGPS();
+        isTracking = false;
+        updateLocalStatus("Delivered");
+        document.getElementById("btn-stop").style.display    = "none";
+        document.getElementById("btn-deliver").style.display = "none";
+        document.getElementById("status-badge").className    = "status-badge stopped";
+        document.getElementById("status-badge").textContent  = "✅ Delivered";
+        document.getElementById("delivered-screen").style.display = "flex";
+        addLog("✅ Marked as Delivered");
+        driverNotify('📦 Delivery Complete!',
+          'Load ' + (loadData ? loadData.loadNumber : '') + ' marked as delivered. Great work!');
+      }
+
+      doDeliver(1);
     }
 
     function updateLocalStatus(newStatus) {

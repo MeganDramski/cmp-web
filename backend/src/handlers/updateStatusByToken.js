@@ -17,15 +17,26 @@ const BASE_URL    = (process.env.AMPLIFY_BASE_URL || process.env.TRACKING_BASE_U
 
 const ALLOWED_STATUSES = ["Accepted", "In Transit", "Delivered", "Cancelled"];
 
+const CORS_HEADERS = {
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin":  "*",
+  "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type,Authorization",
+};
+
 function respond(statusCode, body) {
   return {
     statusCode,
-    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+    headers: CORS_HEADERS,
     body: JSON.stringify(body),
   };
 }
 
 exports.handler = async (event) => {
+  // Handle CORS preflight
+  if (event.requestContext?.http?.method === "OPTIONS" || event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers: CORS_HEADERS, body: "" };
+  }
   try {
     const token = event.pathParameters?.token;
     if (!token) return respond(400, { error: "Tracking token required." });
