@@ -31,11 +31,10 @@ exports.handler = async (event) => {
 
     const load = unmarshall(loadResult.Items[0]);
 
-    // Fetch latest location + full history for trail.
-    // No startedAt filter — return all points so the dispatcher map always
-    // has data to show, regardless of when startedAt was recorded.
-    // Paginate through DynamoDB pages (each page is capped at 1 MB).
-    let lastLocation = null;
+    // Fetch full location history — paginate through all DynamoDB pages.
+    // No startedAt filter — return every point so the dispatcher map always
+    // has data regardless of when startedAt was recorded.
+    let lastLocation = load.lastLocation || null;
     let locationHistory = [];
     try {
       const MAX_POINTS = 500; // enough for a full-day trail
@@ -45,7 +44,7 @@ exports.handler = async (event) => {
           TableName:                LOCATIONS_TABLE,
           KeyConditionExpression:   "loadId = :lid",
           ExpressionAttributeValues: marshall({ ":lid": load.id }),
-          ScanIndexForward:         true,  // ascending = chronological, newest last
+          ScanIndexForward:         true,   // ascending = chronological, newest last
           Limit:                    MAX_POINTS,
           ...(lastKey ? { ExclusiveStartKey: lastKey } : {}),
         }));
@@ -55,7 +54,18 @@ exports.handler = async (event) => {
         if (!locResult.LastEvaluatedKey) break;
         lastKey = locResult.LastEvaluatedKey;
       }
+      // Use the newest history point as lastLocation (more up-to-date than
+      // the denormalised field on the load, which may lag by a write cycle).
       if (locationHistory.length > 0) {
+        lastLocation = locationHistory[locationHistory.length - 1];
+      }
+    } catch (locErr) {
+      console.error("trackByToken location fetch error:", locErr);
+      // Non-fatal — return load info without location history
+    }
+
+    const safeLoad = {
+      id:              load.id,
       loadNumber:      load.loadNumber,
       description:     load.description,
       weight:          load.weight,

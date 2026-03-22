@@ -25,11 +25,21 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let clManager = CLLocationManager()
     private var currentLoadId: String?
     private var currentDriverId: String?
+    private var currentTrackingToken: String?          // ← NEW: public endpoint token
     private var onLocationUpdate: ((LocationUpdate) -> Void)?
 
     // How often to send updates to server (seconds)
-    private var updateInterval: TimeInterval = 5.0
+    private var updateInterval: TimeInterval = 10.0    // 10 s is enough for a truck
     private var lastSentTime: Date = .distantPast
+
+    // Background URLSession — iOS keeps in-flight requests alive even when
+    // the app is backgrounded or the screen is locked.
+    private lazy var bgSession: URLSession = {
+        let cfg = URLSessionConfiguration.background(withIdentifier: "com.cmptracking.location")
+        cfg.isDiscretionary = false
+        cfg.sessionSendsLaunchEvents = true
+        return URLSession(configuration: cfg, delegate: nil, delegateQueue: nil)
+    }()
 
     // MARK: - Geofence / Stillness Detection
     /// Geocoded coordinate of the current load's delivery address
@@ -51,13 +61,14 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         super.init()
         clManager.delegate = self
         clManager.desiredAccuracy = kCLLocationAccuracyBest
-        clManager.distanceFilter = 5   // meters — lowered so parked driver still gets updates
+        clManager.distanceFilter = 10  // meters — only wake for meaningful movement
         clManager.pausesLocationUpdatesAutomatically = false
         // allowsBackgroundLocationUpdates can only be set to true on a real device
         // with the background location capability active. Setting it on the simulator
         // without the entitlement causes a SIGABRT crash.
         #if !targetEnvironment(simulator)
         clManager.allowsBackgroundLocationUpdates = true
+        clManager.showsBackgroundLocationIndicator = true  // blue bar so driver knows it's running
         #endif
         authorizationStatus = clManager.authorizationStatus
     }
@@ -77,22 +88,29 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// starting continuous tracking or sending data to the server.
     func requestCurrentLocation() {
         guard authorizationStatus == .authorizedAlways ||
-              authorizationStatus == .authorizedWhenInUse else {
-            // Permission not granted yet — the delegate will call this again
-            // after the user responds to the permission prompt
-            return
-        }
+              authorizationStatus == .authorizedWhenInUse else { return }
         clManager.requestLocation()
     }
 
-    /// Start tracking for a given load & driver. Calls back on every interval.
-    func startTracking(loadId: String, driverId: String, deliveryAddress: String = "", interval: TimeInterval = 5, onUpdate: @escaping (LocationUpdate) -> Void) {
-        guard authorizationStatus == .authorizedAlways || authorizationStatus == .authorizedWhenInUse else {
+    /// Start tracking for a given load & driver.
+    /// - Parameters:
+    ///   - trackingToken: The load's public tracking token — used to POST to
+    ///                    `/track/{token}/location` without requiring JWT auth.
+    ///                    This is the same token the browser driver page uses.
+    func startTracking(loadId: String,
+                       driverId: String,
+                       trackingToken: String,
+                       deliveryAddress: String = "",
+                       interval: TimeInterval = 10,
+                       onUpdate: ((LocationUpdate) -> Void)? = nil) {
+        guard authorizationStatus == .authorizedAlways ||
+              authorizationStatus == .authorizedWhenInUse else {
             requestPermission()
             return
         }
         self.currentLoadId = loadId
         self.currentDriverId = driverId
+        self.currentTrackingToken = trackingToken
         self.updateInterval = interval
         self.onLocationUpdate = onUpdate
         self.lastSentTime = .distantPast
@@ -101,7 +119,6 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         self.lastMovementLocation = nil
         cancelStillnessTimer()
 
-        // Geocode delivery address so we know when the driver is near it
         if !deliveryAddress.isEmpty {
             geocodeDeliveryAddress(deliveryAddress)
         }
@@ -115,6 +132,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         isTracking = false
         currentLoadId = nil
         currentDriverId = nil
+        currentTrackingToken = nil
         onLocationUpdate = nil
         cancelStillnessTimer()
         deliveryCoordinate = nil
@@ -122,21 +140,42 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         deliveryReminderTriggered = false
     }
 
+    // MARK: - Post location to public endpoint (no auth, works in background)
+
+    private func postLocationToServer(_ update: LocationUpdate, token: String) {
+        let urlString = AWSConfig.baseURL + "/track/\(token)/location"
+        guard let url = URL(string: urlString) else { return }
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 20
+
+        let body: [String: Any] = [
+            "latitude":  update.latitude,
+            "longitude": update.longitude,
+            "speed":     update.speed,
+            "heading":   update.heading,
+            "timestamp": ISO8601DateFormatter().string(from: update.timestamp)
+        ]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        // Use background session so iOS delivers the request even when screen is locked
+        bgSession.dataTask(with: req) { _, _, error in
+            if let error = error {
+                print("📍 Location post failed: \(error.localizedDescription)")
+            } else {
+                print("📍 Location posted → \(update.latitude), \(update.longitude)")
+            }
+        }.resume()
+    }
+
     // MARK: - Geofence / Stillness Helpers
 
     private func geocodeDeliveryAddress(_ address: String) {
         CLGeocoder().geocodeAddressString(address) { [weak self] placemarks, error in
-            guard let self, let coord = placemarks?.first?.location?.coordinate else {
-                if let error = error {
-                    print("Geocoding error: \(error.localizedDescription)")
-                } else {
-                    print("Geocoding error: No coordinates found")
-                }
-                return
-            }
-            DispatchQueue.main.async {
-                self.deliveryCoordinate = coord
-            }
+            guard let self, let coord = placemarks?.first?.location?.coordinate else { return }
+            DispatchQueue.main.async { self.deliveryCoordinate = coord }
         }
     }
 
@@ -145,44 +184,28 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         stillnessTimer = nil
     }
 
-    /// Called on every location update to check if driver is near delivery and has stopped.
     private func checkDeliveryStillness(location: CLLocation) {
         guard !deliveryReminderTriggered,
               let deliveryCoord = deliveryCoordinate else { return }
-
         let deliveryLocation = CLLocation(latitude: deliveryCoord.latitude, longitude: deliveryCoord.longitude)
-        let distanceToDelivery = location.distance(from: deliveryLocation)
-
-        guard distanceToDelivery <= deliveryRadiusMeters else {
-            // Driver is not near delivery — cancel any running timer
-            cancelStillnessTimer()
-            lastMovementLocation = nil
-            return
+        guard location.distance(from: deliveryLocation) <= deliveryRadiusMeters else {
+            cancelStillnessTimer(); lastMovementLocation = nil; return
         }
-
-        // Driver IS near delivery address — check for movement
         if let lastLoc = lastMovementLocation {
-            let moved = location.distance(from: lastLoc)
-            if moved > movementResetDistance {
-                // Driver moved significantly — reset the timer
-                cancelStillnessTimer()
-                lastMovementLocation = location
+            if location.distance(from: lastLoc) > movementResetDistance {
+                cancelStillnessTimer(); lastMovementLocation = location
             } else if stillnessTimer == nil {
-                // Driver near delivery and hasn't moved — start the stillness timer
                 let t = Timer(timeInterval: stillnessThreshold, repeats: false) { [weak self] _ in
                     self?.deliveryReminderTriggered = true
                 }
-                RunLoop.main.add(t, forMode: .common)
-                stillnessTimer = t
+                RunLoop.main.add(t, forMode: .common); stillnessTimer = t
             }
         } else {
-            // First time near delivery — record position and start timer
             lastMovementLocation = location
             let t = Timer(timeInterval: stillnessThreshold, repeats: false) { [weak self] _ in
                 self?.deliveryReminderTriggered = true
             }
-            RunLoop.main.add(t, forMode: .common)
-            stillnessTimer = t
+            RunLoop.main.add(t, forMode: .common); stillnessTimer = t
         }
     }
 
@@ -203,25 +226,19 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
 
-        DispatchQueue.main.async {
-            self.currentLocation = location
-        }
+        DispatchQueue.main.async { self.currentLocation = location }
 
-        // Check geofence + stillness for delivery reminder — must run on main thread
-        // so that Timer.scheduledTimer is added to the main run loop and actually fires.
         let captured = location
-        DispatchQueue.main.async {
-            self.checkDeliveryStillness(location: captured)
-        }
+        DispatchQueue.main.async { self.checkDeliveryStillness(location: captured) }
 
-        // Throttle: only send every `updateInterval` seconds
+        // Throttle
         let now = Date()
         guard now.timeIntervalSince(lastSentTime) >= updateInterval else { return }
         lastSentTime = now
 
         guard let loadId = currentLoadId, let driverId = currentDriverId else { return }
 
-        let speedMph = max(location.speed, 0) * 2.23694   // m/s → mph
+        let speedMph = max(location.speed, 0) * 2.23694
         let heading = location.course >= 0 ? location.course : 0
 
         let update = LocationUpdate(
@@ -234,16 +251,18 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             timestamp: location.timestamp
         )
 
-        DispatchQueue.main.async {
-            self.latestUpdate = update
+        DispatchQueue.main.async { self.latestUpdate = update }
+
+        // ── Post to public token endpoint (no auth, survives background) ──
+        if let token = currentTrackingToken {
+            postLocationToServer(update, token: token)
         }
 
+        // Also fire the optional callback (used for UI updates / WebSocket)
         onLocationUpdate?(update)
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        DispatchQueue.main.async {
-            self.errorMessage = error.localizedDescription
-        }
+        DispatchQueue.main.async { self.errorMessage = error.localizedDescription }
     }
 }

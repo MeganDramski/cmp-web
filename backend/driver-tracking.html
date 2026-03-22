@@ -338,37 +338,7 @@
    }
    #conn-bar.offline     { display: block; background: rgba(255,59,48,0.92);  color: #fff; }
    #conn-bar.back-online { display: block; background: rgba(52,199,89,0.92); color: #fff; }
-   #conn-bar.paused      { display: block; background: rgba(255,149,0,0.95); color: #fff; cursor: pointer; }
-
-   /* Background tracking resume banner */
-   #bg-resume-banner {
-     display: none;
-     width: 100%;
-     max-width: 400px;
-     background: rgba(255,149,0,0.13);
-     border: 1px solid rgba(255,149,0,0.45);
-     border-radius: 14px;
-     padding: 14px 16px;
-     margin-bottom: 12px;
-     font-size: 14px;
-     color: #FF9500;
-     line-height: 1.5;
-   }
-   #bg-resume-banner.visible { display: block; }
-   #bg-resume-banner strong  { display: block; font-size: 15px; margin-bottom: 4px; }
-   #btn-resume-tracking {
-     margin-top: 10px;
-     width: 100%;
-     background: #FF9500;
-     color: #fff;
-     border: none;
-     border-radius: 12px;
-     padding: 13px;
-     font-size: 15px;
-     font-weight: 700;
-     cursor: pointer;
-     -webkit-tap-highlight-color: transparent;
-   }
+   #conn-bar.paused      { display: none; }
 
    /* iOS Add-to-Home-Screen tip banner */
    #ios-tip-banner {
@@ -404,14 +374,6 @@
 
  <div id="error-banner"   class="error-banner"></div>
  <div id="success-banner" class="success-banner"></div>
-
- <!-- Background-resume banner: shown when driver reopens the link after GPS stopped -->
- <div id="bg-resume-banner">
-   <strong>⚠️ Tracking Was Paused</strong>
-   Your browser stopped GPS tracking while the page was closed or in the background.
-   Tap below to resume — your dispatcher will see live updates again.
-   <button id="btn-resume-tracking" onclick="resumeTracking()">▶ Resume Tracking Now</button>
- </div>
 
  <!-- iOS tip: add to home screen keeps GPS alive in background -->
  <div id="ios-tip-banner">
@@ -653,10 +615,6 @@
        bar.textContent = '✅ Back online — syncing queued locations…';
        bar.className = 'back-online';
        _connHideTimer = setTimeout(function() { bar.className = ''; bar.textContent = ''; }, 4000);
-     } else if (state === 'paused') {
-       bar.textContent = msg || '⚠️ Tracking paused — tap here to resume';
-       bar.className = 'paused';
-       bar.onclick = function() { resumeTracking(); };
      } else {
        bar.className = '';
        bar.textContent = '';
@@ -815,22 +773,6 @@
            .catch(function(){});
        }
      }
-   }
-
-   // ── Resume Tracking (called by the banner when GPS dropped in background) ─
-   function resumeTracking() {
-     document.getElementById('bg-resume-banner').classList.remove('visible');
-     setConnBar('');
-     if (!isTracking) { isTracking = true; }
-     // Re-start GPS (triggers wake lock + noSleep inline with user gesture)
-     startGPS(false);
-     startNoSleep();
-     if ('wakeLock' in navigator) {
-       navigator.wakeLock.request('screen').then(function(wl){ wakeLock = wl; }).catch(function(){});
-     }
-     saveTrackingState(true);
-     addLog('▶ Tracking resumed after pause');
-     showSuccess('✅ Tracking resumed!');
    }
 
    // ── Start Tracking ────────────────────────────────────────────────────────
@@ -1099,12 +1041,6 @@
          if (_firstFix) {
            _firstFix = false;
            if (isTracking) postLocation(pos);
-         }
-         // Dismiss the "paused" banner once GPS is flowing again
-         var resumeBanner = document.getElementById('bg-resume-banner');
-         if (resumeBanner && resumeBanner.classList.contains('visible')) {
-           resumeBanner.classList.remove('visible');
-           setConnBar('');
          }
        },
        function(err) {
@@ -1458,14 +1394,9 @@
            stopGPS();
            startGPS(false);
            startNoSleep();
-           // Re-acquire wake lock with user-activation if available
            if ('wakeLock' in navigator) {
              navigator.wakeLock.request('screen').then(function(wl){ wakeLock = wl; }).catch(function(){});
            }
-           // Hide resume banner if it was shown
-           var resumeBanner = document.getElementById('bg-resume-banner');
-           if (resumeBanner) resumeBanner.classList.remove('visible');
-           setConnBar('');
            addLog('▶ GPS auto-resumed after screen lock');
          }
        }
@@ -1515,11 +1446,12 @@
          if (wakeLock === null && isTracking && 'wakeLock' in navigator) {
            navigator.wakeLock.request('screen').then(function(wl){ wakeLock = wl; }).catch(function(){});
          }
+         // GPS dropped while backgrounded — restart silently, no banner
          if (isTracking && watchId === null && !gpsRestartTimer) {
-           // GPS dropped while backgrounded — show resume banner
-           var resumeBanner = document.getElementById('bg-resume-banner');
-           if (resumeBanner) resumeBanner.classList.add('visible');
-           setConnBar('paused', '⚠️ GPS stopped — tap to resume');
+           stopGPS();
+           startGPS(false);
+           startNoSleep();
+           addLog('▶ GPS auto-resumed via SW keepalive');
          }
        }
        // SW is requesting a location push (periodicSync fired while page open)

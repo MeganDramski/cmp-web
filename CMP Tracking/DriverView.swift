@@ -549,7 +549,8 @@ struct DriverView: View {
         }
     }
 
-    private func toggleTracking() {        if locationManager.isTracking {
+    private func toggleTracking() {
+        if locationManager.isTracking {
             locationManager.stopTracking()
             network.disconnectWebSocket()
             statusMessage = "Stopped at \(Date().formatted(date: .omitted, time: .shortened))"
@@ -561,30 +562,35 @@ struct DriverView: View {
             }
             locationManager.requestPermission()
 
-            // 1️⃣ Connect WebSocket for this load
-            network.connectWebSocket(forLoadId: load.id)
+            // 1️⃣ Update load status → In Transit immediately (local + server)
+            var updatedLoad = load
+            updatedLoad.status = .inTransit
+            assignedLoad = updatedLoad
+            LoadStore.shared.upsert(updatedLoad)
+            // PATCH /track/{token}/status — public endpoint, no auth needed
+            AWSManager.shared.updateStatusByToken(token: load.trackingToken,
+                                                  loadId: load.id,
+                                                  status: .inTransit)
 
-            // 2️⃣ Start GPS streaming
-            locationManager.startTracking(loadId: load.id, driverId: driver.id, deliveryAddress: load.deliveryAddress, interval: 5) { update in
-                network.sendLocationOverWebSocket(update)
-                statusMessage = "Sent at \(update.timestamp.formatted(date: .omitted, time: .shortened))"
+            // 2️⃣ Start GPS — posts to /track/{token}/location in the background
+            //    The native OS keeps this running even when the screen is locked.
+            locationManager.startTracking(
+                loadId: load.id,
+                driverId: driver.id,
+                trackingToken: load.trackingToken,
+                deliveryAddress: load.deliveryAddress,
+                interval: 10
+            ) { update in
+                DispatchQueue.main.async {
+                    self.statusMessage = "Sent at \(update.timestamp.formatted(date: .omitted, time: .shortened))"
+                }
             }
 
-            // 3️⃣ Notify server (triggers server-side email/push if backend is live)
-            isSendingNotification = true
-            network.notifyTrackingStarted(load: load, driverName: driver.name) { result in
-                isSendingNotification = false
-                let via = load.customerPhone.isEmpty ? "email" : "email & SMS"
-                switch result {
-                case .success:
-                    notificationBannerMessage = "🚛 Tracking started — tap \"Send Tracking Link\" to notify \(load.customerName)"
-                case .failure:
-                    notificationBannerMessage = "🚛 Tracking started — tap \"Send Tracking Link\" to notify \(load.customerName)"
-                }
-                showNotificationBanner = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                    showNotificationBanner = false
-                }
+            statusMessage = "Tracking started"
+            notificationBannerMessage = "🚛 Tracking started — dispatcher can see your location live"
+            showNotificationBanner = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                showNotificationBanner = false
             }
         }
     }

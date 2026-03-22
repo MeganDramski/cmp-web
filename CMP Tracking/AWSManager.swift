@@ -160,7 +160,7 @@ class AWSManager {
         }
     }
 
-    // MARK: - Loads: Update Status
+    // MARK: - Loads: Update Status (authenticated — dispatcher use)
 
     func updateLoadStatus(loadId: String,
                           status: LoadStatus,
@@ -172,6 +172,29 @@ class AWSManager {
             case .failure(let err): completion?(err)
             }
         }
+    }
+
+    // MARK: - Loads: Update Status by Token (PUBLIC — no auth, driver use)
+
+    /// Called by the driver app when they tap Start/Stop Tracking.
+    /// Uses the public `/track/{token}/status` endpoint so no JWT is needed.
+    func updateStatusByToken(token: String,
+                             loadId: String,
+                             status: LoadStatus,
+                             completion: ((Error?) -> Void)? = nil) {
+        guard let url = URL(string: AWSConfig.baseURL + "/track/\(token)/status") else {
+            completion?(AWSError.invalidURL); return
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "PATCH"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 15
+        let body: [String: Any] = ["status": status.rawValue, "loadId": loadId]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        URLSession.shared.dataTask(with: req) { _, _, error in
+            DispatchQueue.main.async { completion?(error) }
+        }.resume()
     }
 
     // MARK: - Locations: Post GPS Fix
