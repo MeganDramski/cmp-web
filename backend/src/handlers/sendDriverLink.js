@@ -1,11 +1,13 @@
-// sendDriverLink.js – sends driver tracking link via email (SES)
+// sendDriverLink.js – sends driver tracking link via email (SES) + SMS (SNS)
 const { DynamoDBClient, GetItemCommand } = require("@aws-sdk/client-dynamodb");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
+const { SNSClient, PublishCommand } = require("@aws-sdk/client-sns");
 const { verifyToken, respond } = require("../utils/auth");
 
 const db  = new DynamoDBClient({ region: "us-east-1" });
 const ses = new SESClient({ region: "us-east-1" });
+const sns = new SNSClient({ region: "us-east-1" });
 
 const LOADS_TABLE = process.env.LOADS_TABLE;
 const FROM_EMAIL  = process.env.SES_FROM_EMAIL;
@@ -90,7 +92,7 @@ exports.handler = async (event) => {
     if (!loadId) return respond(400, { error: "Load ID required" });
 
     const body = JSON.parse(event.body || "{}");
-    const { dispatcherEmail, notifyCustomer = false } = body;
+    const { dispatcherEmail, notifyCustomer = false, pingOnly = false } = body;
     if (!dispatcherEmail) return respond(400, { error: "dispatcherEmail required" });
 
     // 1. Fetch load
@@ -104,11 +106,92 @@ exports.handler = async (event) => {
     // 2. Build tracking link (embeds full load payload as ?d= for offline-capable driver page)
     const link = buildLink(event, load.trackingToken, load.id, load);
 
+    // ── PING-ONLY path ──────────────────────────────────────────────────────
+    // Dispatcher tapped "Ping Driver" — just send a short "please reopen" SMS
+    // (and a brief email) without sending the full load assignment messages.
+    if (pingOnly) {
+      const pingMsg =
+        "CMP Logistics: Your dispatcher needs an updated location from you. " +
+        "Please reopen the tracking app now:\n" + link;
+
+      // SMS via SNS (if phone on file)
+      if (load.assignedDriverPhone) {
+        try {
+          const phone = load.assignedDriverPhone.replace(/\D/g, "");
+          await sns.send(new PublishCommand({
+            PhoneNumber: "+" + (phone.startsWith("1") ? phone : "1" + phone),
+            Message: pingMsg,
+            MessageAttributes: {
+              "AWS.SNS.SMS.SMSType": {
+                DataType: "String",
+                StringValue: "Transactional",
+              },
+            },
+          }));
+        } catch (e) {
+          console.warn("Ping SMS failed:", e.message);
+        }
+      }
+
+      // Short email to driver (if email on file)
+      if (load.assignedDriverEmail && FROM_EMAIL) {
+        try {
+          await ses.send(new SendEmailCommand({
+            Source: FROM_EMAIL,
+            Destination: { ToAddresses: [load.assignedDriverEmail] },
+            Message: {
+              Subject: { Data: "Action needed – CMP Logistics Load " + load.loadNumber },
+              Body: {
+                Html: {
+                  Data:
+                    "<p>Hi <strong>" + (load.assignedDriverName || "Driver") + "</strong>,</p>" +
+                    "<p>Your dispatcher is requesting an updated location for Load <strong>" +
+                    load.loadNumber + "</strong>. Please reopen the tracking app:</p>" +
+                    "<p style='margin-top:16px;'>" +
+                    "<a href='" + link + "' style='background:#FF9500;color:#fff;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;'>Reopen Tracking App</a>" +
+                    "</p>" +
+                    "<p style='color:#888;font-size:12px;margin-top:20px;'>No app needed – works in any browser.</p>",
+                },
+              },
+            },
+          }));
+        } catch (e) {
+          console.warn("Ping email failed:", e.message);
+        }
+      }
+
+      return respond(200, { success: true, driverLink: link });
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     // 3. Send email to driver (if email on file)
     try {
       await sendDriverEmail(load.assignedDriverEmail, load.assignedDriverName, load, link);
     } catch (e) {
       console.warn("Driver email failed:", e.message);
+    }
+
+    // 3b. Send SMS to driver (if phone on file)
+    if (load.assignedDriverPhone) {
+      try {
+        const phone = load.assignedDriverPhone.replace(/\D/g, "");
+        const smsBody =
+          "CMP Logistics: Load " + load.loadNumber + " has been assigned to you.\n" +
+          "Pickup: " + load.pickupAddress + "\n" +
+          "Open your tracking link:\n" + link;
+        await sns.send(new PublishCommand({
+          PhoneNumber: "+" + (phone.startsWith("1") ? phone : "1" + phone),
+          Message: smsBody,
+          MessageAttributes: {
+            "AWS.SNS.SMS.SMSType": {
+              DataType: "String",
+              StringValue: "Transactional",
+            },
+          },
+        }));
+      } catch (e) {
+        console.warn("Driver SMS failed:", e.message);
+      }
     }
 
     // 4. Email dispatcher confirmation with the driver link

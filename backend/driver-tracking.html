@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<t!DOCTYPE html>
 <html lang="en">
 <head>
  <meta charset="UTF-8" />
@@ -504,7 +504,7 @@
    const API_BASE = (_rawBase && _rawBase !== "__API_BASE__")
      ? _rawBase.replace(/\/$/, "")
      : null;
-   const UPDATE_INTERVAL_MS = 15000;
+    const UPDATE_INTERVAL_MS = 5000; // post location every 5 s while page is open
 
    // ── Persisted tracking state key ──────────────────────────────────────────
    // Stored in localStorage so GPS restarts automatically when the driver
@@ -1421,6 +1421,24 @@
      }
    });
    document.addEventListener("visibilitychange", function() {
+     // ── Page going to background: fire one last location post before JS freezes ──
+     if (document.visibilityState === "hidden" && isTracking && lastPosition) {
+       // keepalive:true ensures the request survives even if the page is killed
+       var c = lastPosition.coords;
+       var payload = {
+         latitude:  c.latitude, longitude: c.longitude,
+         speed:     c.speed   != null ? c.speed * 2.237 : 0,
+         heading:   c.heading != null ? c.heading : 0,
+         timestamp: new Date().toISOString(),
+       };
+       if (isLive() && navigator.onLine) {
+         fetch(API_BASE + "/track/" + TOKEN + "/location", {
+           method: "POST", keepalive: true,
+           headers: { "Content-Type": "application/json" },
+           body: JSON.stringify(payload),
+         }).catch(function(){});
+       }
+     }
      // Re-acquire wake lock when page becomes visible again
      if (wakeLock !== null && document.visibilityState === "visible") {
        navigator.wakeLock.request("screen").then(function(wl){ wakeLock=wl; }).catch(function(){});
@@ -1436,6 +1454,22 @@
          setConnBar('paused', '⚠️ GPS stopped in background — tap to resume');
        }
      }
+   });
+
+   // ── pagehide: last-gasp location send when browser tab is closed/navigated away ──
+   window.addEventListener("pagehide", function() {
+     if (!isTracking || !lastPosition || !isLive() || !navigator.onLine) return;
+     var c = lastPosition.coords;
+     fetch(API_BASE + "/track/" + TOKEN + "/location", {
+       method: "POST", keepalive: true,
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({
+         latitude:  c.latitude, longitude: c.longitude,
+         speed:     c.speed   != null ? c.speed * 2.237 : 0,
+         heading:   c.heading != null ? c.heading : 0,
+         timestamp: new Date().toISOString(),
+       }),
+     }).catch(function(){});
    });
 
    // ── Service Worker registration ───────────────────────────────────────────

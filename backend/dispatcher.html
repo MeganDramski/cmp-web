@@ -1047,7 +1047,9 @@ function renderDetail(){
         +'<div class="map-stat"><div class="map-stat-val" id="dms-lat">—</div><div class="map-stat-lbl">Latitude</div></div>'
         +'<div class="map-stat"><div class="map-stat-val" id="dms-lng">—</div><div class="map-stat-lbl">Longitude</div></div>'
         +'</div>'
-        +'<div class="stale-warn" id="disp-stale-warn"><span class="stale-icon">⚠️</span><span id="disp-stale-msg">No location update received — signal may be lost.</span></div>'
+        +'<div class="stale-warn" id="disp-stale-warn"><span class="stale-icon">⚠️</span><span id="disp-stale-msg">No location update received — signal may be lost.</span>'
+        +'<button class="btn btn-sm" id="btn-ping-driver" style="margin-left:auto;background:#FF9500;color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;" onclick="pingDriver()">📲 Ping Driver</button>'
+        +'</div>'
         +'</div>'
       : ''
     )
@@ -1149,13 +1151,27 @@ function _selLoadChanged(freshArray){
 }
 
 var _dispMap=null, _dispMarker=null, _dispTrail=null, _dispTrailPts=[], _dispPollTimer=null, _dispStaleTimer=null, _lastLocTimestamp=null;
+var _lastGpsTimestamp=null; // actual timestamp of driver's last GPS fix
 // Track which load the dispatcher map is currently showing.
 var _dispMapLoadId=null;
+
+// Update the "Last update" stat to show relative time (e.g. "30s ago", "2 min ago")
+function updateLastSeenLabel(){
+  var el=document.getElementById('dms-updated');
+  if(!el||!_lastGpsTimestamp)return;
+  var age=Date.now()-_lastGpsTimestamp;
+  var mins=Math.floor(age/60000);
+  var secs=Math.floor((age%60000)/1000);
+  if(age<10000)       el.textContent='Just now';
+  else if(mins===0)   el.textContent=secs+'s ago';
+  else if(mins===1)   el.textContent='1 min ago';
+  else                el.textContent=mins+' min ago';
+}
 
 function stopDispatcherMap(){
   if(_dispPollTimer){clearInterval(_dispPollTimer);_dispPollTimer=null;}
   if(_dispStaleTimer){clearInterval(_dispStaleTimer);_dispStaleTimer=null;}
-  _dispMap=null; _dispMarker=null; _dispTrail=null; _dispTrailPts=[]; _lastLocTimestamp=null;
+  _dispMap=null; _dispMarker=null; _dispTrail=null; _dispTrailPts=[]; _lastLocTimestamp=null; _lastGpsTimestamp=null;
   _dispMapLoadId=null;
 }
 
@@ -1175,8 +1191,8 @@ function startDispatcherMap(load){
   pollDispatcherMap(load.trackingToken);
   // Then every 5 seconds for smooth live tracking
   _dispPollTimer=setInterval(function(){pollDispatcherMap(load.trackingToken);},5000);
-  // Check for stale signal every 30 seconds (starts after first poll has run)
-  _dispStaleTimer=setInterval(function(){checkStaleSignal();},30000);
+  // Refresh stale warning every 15 s so the "X min ago" counter stays current
+  _dispStaleTimer=setInterval(function(){checkStaleSignal();updateLastSeenLabel();},15000);
 }
 
 function checkStaleSignal(){
@@ -1184,11 +1200,13 @@ function checkStaleSignal(){
   var msg=document.getElementById('disp-stale-msg');
   if(!warn)return;
   if(!_lastLocTimestamp){warn.classList.remove('on');return;}
-  var age=Date.now()-_lastLocTimestamp; // ms since last live poll update
-  var STALE_MS=5*60*1000; // 5 minutes of no new data from the live poll
+  var age=Date.now()-_lastLocTimestamp;
+  var STALE_MS=2*60*1000; // show warning after 2 minutes of no update
   if(age>=STALE_MS){
     var mins=Math.floor(age/60000);
-    if(msg) msg.textContent='No location update for '+mins+' min — driver signal may be lost.';
+    var secs=Math.floor((age%60000)/1000);
+    var timeStr = mins>0 ? mins+' min'+(mins>1?'s':'')+' ago' : secs+'s ago';
+    if(msg) msg.textContent='⚠️ Last ping '+timeStr+' — driver may have closed the app. Tap Ping Driver to alert them.';
     warn.classList.add('on');
   } else {
     warn.classList.remove('on');
@@ -1319,13 +1337,50 @@ function pollDispatcherMap(token){
         document.getElementById('dms-speed').textContent=loc.speed!=null?Math.round(loc.speed):'0';
         document.getElementById('dms-lat').textContent=lat.toFixed(5);
         document.getElementById('dms-lng').textContent=lng.toFixed(5);
-        document.getElementById('dms-updated').textContent=loc.timestamp?new Date(loc.timestamp).toLocaleTimeString():'—';
+        // Record actual GPS timestamp for live "X ago" label
+        _lastGpsTimestamp = loc.timestamp ? new Date(loc.timestamp).getTime() : Date.now();
+        updateLastSeenLabel();
         // Update stale clock to NOW (time of this successful poll), not the stored GPS timestamp
         _lastLocTimestamp=Date.now();
         checkStaleSignal();
       }
     })
     .catch(function(){/* silently ignore network errors */});
+}
+
+/* ── PING DRIVER ─────────────────────────────────────────────────────────── */
+// Re-sends the driver tracking link (email + SMS) so driver gets a push
+// notification that brings them back to the tracking page.
+function pingDriver(){
+  var load=loads.find(function(l){return l.id===selectedLoadId;});
+  if(!load){toast('No load selected');return;}
+  if(!load.assignedDriverPhone && !load.assignedDriverEmail){
+    toast('No driver phone or email on file — edit the load to add contact info.');
+    return;
+  }
+  var btn=document.getElementById('btn-ping-driver');
+  if(btn){btn.disabled=true;btn.textContent='Sending…';}
+
+  fetch(API+'/loads/'+load.id+'/send-driver-link',{
+    method:'POST',
+    headers:ah(),
+    body:JSON.stringify({
+      dispatcherEmail: currentUser&&currentUser.email ? currentUser.email : (load.createdBy||''),
+      pingOnly: true,   // tells Lambda to use a short "reopen app" message
+    }),
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if(d.success||d.driverLink){
+      toast('📲 Driver has been pinged — they will receive a link to reopen the app.');
+    } else {
+      toast('Could not ping driver: '+(d.error||'unknown error'));
+    }
+  })
+  .catch(function(e){toast('Ping failed: '+e.message);})
+  .finally(function(){
+    if(btn){btn.disabled=false;btn.textContent='📲 Ping Driver';}
+  });
 }
 
 /* ASSIGN DRIVER */
