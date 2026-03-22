@@ -493,7 +493,7 @@
      <div id="pwa-modal-sub" id="pwa-modal-sub">Keeps GPS running in the background — no App Store needed.</div>
      <div id="pwa-modal-body"><!-- filled by JS --></div>
      <button id="pwa-android-btn" style="display:none" onclick="triggerAndroidInstall()">📲 Add to Home Screen</button>
-     <button id="pwa-modal-dismiss" onclick="dismissPWABanner()">Skip — show my load ›</button>
+     <button id="pwa-modal-dismiss" onclick="dismissPWABanner()">Not now — show my load ›</button>
    </div>
  </div>
  <!-- Animated arrow pointing DOWN at Safari share button (iOS only) -->
@@ -1667,6 +1667,34 @@
      }
    });
 
+   // Android: fires after the user taps "Install" in the native popup
+   window.addEventListener('appinstalled', function() {
+     addLog('📲 App added to home screen');
+     showInstalledAndClose();
+   });
+
+   // Show a "installed — you can close this tab" screen, then try to close the tab.
+   function showInstalledAndClose() {
+     try { localStorage.setItem('cmp_pwa_banner_dismissed', '1'); } catch(e) {}
+     // Replace the modal content with a success message
+     var box = document.getElementById('pwa-modal-box');
+     if (box) {
+       box.innerHTML =
+         '<div style="font-size:64px;margin-bottom:16px">✅</div>'
+         + '<div style="font-size:20px;font-weight:700;margin-bottom:8px">App Installed!</div>'
+         + '<div style="font-size:14px;color:#8e8ea0;line-height:1.6;margin-bottom:24px">'
+         + 'CMP Tracking has been added to your home screen.<br>'
+         + 'You can now <strong style="color:#fff">close this tab</strong> and open the app from your home screen.</div>'
+         + '<button onclick="window.close()" style="width:100%;padding:14px;background:#34C759;color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px">✕ Close This Tab</button>';
+     }
+     var overlay = document.getElementById('pwa-modal-overlay');
+     if (overlay) overlay.classList.add('visible');
+     // Attempt automatic close after a short delay (works when tab was opened by a link)
+     setTimeout(function() {
+       try { window.close(); } catch(e) {}
+     }, 2000);
+   }
+
    // Called when driver taps the green "Add to Home Screen" button (Android)
    function triggerAndroidInstall() {
      if (!_androidDeferredPrompt) return;
@@ -1674,8 +1702,11 @@
      _androidDeferredPrompt.userChoice.then(function(result) {
        _androidDeferredPrompt = null;
        if (result.outcome === 'accepted') {
+         // appinstalled event will fire and call showInstalledAndClose()
+         // but call it as a fallback here too in case the event is slow
+         setTimeout(showInstalledAndClose, 800);
+       } else {
          dismissPWABanner();
-         addLog('📲 App added to home screen');
        }
      });
    }
@@ -1737,7 +1768,11 @@
          + '<div class="pwa-ios-step">'
          + '<div class="pwa-ios-step-icon"><span style="font-size:28px">✅</span></div>'
          + '<div class="pwa-ios-step-text"><strong>3. Tap Add — you\'re done!</strong>'
-         + '<span>A 🚛 icon appears on your home screen — always open that next time</span></div></div>';
+         + '<span>A 🚛 icon appears on your home screen</span></div></div>'
+         + '<div class="pwa-ios-step" style="margin-top:4px;background:rgba(52,199,89,.1);border-radius:10px;padding:10px 12px;">'
+         + '<div class="pwa-ios-step-icon"><span style="font-size:28px">✕</span></div>'
+         + '<div class="pwa-ios-step-text"><strong>4. Close this tab &amp; open the 🚛 icon</strong>'
+         + '<span>Always use the home screen icon from now on — GPS works better from there</span></div></div>';
        androidBtn.style.display = 'none';
        // Show the bouncing arrow after a short delay
        setTimeout(function() { arrow.classList.add('visible'); }, 500);
