@@ -279,7 +279,6 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi
             Path: /loads/{id}/status
             Method: PATCH
 
@@ -294,7 +293,6 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi
             Path: /loads/{id}
             Method: PUT
   # DELETE /loads/{id}
@@ -309,7 +307,6 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi
             Path: /loads/{id}
             Method: DELETE
 
@@ -325,7 +322,6 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi
             Path: /loads/{id}/accept
             Method: POST
 
@@ -341,7 +337,6 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi
             Path: /loads/{id}/assign
             Method: PATCH
 
@@ -357,7 +352,6 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi
             Path: /users
             Method: GET
 
