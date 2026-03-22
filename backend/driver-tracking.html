@@ -1675,7 +1675,10 @@
 
    // Show a "installed — you can close this tab" screen, then try to close the tab.
    function showInstalledAndClose() {
-     try { localStorage.setItem('cmp_pwa_banner_dismissed', '1'); } catch(e) {}
+     try {
+       localStorage.setItem('cmp_pwa_banner_dismissed', '1');
+       localStorage.setItem('cmp_pwa_installed', '1'); // permanent flag — never show install prompt again
+     } catch(e) {}
      // Replace the modal content with a success message
      var box = document.getElementById('pwa-modal-box');
      if (box) {
@@ -1715,7 +1718,10 @@
    function dismissPWABanner() {
      document.getElementById('pwa-modal-overlay').classList.remove('visible');
      document.getElementById('pwa-arrow').classList.remove('visible');
-     try { localStorage.setItem('cmp_pwa_banner_dismissed', '1'); } catch(e) {}
+     try {
+       localStorage.setItem('cmp_pwa_banner_dismissed', '1');
+       localStorage.setItem('cmp_pwa_installed', '1'); // treat dismiss as installed — don't show again
+     } catch(e) {}
      // Scroll load card into view smoothly
      setTimeout(function() {
        var card = document.getElementById('load-card');
@@ -1725,13 +1731,14 @@
 
    // ── Show the install modal for iOS or Android ─────────────────────────────
    function showPWABanner() {
-     // Already a standalone PWA — no need to prompt
+     // Already running as a standalone PWA (opened from home screen icon)
      var isStandalone = window.navigator.standalone === true ||
                         window.matchMedia('(display-mode: standalone)').matches;
      if (isStandalone) return;
 
-     // Already dismissed
-     if (localStorage.getItem('cmp_pwa_banner_dismissed') ||
+     // Previously installed or dismissed — never prompt again
+     if (localStorage.getItem('cmp_pwa_installed') ||
+         localStorage.getItem('cmp_pwa_banner_dismissed') ||
          localStorage.getItem('cmp_ios_tip_dismissed')) return;
 
      var ua        = navigator.userAgent;
@@ -1739,6 +1746,29 @@
      var isAndroid = /android/i.test(ua);
      if (!isIOS && !isAndroid) return;
 
+     // On Android Chrome, if beforeinstallprompt never fires it means the browser
+     // already considers the app installed — don't show the modal at all.
+     // We wait up to 1.5 s for the event before deciding to show.
+     if (isAndroid) {
+       if (_androidDeferredPrompt) {
+         _doShowPWABanner(isIOS, isAndroid);
+       } else {
+         setTimeout(function() {
+           // If still no prompt after 1.5 s, the app is likely already installed
+           if (!_androidDeferredPrompt) {
+             try { localStorage.setItem('cmp_pwa_installed', '1'); } catch(e) {}
+             return; // suppress the modal silently
+           }
+           _doShowPWABanner(isIOS, isAndroid);
+         }, 1500);
+       }
+       return;
+     }
+
+     _doShowPWABanner(isIOS, isAndroid);
+   }
+
+   function _doShowPWABanner(isIOS, isAndroid) {
      var overlay  = document.getElementById('pwa-modal-overlay');
      var body     = document.getElementById('pwa-modal-body');
      var androidBtn = document.getElementById('pwa-android-btn');
