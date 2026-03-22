@@ -1182,9 +1182,7 @@ function updateLastSeenLabel(){
   else if(mins===0)    rel=secs+'s ago';
   else if(mins===1)    rel='1 min ago';
   else                 rel=mins+' min ago';
-  // Also show the actual clock time so it's easy to compare with driver logs
-  var clock=new Date(_lastGpsTimestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  el.textContent=clock+' ('+rel+')';
+  el.textContent=rel;
 }
 
 function stopDispatcherMap(){
@@ -1295,7 +1293,8 @@ function snapToRoads(history, callback){
 }
 
 function pollDispatcherMap(token){
-  fetch(API+'/track/'+token)
+  var pollStart = Date.now();
+  fetch(API+'/track/'+token+'?live=1')
     .then(function(r){
       if(!r.ok){ console.warn('pollDispatcherMap HTTP '+r.status); return null; }
       return r.json();
@@ -1358,10 +1357,12 @@ function pollDispatcherMap(token){
         document.getElementById('dms-speed').textContent=loc.speed!=null?Math.round(loc.speed):'0';
         document.getElementById('dms-lat').textContent=lat.toFixed(5);
         document.getElementById('dms-lng').textContent=lng.toFixed(5);
-        // Set actual GPS timestamp and update the "X ago" / clock label immediately
-        _lastGpsTimestamp = loc.timestamp ? new Date(loc.timestamp).getTime() : Date.now();
+        // Use server receive time for staleness check — driver phone clock may drift.
+        // Show the GPS timestamp in the label but base "X ago" on when we got the data.
+        var receiveTime = Date.now();
+        _lastGpsTimestamp = receiveTime;  // "ago" counts from when dispatcher received it
+        _lastLocTimestamp = receiveTime;
         updateLastSeenLabel();
-        _lastLocTimestamp = Date.now();
         checkStaleSignal();
       }
     })

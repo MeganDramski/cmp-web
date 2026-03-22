@@ -31,37 +31,40 @@ exports.handler = async (event) => {
 
     const load = unmarshall(loadResult.Items[0]);
 
-    // Fetch full location history — paginate through all DynamoDB pages.
-    // No startedAt filter — return every point so the dispatcher map always
-    // has data regardless of when startedAt was recorded.
+    // Fetch location history.
+    // If ?live=1 (dispatcher live map poll) fetch only the last 100 points — fast.
+    // Otherwise fetch up to 500 for the full customer tracking view.
+    const isLivePoll = event.queryStringParameters?.live === '1';
+    const MAX_POINTS = isLivePoll ? 100 : 500;
+
     let lastLocation = load.lastLocation || null;
     let locationHistory = [];
     try {
-      const MAX_POINTS = 500; // enough for a full-day trail
       let lastKey = undefined;
       while (locationHistory.length < MAX_POINTS) {
         const locResult = await db.send(new QueryCommand({
           TableName:                LOCATIONS_TABLE,
           KeyConditionExpression:   "loadId = :lid",
           ExpressionAttributeValues: marshall({ ":lid": load.id }),
-          ScanIndexForward:         true,   // ascending = chronological, newest last
+          ScanIndexForward:         !isLivePoll,  // live poll: descending (newest first), full: ascending
           Limit:                    MAX_POINTS,
           ...(lastKey ? { ExclusiveStartKey: lastKey } : {}),
         }));
         if (locResult.Items && locResult.Items.length > 0) {
           locationHistory = locationHistory.concat(locResult.Items.map(unmarshall));
         }
-        if (!locResult.LastEvaluatedKey) break;
+        // For live polls stop after the first page — we only want the latest 100
+        if (isLivePoll || !locResult.LastEvaluatedKey) break;
         lastKey = locResult.LastEvaluatedKey;
       }
-      // Use the newest history point as lastLocation (more up-to-date than
-      // the denormalised field on the load, which may lag by a write cycle).
+      // For live poll results came descending — reverse to get chronological order
+      if (isLivePoll) locationHistory.reverse();
+      // Use the newest history point as lastLocation
       if (locationHistory.length > 0) {
         lastLocation = locationHistory[locationHistory.length - 1];
       }
     } catch (locErr) {
       console.error("trackByToken location fetch error:", locErr);
-      // Non-fatal — return load info without location history
     }
 
     const safeLoad = {
