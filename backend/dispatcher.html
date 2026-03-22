@@ -219,14 +219,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     <div class="aform on" id="form-in">
       <div class="fg"><label>Email</label><input type="email" id="si-email" placeholder="dispatcher@yourcompany.com"/></div>
       <div class="fg"><label>Password</label><input type="password" id="si-pw" placeholder="Password"/></div>
-      <button class="btn btn-p btn-full" id="btn-in">Sign In</button>
+      <button type="button" class="btn btn-p btn-full" id="btn-in">Sign In</button>
     </div>
     <div class="aform" id="form-up">
       <div class="fg"><label>Full Name</label><input type="text" id="reg-name" placeholder="Jane Dispatcher"/></div>
       <div class="fg"><label>Work Email</label><input type="email" id="reg-email" placeholder="dispatcher@yourcompany.com"/></div>
       <div class="fg"><label>Phone (optional)</label><input type="tel" id="reg-phone" placeholder="+1 312 555 0100"/></div>
       <div class="fg"><label>Password (min 6 chars)</label><input type="password" id="reg-pw" placeholder="Password"/></div>
-      <button class="btn btn-p btn-full" id="btn-up">Request Access</button>
+      <button type="button" class="btn btn-p btn-full" id="btn-up">Request Access</button>
     </div>
     <!-- Create Company — self-service sign-up for new tenants -->
     <div class="aform" id="form-co">
@@ -234,7 +234,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
       <div class="fg"><label>Your Name</label><input type="text" id="co-name" placeholder="Jane Dispatcher"/></div>
       <div class="fg"><label>Work Email</label><input type="email" id="co-email" placeholder="jane@acmefreight.com"/></div>
       <div class="fg"><label>Password (min 8 chars)</label><input type="password" id="co-pw" placeholder="Strong password"/></div>
-      <button class="btn btn-p btn-full" id="btn-co">Create Company &amp; Sign In</button>
+      <button type="button" class="btn btn-p btn-full" id="btn-co">Create Company &amp; Sign In</button>
       <p class="anote" style="margin-top:10px">Includes a 14-day free trial. No credit card required to start.</p>
     </div>
     <!-- Shown after a successful request submission -->
@@ -486,11 +486,29 @@ function doCreateCompany(){
   aclr();
   var company=document.getElementById('co-company').value.trim();
   var name=document.getElementById('co-name').value.trim();
-  var email=document.getElementById('co-email').value.trim();
+  var email=document.getElementById('co-email').value.trim().toLowerCase();
   var pass=document.getElementById('co-pw').value;
   if(!company||!name||!email||!pass)return aerr('All fields are required.');
   if(pass.length<8)return aerr('Password must be at least 8 characters.');
   var btn=document.getElementById('btn-co'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Creating company…';
+
+  // ── Offline / local mode ──────────────────────────────────────────────────
+  if(!isLive()){
+    var accs=JSON.parse(localStorage.getItem('cmp_accounts')||'[]');
+    for(var i=0;i<accs.length;i++){if(accs[i].email===email){btn.disabled=false;btn.textContent='Create Company & Sign In';return aerr('An account with that email already exists.');}}
+    var tenantId='local-'+Date.now();
+    var newUser={name:name,email:email,role:'dispatcher',tenantId:tenantId,companyName:company,plan:'trial',passwordHash:sha256(pass),status:'active'};
+    accs.push(newUser);
+    localStorage.setItem('cmp_accounts',JSON.stringify(accs));
+    session={token:'local',user:{name:name,email:email,role:'dispatcher',tenantId:tenantId,companyName:company,plan:'trial'}};
+    localStorage.setItem('cmp_session',JSON.stringify(session));
+    btn.disabled=false;btn.textContent='Create Company & Sign In';
+    enterApp();
+    toast('🎉 Welcome, '+company+'! Your 14-day trial has started.');
+    return;
+  }
+
+  // ── Live backend ──────────────────────────────────────────────────────────
   fetch(API+'/companies/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({companyName:company,adminName:name,adminEmail:email,password:pass})})
     .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
     .then(function(res){
