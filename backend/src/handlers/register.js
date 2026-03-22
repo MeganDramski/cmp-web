@@ -1,17 +1,18 @@
 // src/handlers/register.js
 const { DynamoDBClient, GetItemCommand, PutItemCommand } = require("@aws-sdk/client-dynamodb");
 const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
-const { marshall } = require("@aws-sdk/util-dynamodb");
+const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 const crypto = require("crypto");
 
 const db  = new DynamoDBClient({});
 const ses = new SESClient({});
 
-const TABLE         = process.env.USERS_TABLE;
-const PENDING_TABLE = process.env.PENDING_TABLE || "cmp-pending";
-const SES_FROM      = process.env.SES_FROM_EMAIL;
-const API_BASE      = process.env.TRACKING_BASE_URL || "";
-const AMPLIFY_BASE  = process.env.AMPLIFY_BASE_URL  || "";
+const TABLE           = process.env.USERS_TABLE;
+const PENDING_TABLE   = process.env.PENDING_TABLE || "cmp-pending";
+const COMPANIES_TABLE = process.env.COMPANIES_TABLE;
+const SES_FROM        = process.env.SES_FROM_EMAIL;
+const API_BASE        = process.env.TRACKING_BASE_URL || "";
+const AMPLIFY_BASE    = process.env.AMPLIFY_BASE_URL  || "";
 
 const APPROVAL_ADMINS = (process.env.APPROVAL_ADMINS || "megandramski@gmail.com,dispatch@cmplogistics.ca")
   .split(",").map(s => s.trim()).filter(Boolean);
@@ -30,7 +31,7 @@ function makeApprovalToken(email, action) {
 exports.handler = async (event) => {
   try {
     const body = JSON.parse(event.body || "{}");
-    const { name, email, phone, role, password } = body;
+    const { name, email, phone, role, password, tenantId } = body;
 
     if (!name || !email || !password || !role) {
       return respond(400, { error: "name, email, password and role are required." });
@@ -60,11 +61,31 @@ exports.handler = async (event) => {
       return respond(409, { error: "A request for this email is already pending admin approval." });
     }
 
+    // Look up company name if tenantId provided
+    let companyName = null;
+    if (tenantId && COMPANIES_TABLE) {
+      try {
+        const compResult = await db.send(new GetItemCommand({
+          TableName: COMPANIES_TABLE,
+          Key: marshall({ tenantId }),
+        }));
+        if (compResult.Item) {
+          companyName = unmarshall(compResult.Item).companyName || null;
+        } else {
+          return respond(404, { error: "Company not found. Check your invite link." });
+        }
+      } catch (e) {
+        console.warn("Could not look up company:", e.message);
+      }
+    }
+
     const item = {
       email:        trimmedEmail,
       name:         name.trim(),
       phone:        (phone || "").trim(),
-      role:         role,
+      role,
+      tenantId:     tenantId || null,
+      companyName:  companyName,
       passwordHash: sha256(password),
       createdAt:    new Date().toISOString(),
     };

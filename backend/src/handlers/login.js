@@ -50,7 +50,14 @@ exports.handler = async (event) => {
 
     // Issue JWT — expires in 30 days
     const token = jwt.sign(
-      { email: user.email, role: user.role, name: user.name },
+      {
+        email:       user.email,
+        role:        user.role,
+        name:        user.name,
+        tenantId:    user.tenantId    || null,
+        companyName: user.companyName || null,
+        plan:        user.plan        || "free",
+      },
       JWT_SECRET,
       { expiresIn: "30d" }
     );

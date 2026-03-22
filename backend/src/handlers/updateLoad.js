@@ -9,9 +9,22 @@ const TABLE = process.env.LOADS_TABLE;
 
 exports.handler = async (event) => {
   try {
-    verifyToken(event);
+    const user = verifyToken(event);
     const loadId = event.pathParameters && event.pathParameters.id;
     if (!loadId) return respond(400, { error: "Load ID is required." });
+
+    // Verify the load belongs to this tenant before updating
+    if (user.tenantId) {
+      const existing = await db.send(new GetItemCommand({
+        TableName: TABLE,
+        Key: marshall({ id: loadId }),
+      }));
+      if (!existing.Item) return respond(404, { error: "Load not found." });
+      const existingLoad = unmarshall(existing.Item);
+      if (existingLoad.tenantId && existingLoad.tenantId !== user.tenantId) {
+        return respond(403, { error: "Access denied." });
+      }
+    }
 
     const body = JSON.parse(event.body || "{}");
 
