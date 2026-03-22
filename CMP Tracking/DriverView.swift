@@ -91,7 +91,7 @@ struct DriverView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    ParceloLogo(showWordmark: false, size: 32)
+                    ParceloLogoD(showWordmark: false, size: 32)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 16) {

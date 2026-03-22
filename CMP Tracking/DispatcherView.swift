@@ -78,7 +78,7 @@ struct ActiveLoadsTab: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     HStack(spacing: 10) {
-                        ParceloLogo(showWordmark: false, size: 32)
+                        ParceloLogoD(showWordmark: false, size: 32)
                         Button(action: { authManager.signOut(); appState.logout() }) {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
                         }

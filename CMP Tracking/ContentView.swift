@@ -41,7 +41,7 @@ struct AuthView: View {
 
                     // ── Logo ──────────────────────────────────────────────
                     VStack(spacing: 8) {
-                        ParceloLogo(size: 90)
+                        ParceloLogoD(size: 90)
                         Text("Logistics. Simplified.")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
