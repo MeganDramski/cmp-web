@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CMP Tracking – Install App</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--blue:#007AFF;--green:#34C759;--bg:#0f0f1a;--card:#1c1c2e;--border:#2c2c3e;--text:#fff;--muted:#8e8ea0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 16px}
+.logo{font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:32px}
+.card{width:100%;max-width:420px;background:var(--card);border:1px solid var(--border);border-radius:24px;padding:32px 28px;text-align:center}
+.app-icon{width:96px;height:96px;background:linear-gradient(135deg,#007AFF,#34C759);border-radius:22px;display:flex;align-items:center;justify-content:center;font-size:48px;margin:0 auto 20px;box-shadow:0 8px 32px rgba(0,122,255,.35)}
+h1{font-size:26px;font-weight:700;margin-bottom:6px}
+.version{font-size:13px;color:var(--muted);margin-bottom:28px}
+.btn-install{display:block;width:100%;padding:16px;background:var(--blue);color:#fff;border:none;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;text-decoration:none;margin-bottom:12px;transition:opacity .15s}
+.btn-install:active{opacity:.8}
+.btn-install.green{background:var(--green)}
+.steps{background:rgba(255,255,255,.04);border-radius:14px;padding:16px 18px;margin-top:20px;text-align:left}
+.steps-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:12px}
+.step{display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;font-size:14px;line-height:1.5}
+.step:last-child{margin-bottom:0}
+.step-num{flex-shrink:0;width:24px;height:24px;background:var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.warn{background:rgba(255,149,0,.1);border:1px solid rgba(255,149,0,.3);border-radius:12px;padding:12px 14px;margin-top:16px;font-size:13px;color:#FF9500;line-height:1.5;text-align:left}
+.not-ios{display:none}
+/* Show different content depending on platform */
+</style>
+</head>
+<body>
+<p class="logo">CMP Logistics</p>
+
+<div class="card" id="main-card">
+  <div class="app-icon">🚛</div>
+  <h1>CMP Tracking</h1>
+  <div class="version" id="ver-line">Driver App · v<span id="app-version">1.0</span></div>
+
+  <!-- iOS install button -->
+  <div id="ios-section">
+    <a id="btn-install-ios" class="btn-install" href="#">
+      📲 Tap to Install
+    </a>
+    <div class="steps">
+      <div class="steps-title">After tapping Install above:</div>
+      <div class="step"><span class="step-num">1</span><span>Tap <strong>Install</strong> in the popup — the app will appear on your home screen</span></div>
+      <div class="step"><span class="step-num">2</span><span>Go to <strong>Settings → General → VPN &amp; Device Management</strong> and trust the profile</span></div>
+      <div class="step"><span class="step-num">3</span><span>Open <strong>CMP Tracking</strong> from your home screen and log in</span></div>
+    </div>
+    <div class="warn" id="trust-warn" style="display:none">
+      ⚠️ After installing, you must trust the developer profile:<br>
+      <strong>Settings → General → VPN &amp; Device Management → Trust</strong>
+    </div>
+  </div>
+
+  <!-- Android section -->
+  <div id="android-section" style="display:none">
+    <div class="warn" style="margin-bottom:16px">
+      📱 Android driver app coming soon.<br>
+      For now, use the browser tracking link sent by your dispatcher.
+    </div>
+  </div>
+
+  <!-- Desktop / unknown section -->
+  <div id="desktop-section" style="display:none">
+    <div class="warn">
+      📱 This install link is for iPhones.<br>
+      Open this page on the driver's iPhone to install the app.
+    </div>
+    <div style="margin-top:20px;font-size:13px;color:var(--muted)">
+      Or send this link to the driver:
+    </div>
+    <div id="page-url" style="margin-top:8px;background:rgba(255,255,255,.06);border-radius:10px;padding:10px 12px;font-family:monospace;font-size:12px;word-break:break-all;color:var(--text)"></div>
+    <button onclick="copyLink()" style="margin-top:10px;width:100%;padding:11px;background:rgba(255,255,255,.08);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;font-weight:600;cursor:pointer">📋 Copy Link</button>
+  </div>
+</div>
+
+<script>
+// ── Configuration — update these after each build ─────────────────────────
+// IPA_URL: the direct link to the .ipa file hosted on your server/S3
+// PLIST_URL: the direct link to the app.plist file
+// These are set during the Amplify build. If not set, show manual instructions.
+var IPA_URL   = window.CMP_IPA_URL   || '';   // e.g. https://cdn.cmplogistics.ca/CMP-Tracking.ipa
+var PLIST_URL = window.CMP_PLIST_URL || '';   // e.g. https://cdn.cmplogistics.ca/app.plist
+var APP_VER   = window.CMP_APP_VER   || '1.0';
+// ─────────────────────────────────────────────────────────────────────────
+
+document.getElementById('app-version').textContent = APP_VER;
+document.getElementById('page-url').textContent = window.location.href;
+
+var ua = navigator.userAgent;
+var isIOS     = /iphone|ipad|ipod/i.test(ua);
+var isAndroid = /android/i.test(ua);
+
+if (isIOS) {
+  document.getElementById('android-section').style.display = 'none';
+  document.getElementById('desktop-section').style.display = 'none';
+  document.getElementById('ios-section').style.display = 'block';
+
+  var btn = document.getElementById('btn-install-ios');
+  if (PLIST_URL) {
+    // OTA install via itms-services — launches the iOS install dialog directly
+    btn.href = 'itms-services://?action=download-manifest&url=' + encodeURIComponent(PLIST_URL);
+    btn.textContent = '📲 Tap to Install';
+    document.getElementById('trust-warn').style.display = 'block';
+  } else {
+    // No IPA hosted yet — show TestFlight or manual instructions
+    btn.style.display = 'none';
+    document.querySelector('.steps').innerHTML =
+      '<div class="steps-title">How to get the app:</div>'
+      + '<div class="step"><span class="step-num">1</span><span>Contact your dispatcher — they will send you an install link via TestFlight or SMS</span></div>'
+      + '<div class="step"><span class="step-num">2</span><span>Tap the link on your iPhone and follow the install steps</span></div>';
+  }
+} else if (isAndroid) {
+  document.getElementById('ios-section').style.display = 'none';
+  document.getElementById('desktop-section').style.display = 'none';
+  document.getElementById('android-section').style.display = 'block';
+} else {
+  document.getElementById('ios-section').style.display = 'none';
+  document.getElementById('android-section').style.display = 'none';
+  document.getElementById('desktop-section').style.display = 'block';
+}
+
+function copyLink() {
+  var url = window.location.href;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(function() { alert('Link copied!'); });
+  } else {
+    var el = document.createElement('textarea');
+    el.value = url; document.body.appendChild(el); el.select();
+    document.execCommand('copy'); document.body.removeChild(el);
+    alert('Link copied!');
+  }
+}
+</script>
+</body>
+</html>
