@@ -940,8 +940,13 @@
      if (data.deliveryDate) extras += '<div style="font-size:13px;color:var(--muted);margin-top:4px">📅 Delivery by: ' + new Date(data.deliveryDate).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"}) + '</div>';
      if (data.customerName) extras += '<div style="font-size:13px;color:var(--muted);margin-top:4px">🏢 Customer: ' + data.customerName + '</div>';
      if (data.notes)        extras += '<div style="font-size:13px;color:var(--muted);margin-top:4px;padding:8px;background:rgba(255,255,255,.04);border-radius:8px">📝 ' + data.notes + '</div>';
-     if (extras) {
+     // Always replace (never append) so re-calling populateLoad doesn't duplicate extras
+     var existingExtras = document.getElementById("load-card-extras");
+     if (existingExtras) {
+       existingExtras.innerHTML = extras;
+     } else if (extras) {
        var extraDiv = document.createElement("div");
+       extraDiv.id = "load-card-extras";
        extraDiv.style.marginTop = "10px";
        extraDiv.innerHTML = extras;
        document.getElementById("load-card").appendChild(extraDiv);
@@ -1067,7 +1072,12 @@
      var loadNumber = loadData ? loadData.loadNumber : '';
      var driverName = loadData ? (loadData.assignedDriverName || 'Driver') : 'Driver';
 
+     // Guard so onAccepted only runs once even if both fetch callbacks resolve
+     var _accepted = false;
      function onAccepted() {
+       if (_accepted) return;
+       _accepted = true;
+       if (_acceptTimeout) { clearTimeout(_acceptTimeout); _acceptTimeout = null; }
        updateLocalStatus('Accepted');
        var badge = document.getElementById('status-badge');
        badge.className   = 'status-badge accepted';
@@ -1083,6 +1093,17 @@
        // Prompt driver to add to home screen right after accepting
        showPWABanner();
      }
+
+     function onAcceptError() {
+       if (_accepted) return; // already succeeded via the other fetch
+       _accepted = true;
+       if (_acceptTimeout) { clearTimeout(_acceptTimeout); _acceptTimeout = null; }
+       // Still complete the accept locally — dispatcher email may not send but local state is correct
+       onAccepted();
+     }
+
+     // Safety net: if both API calls hang, auto-complete after 8 s so button never stays stuck
+     var _acceptTimeout = setTimeout(onAccepted, 8000);
 
      if (isLive() && TOKEN) {
        fetch(API_BASE + '/track/' + TOKEN + '/status', {
@@ -1102,7 +1123,7 @@
        })
        .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
        .then(function() { onAccepted(); })
-       .catch(function(err) { console.warn('Accept endpoint error:', err); onAccepted(); });
+       .catch(function(err) { console.warn('Accept endpoint error:', err); onAcceptError(); });
      } else {
        onAccepted();
        if (loadData && loadData.dispatcherEmail) {
