@@ -348,64 +348,104 @@
    #conn-bar.back-online { display: block; background: rgba(52,199,89,0.92); color: #fff; }
    #conn-bar.paused      { display: none; }
 
-   /* ── Smart Add-to-Home-Screen install banner (iOS + Android) ── */
-   #pwa-banner {
+   /* ── PWA Install Modal (full-screen overlay) ── */
+   #pwa-modal-overlay {
      display: none;
-     width: 100%;
-     max-width: 400px;
-     border-radius: 16px;
-     padding: 16px;
-     margin-bottom: 14px;
-     font-size: 13px;
-     line-height: 1.6;
+     position: fixed; inset: 0; z-index: 9999;
+     background: rgba(0,0,0,0.82);
+     flex-direction: column;
+     align-items: center;
+     justify-content: flex-end;
+     padding-bottom: 110px; /* leave room for Safari toolbar */
+     animation: fadeInOverlay 0.25s ease;
+   }
+   #pwa-modal-overlay.visible { display: flex; }
+   @keyframes fadeInOverlay {
+     from { opacity: 0; } to { opacity: 1; }
+   }
+   #pwa-modal-box {
+     width: calc(100% - 32px);
+     max-width: 380px;
+     background: #1c1c2e;
+     border: 1px solid rgba(255,255,255,0.12);
+     border-radius: 20px;
+     padding: 22px 20px 18px;
+     text-align: center;
+     animation: slideUpBox 0.3s cubic-bezier(0.34,1.56,0.64,1);
      position: relative;
-     animation: slideDown 0.35s ease;
    }
-   @keyframes slideDown {
-     from { opacity:0; transform:translateY(-10px); }
-     to   { opacity:1; transform:translateY(0);     }
+   @keyframes slideUpBox {
+     from { opacity:0; transform:translateY(40px); }
+     to   { opacity:1; transform:translateY(0);    }
    }
-   #pwa-banner.ios-style {
-     background: rgba(0,122,255,0.12);
-     border: 1px solid rgba(0,122,255,0.35);
-     color: #4da6ff;
+   #pwa-modal-icon {
+     font-size: 52px; margin-bottom: 10px; line-height:1;
    }
-   #pwa-banner.android-style {
-     background: rgba(52,199,89,0.12);
-     border: 1px solid rgba(52,199,89,0.35);
-     color: #34C759;
+   #pwa-modal-title {
+     font-size: 20px; font-weight: 800; color: #fff;
+     margin-bottom: 6px;
    }
-   #pwa-banner.visible { display: block; }
-   #pwa-banner-title {
-     font-size: 14px; font-weight: 700; color: #fff;
-     margin-bottom: 6px; padding-right: 28px;
+   #pwa-modal-sub {
+     font-size: 14px; color: #8e8ea0; margin-bottom: 18px; line-height: 1.5;
    }
-   #pwa-banner-close {
-     position: absolute; top: 12px; right: 12px;
+   /* iOS step row */
+   .pwa-ios-step {
+     display: flex; align-items: center; gap: 14px;
+     background: rgba(255,255,255,0.05);
+     border-radius: 12px; padding: 12px 14px;
+     margin-bottom: 10px; text-align: left;
+   }
+   .pwa-ios-step-icon {
+     font-size: 26px; flex-shrink: 0; width: 42px; text-align: center;
+   }
+   .pwa-ios-step-text { font-size: 14px; color: #fff; line-height: 1.4; }
+   .pwa-ios-step-text span { color: #8e8ea0; font-size: 12px; display:block; margin-top:2px; }
+   /* Highlight the share icon step */
+   .pwa-ios-step.highlight {
+     background: rgba(0,122,255,0.18);
+     border: 1px solid rgba(0,122,255,0.4);
+   }
+   /* Android one-tap button */
+   #pwa-android-btn {
+     width: 100%; padding: 16px; margin-bottom: 10px;
+     background: #34C759; color: #fff; border: none;
+     border-radius: 14px; font-size: 17px; font-weight: 800;
+     cursor: pointer; letter-spacing: 0.2px;
+     -webkit-tap-highlight-color: transparent;
+     box-shadow: 0 4px 20px rgba(52,199,89,0.4);
+   }
+   #pwa-modal-dismiss {
      background: none; border: none; color: #8e8ea0;
-     font-size: 20px; cursor: pointer; line-height: 1;
+     font-size: 14px; padding: 8px 20px; cursor: pointer;
      -webkit-tap-highlight-color: transparent;
    }
-   .pwa-step {
-     display: flex; align-items: flex-start; gap: 10px;
-     margin-top: 8px; font-size: 13px;
+   /* Animated arrow pointing DOWN to Safari share button */
+   #pwa-arrow {
+     display: none;
+     position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%);
+     z-index: 10000; text-align: center;
+     animation: bounceArrow 0.9s ease-in-out infinite;
    }
-   .pwa-step-num {
-     flex-shrink: 0; width: 22px; height: 22px;
-     border-radius: 50%; background: rgba(255,255,255,0.15);
-     display: flex; align-items: center; justify-content: center;
-     font-size: 11px; font-weight: 700; color: #fff;
+   #pwa-arrow.visible { display: block; }
+   @keyframes bounceArrow {
+     0%,100% { transform: translateX(-50%) translateY(0);  }
+     50%      { transform: translateX(-50%) translateY(8px); }
    }
-   .pwa-step span { color: rgba(255,255,255,0.85); }
-   .pwa-step strong { color: #fff; }
-   #pwa-install-btn {
-     display: none; /* shown on Android when deferredPrompt is available */
-     width: 100%; margin-top: 12px; padding: 12px;
-     background: #34C759; color: #fff; border: none;
-     border-radius: 11px; font-size: 15px; font-weight: 700;
-     cursor: pointer; -webkit-tap-highlight-color: transparent;
+   #pwa-arrow-inner {
+     background: #007AFF; color: #fff;
+     font-size: 13px; font-weight: 700;
+     padding: 8px 16px 6px; border-radius: 20px;
+     white-space: nowrap; box-shadow: 0 4px 16px rgba(0,122,255,0.5);
    }
-   /* keep old id as alias so existing JS still works */
+   #pwa-arrow-inner::after {
+     content: ''; display: block; width: 0; height: 0;
+     border-left: 10px solid transparent;
+     border-right: 10px solid transparent;
+     border-top: 12px solid #007AFF;
+     margin: 2px auto 0;
+   }
+   /* keep old ids so legacy references don't crash */
+   #pwa-banner { display: none; }
    #ios-tip-banner { display: none; }
  </style>
 </head>
@@ -419,14 +459,23 @@
  <div id="error-banner"   class="error-banner"></div>
  <div id="success-banner" class="success-banner"></div>
 
- <!-- ── Smart Add-to-Home-Screen banner (iOS + Android) ──────────────────── -->
- <div id="pwa-banner">
-   <button id="pwa-banner-close" aria-label="Dismiss">✕</button>
-   <div id="pwa-banner-title">📲 Add to Home Screen for Best Tracking</div>
-   <div id="pwa-banner-body"><!-- filled by JS --></div>
-   <button id="pwa-install-btn" onclick="triggerAndroidInstall()">📲 Add to Home Screen</button>
+ <!-- ── PWA Install Modal ─────────────────────────────────────────────────── -->
+ <div id="pwa-modal-overlay">
+   <div id="pwa-modal-box">
+     <div id="pwa-modal-icon">🚛</div>
+     <div id="pwa-modal-title">Add App to Phone</div>
+     <div id="pwa-modal-sub" id="pwa-modal-sub">Keeps GPS running in the background — no App Store needed.</div>
+     <div id="pwa-modal-body"><!-- filled by JS --></div>
+     <button id="pwa-android-btn" style="display:none" onclick="triggerAndroidInstall()">📲 Add to Home Screen</button>
+     <button id="pwa-modal-dismiss" onclick="dismissPWABanner()">Maybe later</button>
+   </div>
  </div>
- <!-- keep old id in DOM so any legacy JS references don't crash -->
+ <!-- Animated arrow pointing at Safari share button (iOS only) -->
+ <div id="pwa-arrow">
+   <div id="pwa-arrow-inner">Tap the Share button ⬆</div>
+ </div>
+ <!-- keep old ids so legacy JS refs don't crash -->
+ <div id="pwa-banner" style="display:none"></div>
  <div id="ios-tip-banner" style="display:none"></div>
 
  <!-- ── Load Info Card ──────────────────────────────────────────────────── -->
@@ -1517,12 +1566,12 @@
    // ── Android Chrome: capture beforeinstallprompt for one-tap install ──────
    var _androidDeferredPrompt = null;
    window.addEventListener('beforeinstallprompt', function(e) {
-     e.preventDefault();                  // stop Chrome's mini infobar
+     e.preventDefault();
      _androidDeferredPrompt = e;
-     // If the banner is already visible, show the install button now
-     var btn = document.getElementById('pwa-install-btn');
-     if (btn && document.getElementById('pwa-banner').classList.contains('visible')) {
-       btn.style.display = 'block';
+     // If modal is already open, reveal the install button now
+     var overlay = document.getElementById('pwa-modal-overlay');
+     if (overlay && overlay.classList.contains('visible')) {
+       document.getElementById('pwa-android-btn').style.display = 'block';
      }
    });
 
@@ -1532,7 +1581,6 @@
      _androidDeferredPrompt.prompt();
      _androidDeferredPrompt.userChoice.then(function(result) {
        _androidDeferredPrompt = null;
-       document.getElementById('pwa-install-btn').style.display = 'none';
        if (result.outcome === 'accepted') {
          dismissPWABanner();
          addLog('📲 App added to home screen');
@@ -1540,16 +1588,14 @@
      });
    }
 
-   // Hide banner and remember so we don't show it again
+   // Hide modal and remember dismissal
    function dismissPWABanner() {
-     var b = document.getElementById('pwa-banner');
-     b.classList.remove('visible');
+     document.getElementById('pwa-modal-overlay').classList.remove('visible');
+     document.getElementById('pwa-arrow').classList.remove('visible');
      try { localStorage.setItem('cmp_pwa_banner_dismissed', '1'); } catch(e) {}
    }
 
-   document.getElementById('pwa-banner-close').addEventListener('click', dismissPWABanner);
-
-   // ── Show the right banner for iOS or Android ──────────────────────────────
+   // ── Show the install modal for iOS or Android ─────────────────────────────
    function showPWABanner() {
      // Already a standalone PWA — no need to prompt
      var isStandalone = window.navigator.standalone === true ||
@@ -1563,43 +1609,44 @@
      var ua        = navigator.userAgent;
      var isIOS     = /iphone|ipad|ipod/i.test(ua);
      var isAndroid = /android/i.test(ua);
-     if (!isIOS && !isAndroid) return;    // desktop — skip
+     if (!isIOS && !isAndroid) return;
 
-     var banner = document.getElementById('pwa-banner');
-     var body   = document.getElementById('pwa-banner-body');
-     var btn    = document.getElementById('pwa-install-btn');
+     var overlay  = document.getElementById('pwa-modal-overlay');
+     var body     = document.getElementById('pwa-modal-body');
+     var androidBtn = document.getElementById('pwa-android-btn');
+     var arrow    = document.getElementById('pwa-arrow');
 
      if (isIOS) {
-       banner.className = 'visible ios-style';
-       document.getElementById('pwa-banner-title').textContent = '📲 Add to Home Screen — Better Tracking';
        body.innerHTML =
-         '<div style="font-size:13px;color:rgba(255,255,255,.7);margin-bottom:4px">'
-         + 'This saves the app icon to your phone — GPS keeps running even when you switch apps.'
-         + '</div>'
-         + '<div class="pwa-step"><span class="pwa-step-num">1</span>'
-         + '<span>Tap the <strong>Share ⬆</strong> button at the bottom of Safari</span></div>'
-         + '<div class="pwa-step"><span class="pwa-step-num">2</span>'
-         + '<span>Scroll down and tap <strong>"Add to Home Screen"</strong></span></div>'
-         + '<div class="pwa-step"><span class="pwa-step-num">3</span>'
-         + '<span>Tap <strong>Add</strong> — then always open from the home screen icon 🚛</span></div>';
-       btn.style.display = 'none';
+         '<div class="pwa-ios-step highlight">'
+         + '<div class="pwa-ios-step-icon">⬆️</div>'
+         + '<div class="pwa-ios-step-text"><strong>1. Tap the Share button</strong>'
+         + '<span>The box-with-arrow icon at the bottom of Safari</span></div></div>'
+         + '<div class="pwa-ios-step">'
+         + '<div class="pwa-ios-step-icon">➕</div>'
+         + '<div class="pwa-ios-step-text"><strong>2. Tap "Add to Home Screen"</strong>'
+         + '<span>Scroll down in the share sheet to find it</span></div></div>'
+         + '<div class="pwa-ios-step">'
+         + '<div class="pwa-ios-step-icon">✅</div>'
+         + '<div class="pwa-ios-step-text"><strong>3. Tap Add</strong>'
+         + '<span>The 🚛 icon will appear on your home screen</span></div></div>';
+       androidBtn.style.display = 'none';
+       // Show animated arrow pointing at Safari share button after a short delay
+       setTimeout(function() { arrow.classList.add('visible'); }, 600);
      } else {
        // Android
-       banner.className = 'visible android-style';
-       document.getElementById('pwa-banner-title').textContent = '📲 Install App — One Tap';
        body.innerHTML =
-         '<div style="font-size:13px;color:rgba(255,255,255,.7);margin-bottom:8px">'
-         + 'Install the app icon on your phone. GPS tracks in the background even when the screen is locked.'
-         + '</div>'
-         + '<div class="pwa-step"><span class="pwa-step-num">1</span>'
-         + '<span>Tap <strong>"Add to Home Screen"</strong> below — or look for Chrome\'s install banner at the bottom of the screen</span></div>'
-         + '<div class="pwa-step"><span class="pwa-step-num">2</span>'
-         + '<span>Tap <strong>Install</strong> in the popup</span></div>'
-         + '<div class="pwa-step"><span class="pwa-step-num">3</span>'
-         + '<span>Open the <strong>CMP Driver 🚛</strong> icon from your home screen next time</span></div>';
-       // Show one-tap button if Chrome already captured the install prompt
-       if (_androidDeferredPrompt) btn.style.display = 'block';
+         '<div class="pwa-ios-step highlight">'
+         + '<div class="pwa-ios-step-icon">👇</div>'
+         + '<div class="pwa-ios-step-text"><strong>Tap the button below</strong>'
+         + '<span>Then tap Install in the popup — takes 2 seconds</span></div></div>';
+       androidBtn.style.display = 'block';
+       // Show the button immediately if Chrome already captured the prompt,
+       // otherwise it will appear when beforeinstallprompt fires
+       if (!_androidDeferredPrompt) androidBtn.style.display = 'none';
      }
+
+     overlay.classList.add('visible');
    }
 
    // ── pagehide: last-gasp location send when browser tab is closed/navigated away ──
