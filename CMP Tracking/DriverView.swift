@@ -719,4 +719,3 @@ struct NotificationBanner: View {
     DriverView()
         .environmentObject(AppState.shared)
 }
-,

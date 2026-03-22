@@ -647,8 +647,8 @@ struct CustomerTrackingView: View {
                         isArrived = true
                     }
                     ArrivalNotificationService.fireArrivalNotification(
-                        loadNumber: load.loadNumber,
-                        address: load.deliveryAddress
+                        loadNumber: load?.loadNumber ?? "",
+                        address: load?.deliveryAddress ?? ""
                     )
                 }
             }

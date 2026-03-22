@@ -1,10 +1,18 @@
-<t!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
  <meta charset="UTF-8" />
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
  <meta name="theme-color" content="#1a1a2e" />
- <title>CMP Logistics – Driver Tracking</title>
+ <title>CMP Driver Tracking</title>
+ <!-- PWA manifest — enables "Add to Home Screen" on Android Chrome -->
+ <link rel="manifest" href="driver-manifest.json" />
+ <!-- Apple PWA meta tags — enables "Add to Home Screen" on iOS Safari -->
+ <meta name="apple-mobile-web-app-capable" content="yes" />
+ <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+ <meta name="apple-mobile-web-app-title" content="CMP Driver" />
+ <!-- Fallback icon for iOS (inline SVG data URI — no separate file needed) -->
+ <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='36' fill='%230f0f1a'/%3E%3Ctext x='90' y='122' font-size='90' text-anchor='middle'%3E🚛%3C/text%3E%3C/svg%3E" />
  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
  <style>
@@ -340,29 +348,65 @@
    #conn-bar.back-online { display: block; background: rgba(52,199,89,0.92); color: #fff; }
    #conn-bar.paused      { display: none; }
 
-   /* iOS Add-to-Home-Screen tip banner */
-   #ios-tip-banner {
+   /* ── Smart Add-to-Home-Screen install banner (iOS + Android) ── */
+   #pwa-banner {
      display: none;
      width: 100%;
      max-width: 400px;
-     background: rgba(0,122,255,0.10);
-     border: 1px solid rgba(0,122,255,0.35);
-     border-radius: 14px;
-     padding: 14px 16px;
-     margin-bottom: 12px;
+     border-radius: 16px;
+     padding: 16px;
+     margin-bottom: 14px;
      font-size: 13px;
-     color: #4da6ff;
      line-height: 1.6;
      position: relative;
+     animation: slideDown 0.35s ease;
    }
-   #ios-tip-banner.visible { display: block; }
-   #ios-tip-banner strong  { display: block; font-size: 14px; margin-bottom: 4px; color: #fff; }
-   #ios-tip-close {
-     position: absolute; top: 10px; right: 12px;
+   @keyframes slideDown {
+     from { opacity:0; transform:translateY(-10px); }
+     to   { opacity:1; transform:translateY(0);     }
+   }
+   #pwa-banner.ios-style {
+     background: rgba(0,122,255,0.12);
+     border: 1px solid rgba(0,122,255,0.35);
+     color: #4da6ff;
+   }
+   #pwa-banner.android-style {
+     background: rgba(52,199,89,0.12);
+     border: 1px solid rgba(52,199,89,0.35);
+     color: #34C759;
+   }
+   #pwa-banner.visible { display: block; }
+   #pwa-banner-title {
+     font-size: 14px; font-weight: 700; color: #fff;
+     margin-bottom: 6px; padding-right: 28px;
+   }
+   #pwa-banner-close {
+     position: absolute; top: 12px; right: 12px;
      background: none; border: none; color: #8e8ea0;
-     font-size: 18px; cursor: pointer; line-height: 1;
+     font-size: 20px; cursor: pointer; line-height: 1;
      -webkit-tap-highlight-color: transparent;
    }
+   .pwa-step {
+     display: flex; align-items: flex-start; gap: 10px;
+     margin-top: 8px; font-size: 13px;
+   }
+   .pwa-step-num {
+     flex-shrink: 0; width: 22px; height: 22px;
+     border-radius: 50%; background: rgba(255,255,255,0.15);
+     display: flex; align-items: center; justify-content: center;
+     font-size: 11px; font-weight: 700; color: #fff;
+   }
+   .pwa-step span { color: rgba(255,255,255,0.85); }
+   .pwa-step strong { color: #fff; }
+   #pwa-install-btn {
+     display: none; /* shown on Android when deferredPrompt is available */
+     width: 100%; margin-top: 12px; padding: 12px;
+     background: #34C759; color: #fff; border: none;
+     border-radius: 11px; font-size: 15px; font-weight: 700;
+     cursor: pointer; -webkit-tap-highlight-color: transparent;
+   }
+   /* keep old id as alias so existing JS still works */
+   #ios-tip-banner { display: none; }
  </style>
 </head>
 <body>
@@ -375,14 +419,15 @@
  <div id="error-banner"   class="error-banner"></div>
  <div id="success-banner" class="success-banner"></div>
 
- <!-- iOS tip: add to home screen keeps GPS alive in background -->
- <div id="ios-tip-banner">
-   <button id="ios-tip-close" onclick="document.getElementById('ios-tip-banner').classList.remove('visible');localStorage.setItem('cmp_ios_tip_dismissed','1')">✕</button>
-   <strong>📍 Keep GPS Running in Background</strong>
-   On iPhone, Safari stops tracking when you leave the browser.<br>
-   <strong style="color:#4da6ff;">Fix:</strong> Tap the share icon <strong>⬆</strong> at the bottom of Safari, then tap
-   <strong>"Add to Home Screen"</strong>. Open the app from your home screen — it stays active in the background.
+ <!-- ── Smart Add-to-Home-Screen banner (iOS + Android) ──────────────────── -->
+ <div id="pwa-banner">
+   <button id="pwa-banner-close" aria-label="Dismiss">✕</button>
+   <div id="pwa-banner-title">📲 Add to Home Screen for Best Tracking</div>
+   <div id="pwa-banner-body"><!-- filled by JS --></div>
+   <button id="pwa-install-btn" onclick="triggerAndroidInstall()">📲 Add to Home Screen</button>
  </div>
+ <!-- keep old id in DOM so any legacy JS references don't crash -->
+ <div id="ios-tip-banner" style="display:none"></div>
 
  <!-- ── Load Info Card ──────────────────────────────────────────────────── -->
  <div class="card" id="load-card">
@@ -821,16 +866,8 @@
          // Start NoSleep to prevent OS from killing the tab while in background
          startNoSleep();
 
-         // On iOS Safari (not installed as PWA), remind driver to add to Home Screen
-         // so GPS can keep running when they switch apps
-         (function() {
-           var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-           var isStandalone = window.navigator.standalone === true;
-           var dismissed = localStorage.getItem('cmp_ios_tip_dismissed');
-           if (isIOS && !isStandalone && !dismissed) {
-             document.getElementById('ios-tip-banner').classList.add('visible');
-           }
-         })();
+         // Show Add-to-Home-Screen banner (iOS + Android) if not already a PWA
+         showPWABanner();
 
          postLocation(pos);
          startGPS(true);
@@ -870,6 +907,8 @@
        addLog('✅ Load accepted');
        driverNotify('✅ Load Accepted',
          'Load ' + (loadData ? loadData.loadNumber : '') + ' accepted. Pickup reminders are set.');
+       // Prompt driver to add to home screen right after accepting
+       showPWABanner();
      }
 
      if (isLive() && TOKEN) {
@@ -1402,6 +1441,123 @@
        }
      }
    });
+
+   // ── PWA: Save token so the home-screen icon always opens the right load ──
+   // When driver adds to home screen, start_url is just /driver-tracking.html
+   // (no query params). We save the token to localStorage so we can restore it.
+   var PWA_TOKEN_KEY  = 'cmp_pwa_token';
+   var PWA_LOADID_KEY = 'cmp_pwa_loadid';
+
+   (function savePWAToken() {
+     // Always save/refresh the current token from the URL
+     if (TOKEN)   try { localStorage.setItem(PWA_TOKEN_KEY,  TOKEN);   } catch(e) {}
+     if (LOAD_ID) try { localStorage.setItem(PWA_LOADID_KEY, LOAD_ID); } catch(e) {}
+   })();
+
+   // ── PWA: If running as installed app with NO query params, restore token ──
+   (function restorePWAToken() {
+     var isStandalone = window.navigator.standalone === true ||
+                        window.matchMedia('(display-mode: standalone)').matches;
+     if (!isStandalone) return;           // normal browser — no restore needed
+     if (TOKEN || LOAD_ID) return;        // already have params in URL
+     var savedToken  = localStorage.getItem(PWA_TOKEN_KEY);
+     var savedLoadId = localStorage.getItem(PWA_LOADID_KEY);
+     if (savedToken || savedLoadId) {
+       // Rebuild URL with saved params and reload so all existing code just works
+       var newURL = window.location.pathname
+         + '?token='  + encodeURIComponent(savedToken  || '')
+         + '&loadId=' + encodeURIComponent(savedLoadId || '');
+       window.location.replace(newURL);
+     }
+   })();
+
+   // ── Android Chrome: capture beforeinstallprompt for one-tap install ──────
+   var _androidDeferredPrompt = null;
+   window.addEventListener('beforeinstallprompt', function(e) {
+     e.preventDefault();                  // stop Chrome's mini infobar
+     _androidDeferredPrompt = e;
+     // If the banner is already visible, show the install button now
+     var btn = document.getElementById('pwa-install-btn');
+     if (btn && document.getElementById('pwa-banner').classList.contains('visible')) {
+       btn.style.display = 'block';
+     }
+   });
+
+   // Called when driver taps the green "Add to Home Screen" button (Android)
+   function triggerAndroidInstall() {
+     if (!_androidDeferredPrompt) return;
+     _androidDeferredPrompt.prompt();
+     _androidDeferredPrompt.userChoice.then(function(result) {
+       _androidDeferredPrompt = null;
+       document.getElementById('pwa-install-btn').style.display = 'none';
+       if (result.outcome === 'accepted') {
+         dismissPWABanner();
+         addLog('📲 App added to home screen');
+       }
+     });
+   }
+
+   // Hide banner and remember so we don't show it again
+   function dismissPWABanner() {
+     var b = document.getElementById('pwa-banner');
+     b.classList.remove('visible');
+     try { localStorage.setItem('cmp_pwa_banner_dismissed', '1'); } catch(e) {}
+   }
+
+   document.getElementById('pwa-banner-close').addEventListener('click', dismissPWABanner);
+
+   // ── Show the right banner for iOS or Android ──────────────────────────────
+   function showPWABanner() {
+     // Already a standalone PWA — no need to prompt
+     var isStandalone = window.navigator.standalone === true ||
+                        window.matchMedia('(display-mode: standalone)').matches;
+     if (isStandalone) return;
+
+     // Already dismissed
+     if (localStorage.getItem('cmp_pwa_banner_dismissed') ||
+         localStorage.getItem('cmp_ios_tip_dismissed')) return;
+
+     var ua        = navigator.userAgent;
+     var isIOS     = /iphone|ipad|ipod/i.test(ua);
+     var isAndroid = /android/i.test(ua);
+     if (!isIOS && !isAndroid) return;    // desktop — skip
+
+     var banner = document.getElementById('pwa-banner');
+     var body   = document.getElementById('pwa-banner-body');
+     var btn    = document.getElementById('pwa-install-btn');
+
+     if (isIOS) {
+       banner.className = 'visible ios-style';
+       document.getElementById('pwa-banner-title').textContent = '📲 Add to Home Screen — Better Tracking';
+       body.innerHTML =
+         '<div style="font-size:13px;color:rgba(255,255,255,.7);margin-bottom:4px">'
+         + 'This saves the app icon to your phone — GPS keeps running even when you switch apps.'
+         + '</div>'
+         + '<div class="pwa-step"><span class="pwa-step-num">1</span>'
+         + '<span>Tap the <strong>Share ⬆</strong> button at the bottom of Safari</span></div>'
+         + '<div class="pwa-step"><span class="pwa-step-num">2</span>'
+         + '<span>Scroll down and tap <strong>"Add to Home Screen"</strong></span></div>'
+         + '<div class="pwa-step"><span class="pwa-step-num">3</span>'
+         + '<span>Tap <strong>Add</strong> — then always open from the home screen icon 🚛</span></div>';
+       btn.style.display = 'none';
+     } else {
+       // Android
+       banner.className = 'visible android-style';
+       document.getElementById('pwa-banner-title').textContent = '📲 Install App — One Tap';
+       body.innerHTML =
+         '<div style="font-size:13px;color:rgba(255,255,255,.7);margin-bottom:8px">'
+         + 'Install the app icon on your phone. GPS tracks in the background even when the screen is locked.'
+         + '</div>'
+         + '<div class="pwa-step"><span class="pwa-step-num">1</span>'
+         + '<span>Tap <strong>"Add to Home Screen"</strong> below — or look for Chrome\'s install banner at the bottom of the screen</span></div>'
+         + '<div class="pwa-step"><span class="pwa-step-num">2</span>'
+         + '<span>Tap <strong>Install</strong> in the popup</span></div>'
+         + '<div class="pwa-step"><span class="pwa-step-num">3</span>'
+         + '<span>Open the <strong>CMP Driver 🚛</strong> icon from your home screen next time</span></div>';
+       // Show one-tap button if Chrome already captured the install prompt
+       if (_androidDeferredPrompt) btn.style.display = 'block';
+     }
+   }
 
    // ── pagehide: last-gasp location send when browser tab is closed/navigated away ──
    window.addEventListener("pagehide", function() {
