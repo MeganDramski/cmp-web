@@ -13,13 +13,48 @@ const LOADS_TABLE = process.env.LOADS_TABLE;
 const FROM_EMAIL  = process.env.SES_FROM_EMAIL;
 const AMPLIFY_URL = process.env.AMPLIFY_BASE_URL || "";
 
-function buildLink(event, token, id) {
+function buildLink(event, token, id, load) {
   const base = AMPLIFY_URL || (function() {
     const d = event.requestContext && event.requestContext.domainName;
     const s = event.requestContext && event.requestContext.stage;
     return d ? ("https://" + d + (s && s !== "$default" ? "/" + s : "")) : "";
   })();
-  return base + "/driver-tracking.html?token=" + token + "&loadId=" + id;
+
+  // Embed full load payload as ?d= so the driver page renders without an API call.
+  // Unicode-safe btoa: encodeURIComponent → unescape → btoa (mirrors dispatcher frontend).
+  let encoded = "";
+  try {
+    const payload = {
+      id:                  load.id,
+      loadNumber:          load.loadNumber          || "",
+      description:         load.description         || "",
+      pickupAddress:       load.pickupAddress       || "",
+      deliveryAddress:     load.deliveryAddress     || "",
+      pickupDate:          load.pickupDate          || "",
+      deliveryDate:        load.deliveryDate        || "",
+      weight:              load.weight              || 0,
+      customerName:        load.customerName        || "",
+      customerEmail:       load.customerEmail       || "",
+      dispatcherEmail:     load.dispatcherEmail     || load.createdBy || "",
+      notifyCustomer:      load.notifyCustomer      || false,
+      notes:               load.notes               || "",
+      assignedDriverName:  load.assignedDriverName  || "",
+      assignedDriverEmail: load.assignedDriverEmail || "",
+      assignedDriverPhone: load.assignedDriverPhone || "",
+      // Always surface as Assigned so the driver sees Accept button
+      status:              (load.status === "Pending" || !load.status) ? "Assigned" : load.status,
+      trackingToken:       token,
+    };
+    encoded = Buffer.from(unescape(encodeURIComponent(JSON.stringify(payload))), "binary")
+                    .toString("base64");
+  } catch (e) {
+    console.warn("buildLink encode error:", e.message);
+  }
+
+  return base
+    + "/driver-tracking.html?token=" + encodeURIComponent(token)
+    + "&loadId=" + encodeURIComponent(id)
+    + (encoded ? "&d=" + encodeURIComponent(encoded) : "");
 }
 
 async function sendSMS(to, message) {
@@ -83,8 +118,8 @@ exports.handler = async (event) => {
     if (!res.Item) return respond(404, { error: "Load not found" });
     const load = unmarshall(res.Item);
 
-    // 2. Build tracking link
-    const link = buildLink(event, load.trackingToken, load.id);
+    // 2. Build tracking link (embeds full load payload as ?d= for offline-capable driver page)
+    const link = buildLink(event, load.trackingToken, load.id, load);
 
     // 3. Send SMS via AWS SNS
     const smsText =

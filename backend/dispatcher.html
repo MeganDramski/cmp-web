@@ -1,4 +1,4 @@
-<nlst !DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -569,14 +569,25 @@ function bgPollLoads(){
         if(!Array.isArray(fresh)) return;
         fresh = filterDeleted(fresh);
         fresh.forEach(function(l){ checkStatusChange(l); });
-        // Also add any loads we don't have yet (new assignments from another session)
+        // Merge fresh data into loads[], but never downgrade a status
+        // that was already set optimistically by updStatus().
         fresh.forEach(function(l){
-          if(!loads.some(function(x){ return x.id===l.id; })){
+          var existing = null;
+          for(var i=0;i<loads.length;i++){if(loads[i].id===l.id){existing=loads[i];break;}}
+          if(existing){
+            // If _knownStatuses has a different (newer) status than what the API
+            // returned, keep the local one — the PATCH is still in-flight.
+            if(_knownStatuses[l.id] && _knownStatuses[l.id] !== l.status){
+              l.status = _knownStatuses[l.id];
+            }
+            for(var i=0;i<loads.length;i++){if(loads[i].id===l.id){loads[i]=l;break;}}
+          } else {
             loads.push(l);
             _knownStatuses[l.id] = l.status;
           }
         });
         renderList();
+        if(selId) renderDetail();
       })
       .catch(function(){});
   } else {
@@ -1121,15 +1132,23 @@ function assignDriver(loadId, driverId, driverName, driverEmail, driverPhone){
 function updStatus(id,s){
   var load=null;
   for(var i=0;i<loads.length;i++){if(loads[i].id===id){loads[i].status=s;load=loads[i];break;}}
+  // Immediately update _knownStatuses so the background poll doesn't
+  // see this as a new change and doesn't overwrite our optimistic update.
+  _knownStatuses[id]=s;
   // Archive to 30-day history when a load is completed
   if(load&&(s==='Delivered'||s==='Cancelled')){
     load.completedAt=new Date().toISOString();
     archiveToHistory(load);
   }
-  renderList(); renderDetail();
+  renderList();
+  // Re-render detail panel if this load is currently open
+  if(selId===id) renderDetail();
   if(!isLive()){localStorage.setItem('cmp_loads',JSON.stringify(loads));toast('Status: '+s);return;}
   fetch(API+'/loads/'+id+'/status',{method:'PATCH',headers:ah(),body:JSON.stringify({status:s})})
-    .then(function(){toast('Status: '+s);})
+    .then(function(r){
+      if(!r.ok) return r.json().then(function(d){throw new Error(d.error||r.status);});
+      toast('Status: '+s);
+    })
     .catch(function(e){toast('Update error: '+e.message);});
 }
 
