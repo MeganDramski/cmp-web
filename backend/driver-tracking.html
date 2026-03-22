@@ -1426,6 +1426,7 @@
         ts:        Date.now(),
         token:     TOKEN,
         apiBase:   API_BASE,
+        loadId:    loadData ? loadData.id : (LOAD_ID || null),
       };
       getLocationDB().then(function(db) {
         var tx  = db.transaction('kv', 'readwrite');
@@ -1445,6 +1446,7 @@
         speed:     c.speed   != null ? c.speed * 2.237 : 0,
         heading:   c.heading != null ? c.heading : 0,
         timestamp: new Date().toISOString(),
+        loadId:    loadData ? loadData.id : (LOAD_ID || undefined),
       };
       if (!navigator.onLine) { offlineQueue.push(payload); setConnBar('offline'); return; }
       sendLocationPayload(payload);
@@ -1640,6 +1642,7 @@
          speed:     c.speed   != null ? c.speed * 2.237 : 0,
          heading:   c.heading != null ? c.heading        : 0,
          timestamp: new Date().toISOString(),
+         loadId:    loadData ? loadData.id : (LOAD_ID || undefined),
        }),
      }).catch(function(){});
      // Also persist to IDB so the SW keep-alive can resend if the fetch fails
@@ -1868,6 +1871,7 @@
          speed:     c.speed   != null ? c.speed * 2.237 : 0,
          heading:   c.heading != null ? c.heading : 0,
          timestamp: new Date().toISOString(),
+         loadId:    loadData ? loadData.id : (LOAD_ID || undefined),
        }),
      }).catch(function(){});
    });

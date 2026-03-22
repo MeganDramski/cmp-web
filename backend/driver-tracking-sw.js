@@ -1,19 +1,12 @@
 /**
- * CMP Logistics — Driver Tracking Service Worker  (v6)
+ * CMP Logistics — Driver Tracking Service Worker  (v7)
  *
- * Responsibilities:
- *  1. Cache the page shell so the driver can open it even with no signal.
- *  2. Background Sync  — replay queued POST /location when back online.
- *  3. Periodic Background Sync (Android Chrome) — post last-known location
- *     from IndexedDB even when the page is fully closed / backgrounded.
- *  4. Keep-alive ping every 20 s to open pages so the browser doesn't
- *     suspend GPS watchPosition, AND post location directly from IDB so
- *     updates reach the server even when page JS is frozen by iOS/Android.
- *  5. Store last-known location in IndexedDB so the SW can send it even
- *     when the page JS is suspended by the OS.
+ * v7 changes: fixed duplicate setInterval block, replaced ts-based dedup
+ * with wall-clock check so stationary drivers get heartbeats every 20s,
+ * postLastKnownLocation now includes loadId for faster Lambda lookup.
  */
 
-const CACHE_NAME   = 'cmp-driver-v6';
+const CACHE_NAME   = 'cmp-driver-v7';
 const ASSETS_CACHE = [
   'driver-tracking.html',
   'config.js',
@@ -140,17 +133,25 @@ async function postLastKnownLocation() {
 
     if (!record || !record.apiBase || !record.token) return;
 
-    var sentDb   = await openLocationDB();
-    var lastSent = await dbGet(sentDb, 'last_sent_ts');
+    // Rate-limit: only skip if we successfully sent within the last 15 s.
+    // This allows stationary drivers (same GPS coords) to still get heartbeats
+    // every ~20 s instead of being silently blocked after the first send.
+    var sentDb      = await openLocationDB();
+    var lastSentAt  = await dbGet(sentDb, 'last_sent_wall');
     sentDb.close();
-    if (lastSent && lastSent === record.ts) return;
+    if (lastSentAt && (Date.now() - lastSentAt) < 15000) return;
 
     var payload = {
       latitude:  record.latitude,
       longitude: record.longitude,
       speed:     record.speed   || 0,
       heading:   record.heading || 0,
-      timestamp: new Date(record.ts).toISOString(),
+      timestamp: new Date().toISOString(), // always use current time so dispatcher sees a fresh ping
+      loadId:    record.loadId || undefined
+      speed:     record.speed   || 0,
+      heading:   record.heading || 0,
+      timestamp: new Date().toISOString(), // always use current time so dispatcher sees a fresh ping
+      loadId:    record.loadId || undefined,
     };
 
     var resp = await fetch(record.apiBase + '/track/' + record.token + '/location', {
@@ -162,7 +163,7 @@ async function postLastKnownLocation() {
 
     if (resp.ok) {
       var updateDb = await openLocationDB();
-      await dbPut(updateDb, 'last_sent_ts', record.ts);
+      await dbPut(updateDb, 'last_sent_wall', Date.now());
       updateDb.close();
       console.log('[SW] heartbeat posted', payload.latitude, payload.longitude);
     }
