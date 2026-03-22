@@ -22,24 +22,37 @@ exports.handler = async (event) => {
       "customerPhone","notifyCustomer","notes","dispatcherEmail"
     ];
 
-    const expParts = ["updatedAt = :updatedAt"];
+    const expParts  = ["updatedAt = :updatedAt"];
+    const removeParts = [];
     const exprNames = {};
     const exprValues = { ":updatedAt": new Date().toISOString() };
 
     fields.forEach(function(f) {
-      if (body[f] !== undefined) {
+      if (body[f] === undefined) return;
+      const val = body[f];
+      // Empty string or null means "clear this field" — use REMOVE so DynamoDB
+      // doesn't throw a ValidationException on empty/null attribute values.
+      if (val === null || val === "") {
+        removeParts.push("#" + f);
+        exprNames["#" + f] = f;
+      } else {
         expParts.push("#" + f + " = :" + f);
         exprNames["#" + f] = f;
-        exprValues[":" + f] = body[f];
+        exprValues[":" + f] = val;
       }
     });
+
+    let updateExpression = "SET " + expParts.join(", ");
+    if (removeParts.length > 0) {
+      updateExpression += " REMOVE " + removeParts.join(", ");
+    }
 
     await db.send(new UpdateItemCommand({
       TableName: TABLE,
       Key: marshall({ id: loadId }),
-      UpdateExpression: "SET " + expParts.join(", "),
+      UpdateExpression: updateExpression,
       ExpressionAttributeNames: Object.keys(exprNames).length ? exprNames : undefined,
-      ExpressionAttributeValues: marshall(exprValues),
+      ExpressionAttributeValues: marshall(exprValues, { removeUndefinedValues: true }),
     }));
 
     const result = await db.send(new GetItemCommand({

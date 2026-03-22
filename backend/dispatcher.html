@@ -1875,21 +1875,19 @@ function saveLoad(){
     fetch(API+'/loads/'+editingLoadId,{method:'PUT',headers:ah(),body:JSON.stringify(load)})
       .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
       .then(function(res){
+        if(!res.ok) throw new Error(res.d&&res.d.error ? res.d.error : 'Save failed (HTTP '+res.d.status+')');
         // Always prefer the local `load` we just built — it has the correct
-        // updatedAt and all edited fields.  Only adopt res.d if it is newer
-        // (e.g. the server added extra fields), but fall back to local in
-        // every other case to avoid DynamoDB eventual-consistency reverting edits.
-        var apiTs  = (res.ok && res.d && res.d.updatedAt) ? new Date(res.d.updatedAt).getTime() : 0;
+        // updatedAt and all edited fields.  Only adopt res.d if it is newer.
+        var apiTs  = (res.d && res.d.updatedAt) ? new Date(res.d.updatedAt).getTime() : 0;
         var localTs = new Date(load.updatedAt).getTime();
-        var updated = (res.ok && apiTs >= localTs) ? res.d : load;
+        var updated = (apiTs >= localTs) ? res.d : load;
         for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){loads[i]=updated;break;}}
         renderList();closeModal();selLoad(updated.id);toast('✅ Load updated');
       })
       .catch(function(e){
-        // If API doesn't support PUT yet, update locally and show warning
-        for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){loads[i]=load;break;}}
-        renderList();closeModal();selLoad(load.id);
-        toast('✅ Updated locally (API update pending)');
+        var err=document.getElementById('merr');
+        err.textContent='⚠️ ' + (e.message || 'Failed to save. Please try again.');
+        err.style.display='block';
       })
       .finally(function(){btn.disabled=false;btn.textContent='Save Changes';});
   } else {
