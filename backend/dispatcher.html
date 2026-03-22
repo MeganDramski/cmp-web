@@ -206,26 +206,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <div id="auth-screen">
   <div class="acard">
     <div class="alogo">
-      <!-- Parcelo logo: pin icon + wordmark -->
-      <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:16px">
-        <!-- Pin icon SVG -->
-        <svg width="42" height="52" viewBox="0 0 42 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- Circle head -->
-          <circle cx="18" cy="18" r="18" fill="#378ADD"/>
-          <circle cx="18" cy="18" r="7" fill="white"/>
-          <!-- Pin tail -->
-          <path d="M8 34 L28 34 L22 46 L18 52 L14 46 Z" fill="#378ADD"/>
-          <!-- Route dashes -->
-          <rect x="30" y="16" width="4" height="3" rx="1.5" fill="#378ADD"/>
-          <rect x="36" y="16" width="4" height="3" rx="1.5" fill="#378ADD"/>
-          <rect x="42" y="16" width="4" height="3" rx="1.5" fill="#378ADD"/>
+      <!-- Parcelo logo: pin icon + wordmark (matches ParceloLogo.swift exactly) -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:16px">
+        <!-- Pin SVG: viewBox 0 0 62 55 covers pin(36w) + gap + dashes + dest circle -->
+        <svg width="54" height="48" viewBox="0 0 62 55" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Pin head (circle + white inner dot) -->
+          <circle cx="16" cy="16" r="16" fill="#378ADD"/>
+          <circle cx="16" cy="16" r="6" fill="white"/>
+          <!-- Pin tail (pentagon matching PinTailShape) -->
+          <path d="M7 30 L25 30 L21.5 40.5 L16 47 L10.5 40.5 Z" fill="#378ADD"/>
+          <!-- Route dashes (3 rectangles) -->
+          <rect x="35" y="14" width="5" height="3.5" rx="1.75" fill="#378ADD"/>
+          <rect x="42" y="14" width="5" height="3.5" rx="1.75" fill="#378ADD"/>
+          <rect x="49" y="14" width="5" height="3.5" rx="1.75" fill="#378ADD"/>
           <!-- Destination circle -->
-          <circle cx="52" cy="17.5" r="4" stroke="#378ADD" stroke-width="2.5" fill="none"/>
+          <circle cx="60" cy="15.75" r="4.5" stroke="#378ADD" stroke-width="2.5" fill="none"/>
         </svg>
         <!-- Wordmark -->
         <div style="text-align:left;line-height:1">
-          <div style="font-size:26px;font-weight:600;color:#fff;letter-spacing:-0.5px">Parcelo</div>
-          <div style="font-size:10px;font-weight:400;color:#8e8ea0;letter-spacing:2.5px;text-transform:uppercase;margin-top:2px">Logistics</div>
+          <div style="font-size:27px;font-weight:600;color:#fff;letter-spacing:-0.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">Parcelo</div>
+          <div style="font-size:10px;font-weight:400;color:#8e8ea0;letter-spacing:2.5px;text-transform:uppercase;margin-top:3px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">Logistics</div>
         </div>
       </div>
       <p id="auth-subtitle" style="margin:0">Dispatcher Portal · Powered by OTTIO</p>
@@ -276,14 +276,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   <nav class="nav">
     <div class="brand" style="display:flex;align-items:center;gap:8px">
       <!-- Parcelo pin icon (small, nav size) -->
-      <svg width="20" height="26" viewBox="0 0 42 52" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">
-        <circle cx="18" cy="18" r="18" fill="#378ADD"/>
-        <circle cx="18" cy="18" r="7" fill="white"/>
-        <path d="M8 34 L28 34 L22 46 L18 52 L14 46 Z" fill="#378ADD"/>
-        <rect x="30" y="16" width="4" height="3" rx="1.5" fill="#378ADD"/>
-        <rect x="36" y="16" width="4" height="3" rx="1.5" fill="#378ADD"/>
-        <rect x="42" y="16" width="4" height="3" rx="1.5" fill="#378ADD"/>
-        <circle cx="52" cy="17.5" r="4" stroke="#378ADD" stroke-width="2.5" fill="none"/>
+      <svg width="22" height="20" viewBox="0 0 62 55" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">
+        <circle cx="16" cy="16" r="16" fill="#378ADD"/>
+        <circle cx="16" cy="16" r="6" fill="white"/>
+        <path d="M7 30 L25 30 L21.5 40.5 L16 47 L10.5 40.5 Z" fill="#378ADD"/>
+        <rect x="35" y="14" width="5" height="3.5" rx="1.75" fill="#378ADD"/>
+        <rect x="42" y="14" width="5" height="3.5" rx="1.75" fill="#378ADD"/>
+        <rect x="49" y="14" width="5" height="3.5" rx="1.75" fill="#378ADD"/>
+        <circle cx="60" cy="15.75" r="4.5" stroke="#378ADD" stroke-width="2.5" fill="none"/>
       </svg>
       <span id="nav-company">Parcelo</span><span id="nav-platform-tag" style="display:none;font-size:10px;font-weight:500;color:var(--muted);margin-left:6px;padding:2px 7px;background:rgba(255,255,255,.06);border-radius:20px;border:1px solid var(--border)">via Parcelo</span>
     </div>
