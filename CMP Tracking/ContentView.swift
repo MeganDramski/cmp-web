@@ -41,12 +41,12 @@ struct AuthView: View {
 
                     // ── Logo ──────────────────────────────────────────────
                     VStack(spacing: 8) {
-                        ParceloLogo(size: 110)
+                        ParceloLogo(size: 90)
                         Text("Logistics. Simplified.")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
-                    .padding(.top, 48)
+                    .padding(.top, 40)
 
                     // ── Form ──────────────────────────────────────────────
                     if isCreatingAccount {
