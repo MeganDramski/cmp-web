@@ -3,7 +3,7 @@
 // PUBLIC endpoint – no auth required
 // Returns safe load info + latest location for the customer tracking page
 
-const { DynamoDBClient, QueryCommand, GetItemCommand } = require("@aws-sdk/client-dynamodb");
+const { DynamoDBClient, QueryCommand } = require("@aws-sdk/client-dynamodb");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 const { respond } = require("../utils/auth");
 
@@ -31,44 +31,42 @@ exports.handler = async (event) => {
 
     const load = unmarshall(loadResult.Items[0]);
 
-    // Fetch latest location + full history for trail
-    let lastLocation = null;
+    // Fetch location history.
+    // If ?live=1 (dispatcher live map poll) fetch only the last 100 points — fast.
+    // Otherwise fetch up to 500 for the full customer tracking view.
+    const isLivePoll = event.queryStringParameters?.live === '1';
+    const MAX_POINTS = isLivePoll ? 100 : 500;
+
+    let lastLocation = load.lastLocation || null;
     let locationHistory = [];
     try {
-      const queryParams = {
-        TableName:                LOCATIONS_TABLE,
-        KeyConditionExpression:   "loadId = :lid",
-        ExpressionAttributeValues: marshall({ ":lid": load.id }),
-        ScanIndexForward:         true,   // ascending by timestamp = chronological order
-      };
-
-      // If the load has a startedAt timestamp, only fetch points from the
-      // current trip — this prevents stale points from previous trips
-      // drawing a phantom line when the driver hasn't moved yet.
-      if (load.startedAt) {
-        queryParams.KeyConditionExpression += " AND #ts >= :start";
-        queryParams.ExpressionAttributeNames = { "#ts": "timestamp" };
-        queryParams.ExpressionAttributeValues = marshall({
-          ":lid": load.id,
-          ":start": load.startedAt,
-        });
+      let lastKey = undefined;
+      while (locationHistory.length < MAX_POINTS) {
+        const locResult = await db.send(new QueryCommand({
+          TableName:                LOCATIONS_TABLE,
+          KeyConditionExpression:   "loadId = :lid",
+          ExpressionAttributeValues: marshall({ ":lid": load.id }),
+          ScanIndexForward:         !isLivePoll,  // live poll: descending (newest first), full: ascending
+          Limit:                    MAX_POINTS,
+          ...(lastKey ? { ExclusiveStartKey: lastKey } : {}),
+        }));
+        if (locResult.Items && locResult.Items.length > 0) {
+          locationHistory = locationHistory.concat(locResult.Items.map(unmarshall));
+        }
+        // For live polls stop after the first page — we only want the latest 100
+        if (isLivePoll || !locResult.LastEvaluatedKey) break;
+        lastKey = locResult.LastEvaluatedKey;
       }
-
-      const locResult = await db.send(new QueryCommand(queryParams));
-      if (locResult.Items && locResult.Items.length > 0) {
-        locationHistory = locResult.Items.map(unmarshall);
+      // For live poll results came descending — reverse to get chronological order
+      if (isLivePoll) locationHistory.reverse();
+      // Use the newest history point as lastLocation
+      if (locationHistory.length > 0) {
         lastLocation = locationHistory[locationHistory.length - 1];
       }
-    } catch (_) { /* no locations yet is fine */ }
-
-    // If no locationHistory points yet but lastLocation exists on the load
-    // (set by startTracking.js), use it as the marker position only —
-    // do NOT include it in locationHistory so it doesn't create a fake trail.
-    if (!lastLocation && load.lastLocation) {
-      lastLocation = load.lastLocation;
+    } catch (locErr) {
+      console.error("trackByToken location fetch error:", locErr);
     }
 
-    // Return only customer-safe fields (strip internal/private data)
     const safeLoad = {
       id:              load.id,
       loadNumber:      load.loadNumber,

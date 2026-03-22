@@ -90,6 +90,9 @@ struct DriverView: View {
             .navigationTitle("Driver Dashboard")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    ParceloLogoD(showWordmark: false, size: 32)
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 16) {
                         // Refresh loads from server
@@ -109,6 +112,12 @@ struct DriverView: View {
             }
             .onAppear {
                 fetchAssignedLoad()
+                // Re-check whenever the dispatcher pushes a change from another device
+                NotificationCenter.default.addObserver(
+                    forName: .cmpLoadsDidChangeRemotely,
+                    object: nil,
+                    queue: .main
+                ) { _ in fetchAssignedLoad() }
                 switch locationManager.authorizationStatus {
                 case .notDetermined:
                     // Show our explanation screen first, THEN trigger the system dialog
@@ -461,19 +470,29 @@ struct DriverView: View {
     // MARK: - Actions
 
     /// Finds the load assigned to the currently logged-in driver.
-    /// Fetches fresh loads from the server first, then falls back to local cache.
+    /// Reads from iCloud KV (LoadStore) immediately — the source of truth for
+    /// loads created in the iOS dispatcher app.  Also fires a background server
+    /// fetch to merge any loads created via the web dispatcher.
     private func fetchAssignedLoad() {
         guard let driver = appState.currentUser else { return }
         isLoadingLoad = true
 
-        // Try server first so the driver always sees the latest assignment
+        // 1. Nudge iCloud to push any pending remote changes
+        NSUbiquitousKeyValueStore.default.synchronize()
+
+        // 2. Match immediately from local / iCloud store — this is the fast path
+        //    and works even when the server is unreachable or the driver has no JWT.
+        matchLoadForDriver(driver)
+
+        // 3. Fire a background server fetch to pick up loads created via the
+        //    web dispatcher portal.  If it succeeds, merge & re-match.
+        //    Ignore any errors — the local store result already shown to driver.
         network.fetchLoads { serverLoads, _ in
             if let serverLoads = serverLoads, !serverLoads.isEmpty {
-                // Merge into local store so offline use still works
                 for load in serverLoads { LoadStore.shared.upsert(load) }
+                // Re-match in case the server returned a newly-assigned load
+                self.matchLoadForDriver(driver)
             }
-            // Now match from the (now-updated) local store
-            self.matchLoadForDriver(driver)
             self.isLoadingLoad = false
         }
     }
@@ -491,25 +510,24 @@ struct DriverView: View {
     private func matchLoadForDriver(_ driver: Driver) {
         let driverEmail = driver.email.lowercased()
         let driverPhone = driver.phone.filter { $0.isNumber }
+        let driverName  = driver.name.lowercased().trimmingCharacters(in: .whitespaces)
         let allLoads = LoadStore.shared.load()
 
         let activeStatuses: Set<LoadStatus> = [.assigned, .accepted, .inTransit]
 
-        // Primary match: email/phone AND active status
         let match = allLoads.first(where: {
+            guard activeStatuses.contains($0.status) else { return false }
+            // 1. Phone match against assignedDriverPhone or assignedDriverId
+            let phoneMatch = !driverPhone.isEmpty &&
+                ($0.assignedDriverPhone?.filter { $0.isNumber } == driverPhone ||
+                 $0.assignedDriverId?.filter    { $0.isNumber } == driverPhone)
+            // 2. Email match against assignedDriverEmail
             let emailMatch = !driverEmail.isEmpty &&
                 ($0.assignedDriverEmail?.lowercased() == driverEmail)
-            let phoneMatch = !driverPhone.isEmpty &&
-                ($0.assignedDriverId?.filter { $0.isNumber } == driverPhone ||
-                 $0.assignedDriverEmail?.filter { $0.isNumber } == driverPhone)
-            return (emailMatch || phoneMatch) && activeStatuses.contains($0.status)
-        }) ?? allLoads.first(where: {
-            // Secondary match: email/phone only, but STILL require active status
-            let emailMatch = !driverEmail.isEmpty &&
-                ($0.assignedDriverEmail?.lowercased() == driverEmail)
-            let phoneMatch = !driverPhone.isEmpty &&
-                ($0.assignedDriverEmail?.filter { $0.isNumber } == driverPhone)
-            return (emailMatch || phoneMatch) && activeStatuses.contains($0.status)
+            // 3. Name match as last resort (case-insensitive)
+            let nameMatch = !driverName.isEmpty &&
+                ($0.assignedDriverName?.lowercased().trimmingCharacters(in: .whitespaces) == driverName)
+            return phoneMatch || emailMatch || nameMatch
         })
 
         assignedLoad = match
@@ -549,7 +567,8 @@ struct DriverView: View {
         }
     }
 
-    private func toggleTracking() {        if locationManager.isTracking {
+    private func toggleTracking() {
+        if locationManager.isTracking {
             locationManager.stopTracking()
             network.disconnectWebSocket()
             statusMessage = "Stopped at \(Date().formatted(date: .omitted, time: .shortened))"
@@ -561,30 +580,35 @@ struct DriverView: View {
             }
             locationManager.requestPermission()
 
-            // 1️⃣ Connect WebSocket for this load
-            network.connectWebSocket(forLoadId: load.id)
+            // 1️⃣ Update load status → In Transit immediately (local + server)
+            var updatedLoad = load
+            updatedLoad.status = .inTransit
+            assignedLoad = updatedLoad
+            LoadStore.shared.upsert(updatedLoad)
+            // PATCH /track/{token}/status — public endpoint, no auth needed
+            AWSManager.shared.updateStatusByToken(token: load.trackingToken,
+                                                  loadId: load.id,
+                                                  status: .inTransit)
 
-            // 2️⃣ Start GPS streaming
-            locationManager.startTracking(loadId: load.id, driverId: driver.id, deliveryAddress: load.deliveryAddress, interval: 5) { update in
-                network.sendLocationOverWebSocket(update)
-                statusMessage = "Sent at \(update.timestamp.formatted(date: .omitted, time: .shortened))"
+            // 2️⃣ Start GPS — posts to /track/{token}/location in the background
+            //    The native OS keeps this running even when the screen is locked.
+            locationManager.startTracking(
+                loadId: load.id,
+                driverId: driver.id,
+                trackingToken: load.trackingToken,
+                deliveryAddress: load.deliveryAddress,
+                interval: 10
+            ) { update in
+                DispatchQueue.main.async {
+                    self.statusMessage = "Sent at \(update.timestamp.formatted(date: .omitted, time: .shortened))"
+                }
             }
 
-            // 3️⃣ Notify server (triggers server-side email/push if backend is live)
-            isSendingNotification = true
-            network.notifyTrackingStarted(load: load, driverName: driver.name) { result in
-                isSendingNotification = false
-                let via = load.customerPhone.isEmpty ? "email" : "email & SMS"
-                switch result {
-                case .success:
-                    notificationBannerMessage = "🚛 Tracking started — tap \"Send Tracking Link\" to notify \(load.customerName)"
-                case .failure:
-                    notificationBannerMessage = "🚛 Tracking started — tap \"Send Tracking Link\" to notify \(load.customerName)"
-                }
-                showNotificationBanner = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                    showNotificationBanner = false
-                }
+            statusMessage = "Tracking started"
+            notificationBannerMessage = "🚛 Tracking started — dispatcher can see your location live"
+            showNotificationBanner = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                showNotificationBanner = false
             }
         }
     }
@@ -713,4 +737,3 @@ struct NotificationBanner: View {
     DriverView()
         .environmentObject(AppState.shared)
 }
-,

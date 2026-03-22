@@ -1,9 +1,9 @@
 // src/handlers/postLocationPublic.js
 // POST /track/{token}/location
 // Called from the browser page on the driver's phone — NO auth required.
-// Uses the tracking token to identify the load and store the location.
+// Uses the tracking token (+ optional loadId) to identify the load and store the location.
 
-const { DynamoDBClient, QueryCommand, PutItemCommand, UpdateItemCommand } = require("@aws-sdk/client-dynamodb");
+const { DynamoDBClient, QueryCommand, GetItemCommand, PutItemCommand, UpdateItemCommand } = require("@aws-sdk/client-dynamodb");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 
 const db = new DynamoDBClient({});
@@ -27,26 +27,44 @@ exports.handler = async (event) => {
     if (!token) return respond(400, { error: "Token required." });
 
     const body = JSON.parse(event.body || "{}");
-    const { latitude, longitude, speed, heading } = body;
+    const { latitude, longitude, speed, heading, loadId } = body;
 
     if (latitude == null || longitude == null) {
       return respond(400, { error: "latitude and longitude are required." });
     }
 
-    // ── Look up load by trackingToken ────────────────────────────────────────
-    const loadResult = await db.send(new QueryCommand({
-      TableName: LOADS_TABLE,
-      IndexName: "TrackingTokenIndex",
-      KeyConditionExpression: "trackingToken = :t",
-      ExpressionAttributeValues: marshall({ ":t": token }),
-      Limit: 1,
-    }));
+    // ── Look up load — prefer direct GetItem via loadId (fast), fall back to GSI ──
+    let load = null;
 
-    if (!loadResult.Items || loadResult.Items.length === 0) {
-      return respond(404, { error: "No shipment found." });
+    if (loadId) {
+      const getResult = await db.send(new GetItemCommand({
+        TableName: LOADS_TABLE,
+        Key: marshall({ id: loadId }),
+      }));
+      if (getResult.Item) {
+        const candidate = unmarshall(getResult.Item);
+        // Verify token matches to prevent spoofing
+        if (!candidate.trackingToken || candidate.trackingToken === token) {
+          load = candidate;
+        }
+      }
     }
 
-    const load = unmarshall(loadResult.Items[0]);
+    // Fallback: GSI query by trackingToken
+    if (!load) {
+      const loadResult = await db.send(new QueryCommand({
+        TableName: LOADS_TABLE,
+        IndexName: "TrackingTokenIndex",
+        KeyConditionExpression: "trackingToken = :t",
+        ExpressionAttributeValues: marshall({ ":t": token }),
+        Limit: 1,
+      }));
+      if (!loadResult.Items || loadResult.Items.length === 0) {
+        return respond(404, { error: "No shipment found." });
+      }
+      load = unmarshall(loadResult.Items[0]);
+    }
+
     const ts = new Date().toISOString();
 
     const locationItem = {
@@ -78,4 +96,4 @@ exports.handler = async (event) => {
     console.error("postLocationPublic error:", err);
     return respond(500, { error: "Internal server error." });
   }
-};
+};};

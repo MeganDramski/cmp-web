@@ -40,23 +40,13 @@ struct AuthView: View {
                 VStack(spacing: 32) {
 
                     // ── Logo ──────────────────────────────────────────────
-                    VStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.accentColor.opacity(0.12))
-                                .frame(width: 100, height: 100)
-                            Image(systemName: "truck.box.fill")
-                                .font(.system(size: 44))
-                                .foregroundColor(.accentColor)
-                        }
-                        Text("CMP Tracking")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
+                    VStack(spacing: 8) {
+                        ParceloLogoD(size: 90)
                         Text("Logistics. Simplified.")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
-                    .padding(.top, 48)
+                    .padding(.top, 40)
 
                     // ── Form ──────────────────────────────────────────────
                     if isCreatingAccount {

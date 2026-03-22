@@ -1,4 +1,4 @@
-// sendDriverLink.js – sends driver tracking link via email (SES)
+//endDriverLink.js – sends driver tracking link via email (SES)
 const { DynamoDBClient, GetItemCommand } = require("@aws-sdk/client-dynamodb");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
@@ -90,7 +90,7 @@ exports.handler = async (event) => {
     if (!loadId) return respond(400, { error: "Load ID required" });
 
     const body = JSON.parse(event.body || "{}");
-    const { dispatcherEmail, notifyCustomer = false } = body;
+    const { dispatcherEmail, notifyCustomer = false, pingOnly = false } = body;
     if (!dispatcherEmail) return respond(400, { error: "dispatcherEmail required" });
 
     // 1. Fetch load
@@ -101,8 +101,42 @@ exports.handler = async (event) => {
     if (!res.Item) return respond(404, { error: "Load not found" });
     const load = unmarshall(res.Item);
 
-    // 2. Build tracking link (embeds full load payload as ?d= for offline-capable driver page)
+    // 2. Build tracking link
     const link = buildLink(event, load.trackingToken, load.id, load);
+
+    // ── PING-ONLY path ──────────────────────────────────────────────────────
+    // Dispatcher tapped "Ping Driver" — just send a short "please reopen" SMS
+    // (and a brief email) without sending the full load assignment messages.
+    if (pingOnly) {
+      // Short email to driver (if email on file)
+      if (load.assignedDriverEmail && FROM_EMAIL) {
+        try {
+          await ses.send(new SendEmailCommand({
+            Source: FROM_EMAIL,
+            Destination: { ToAddresses: [load.assignedDriverEmail] },
+            Message: {
+              Subject: { Data: "Action needed – CMP Logistics Load " + load.loadNumber },
+              Body: {
+                Html: {
+                  Data:
+                    "<p>Hi <strong>" + (load.assignedDriverName || "Driver") + "</strong>,</p>" +
+                    "<p>Your dispatcher is requesting an updated location for Load <strong>" +
+                    load.loadNumber + "</strong>. Please reopen the tracking app:</p>" +
+                    "<p style='margin-top:16px;'>" +
+                    "<a href='" + link + "' style='background:#FF9500;color:#fff;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;'>Reopen Tracking App</a>" +
+                    "</p>" +
+                    "<p style='color:#888;font-size:12px;margin-top:20px;'>No app needed – works in any browser.</p>",
+                },
+              },
+            },
+          }));
+        } catch (e) {
+          console.warn("Ping email failed:", e.message);
+        }
+      }
+      return respond(200, { success: true, driverLink: link });
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     // 3. Send email to driver (if email on file)
     try {

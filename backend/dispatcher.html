@@ -19,7 +19,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 #app-screen.on{display:flex}
 
 /* AUTH */
-.acard{width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:32px 28px}
+.acard{width:100%;max-width:380px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px 24px}
 .alogo{text-align:center;margin-bottom:24px}
 .alogo .ico{width:68px;height:68px;background:rgba(0,122,255,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 10px}
 .alogo h1{font-size:21px;font-weight:700}
@@ -206,47 +206,69 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <div id="auth-screen">
   <div class="acard">
     <div class="alogo">
-      <div class="ico">🚛</div>
-      <h1>CMP Logistics</h1>
-      <p>Dispatcher Portal</p>
+      <!-- CMP Logistics logo -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:14px">
+        <div style="width:42px;height:42px;background:linear-gradient(135deg,#533AB7,#AFA9EC);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;flex-shrink:0">C</div>
+        <div style="text-align:left;line-height:1">
+          <div style="font-size:24px;font-weight:600;color:#fff;letter-spacing:-0.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">CMP Logistics</div>
+          <div style="font-size:9px;font-weight:400;color:#8e8ea0;letter-spacing:2.5px;text-transform:uppercase;margin-top:3px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">FREIGHT MANAGEMENT</div>
+        </div>
+      </div>
+      <p id="auth-subtitle" style="margin:0">Dispatcher Portal</p>
     </div>
     <div class="atabs">
       <button class="atab on" id="tab-in">Sign In</button>
       <button class="atab" id="tab-up">Create Account</button>
+      <button class="atab" id="tab-co">New Company</button>
     </div>
     <div class="aerr" id="aerr"></div>
     <div class="aform on" id="form-in">
-      <div class="fg"><label>Email</label><input type="email" id="si-email" placeholder="dispatcher@cmpfreight.com"/></div>
+      <div class="fg"><label>Email</label><input type="email" id="si-email" placeholder="dispatcher@yourcompany.com"/></div>
       <div class="fg"><label>Password</label><input type="password" id="si-pw" placeholder="Password"/></div>
-      <button class="btn btn-p btn-full" id="btn-in">Sign In</button>
+      <button type="button" class="btn btn-p btn-full" id="btn-in">Sign In</button>
     </div>
     <div class="aform" id="form-up">
       <div class="fg"><label>Full Name</label><input type="text" id="reg-name" placeholder="Jane Dispatcher"/></div>
-      <div class="fg"><label>Work Email</label><input type="email" id="reg-email" placeholder="dispatcher@cmplogistics.ca"/></div>
+      <div class="fg"><label>Work Email</label><input type="email" id="reg-email" placeholder="dispatcher@yourcompany.com"/></div>
       <div class="fg"><label>Phone (optional)</label><input type="tel" id="reg-phone" placeholder="+1 312 555 0100"/></div>
       <div class="fg"><label>Password (min 6 chars)</label><input type="password" id="reg-pw" placeholder="Password"/></div>
-      <button class="btn btn-p btn-full" id="btn-up">Request Access</button>
+      <button type="button" class="btn btn-p btn-full" id="btn-up">Request Access</button>
+    </div>
+    <!-- Create Company — self-service sign-up for new tenants -->
+    <div class="aform" id="form-co">
+      <div class="fg"><label>Company Name</label><input type="text" id="co-company" placeholder="Acme Freight Inc."/></div>
+      <div class="fg"><label>Your Name</label><input type="text" id="co-name" placeholder="Jane Dispatcher"/></div>
+      <div class="fg"><label>Work Email</label><input type="email" id="co-email" placeholder="jane@acmefreight.com"/></div>
+      <div class="fg"><label>Password (min 8 chars)</label><input type="password" id="co-pw" placeholder="Strong password"/></div>
+      <button type="button" class="btn btn-p btn-full" id="btn-co">Create Company &amp; Sign In</button>
+      <p class="anote" style="margin-top:10px">Includes a 14-day free trial. No credit card required to start.</p>
     </div>
     <!-- Shown after a successful request submission -->
     <div class="aform" id="form-pending" style="text-align:center;padding:8px 0">
       <div style="font-size:48px;margin-bottom:12px">📬</div>
       <div style="font-size:17px;font-weight:700;margin-bottom:8px">Request Sent!</div>
       <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:20px">
-        Your sign-up request has been sent to the CMP admin team.<br>
+        Your sign-up request has been sent to the admin team.<br>
         You'll receive an email at <span id="pending-email" style="color:var(--text);font-weight:600"></span> once your account is approved.
       </div>
       <button class="btn btn-full" style="background:var(--s2)" onclick="document.getElementById('tab-in').click()">Back to Sign In</button>
     </div>
-    <p class="anote">Access requires admin approval. Drivers use the SMS link.</p>
+    <p class="anote">Existing user? Sign in above. New company? Use the New Company tab.</p>
   </div>
 </div>
 
 <!-- APP -->
 <div id="app-screen">
   <nav class="nav">
-    <div class="brand">🚛 CMP Logistics</div>
+    <div class="brand" style="display:flex;align-items:center;gap:8px">
+      <!-- CMP Logistics icon (small, nav size) -->
+      <div style="width:28px;height:28px;background:linear-gradient(135deg,#533AB7,#AFA9EC);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;flex-shrink:0">C</div>
+      <span id="nav-company">CMP Logistics</span><span id="nav-platform-tag" style="display:none;font-size:10px;font-weight:500;color:var(--muted);margin-left:6px;padding:2px 7px;background:rgba(255,255,255,.06);border-radius:20px;border:1px solid var(--border)">via CMP Logistics</span>
+    </div>
     <div class="spacer"></div>
+    <span id="nav-plan-badge" style="display:none;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:rgba(255,149,0,.15);color:#FF9500;border:1px solid rgba(255,149,0,.3);cursor:pointer" title="Upgrade plan" onclick="upgradePlan()"></span>
     <div class="uchip"><span>👤</span><strong id="nav-name">Dispatcher</strong></div>
+    <button class="btn btn-sm" id="btn-invite" title="Copy driver invite link" style="display:none" onclick="copyInviteLink()">🔗 Invite Driver</button>
     <button class="btn btn-sm" id="btn-notif" title="Enable notifications" style="display:none">🔔</button>
     <button class="btn btn-sm" id="btn-out">Sign Out</button>
     <button class="btn btn-p btn-sm" id="btn-new">+ New Load</button>
@@ -404,8 +426,27 @@ function showApp(){  document.getElementById('auth-screen').classList.remove('on
 function aerr(m){ var e=document.getElementById('aerr'); e.textContent=m; e.style.display='block'; }
 function aclr(){   document.getElementById('aerr').style.display='none'; }
 
-document.getElementById('tab-in').addEventListener('click',function(){ document.getElementById('tab-in').classList.add('on'); document.getElementById('tab-up').classList.remove('on'); document.getElementById('form-in').classList.add('on'); document.getElementById('form-up').classList.remove('on'); aclr(); });
-document.getElementById('tab-up').addEventListener('click',function(){ document.getElementById('tab-up').classList.add('on'); document.getElementById('tab-in').classList.remove('on'); document.getElementById('form-up').classList.add('on'); document.getElementById('form-in').classList.remove('on'); aclr(); });
+document.getElementById('tab-in').addEventListener('click',function(){
+  ['tab-in','tab-up','tab-co'].forEach(function(id){document.getElementById(id).classList.remove('on');});
+  ['form-in','form-up','form-co'].forEach(function(id){document.getElementById(id).classList.remove('on');});
+  document.getElementById('tab-in').classList.add('on');
+  document.getElementById('form-in').classList.add('on');
+  aclr();
+});
+document.getElementById('tab-up').addEventListener('click',function(){
+  ['tab-in','tab-up','tab-co'].forEach(function(id){document.getElementById(id).classList.remove('on');});
+  ['form-in','form-up','form-co'].forEach(function(id){document.getElementById(id).classList.remove('on');});
+  document.getElementById('tab-up').classList.add('on');
+  document.getElementById('form-up').classList.add('on');
+  aclr();
+});
+document.getElementById('tab-co').addEventListener('click',function(){
+  ['tab-in','tab-up','tab-co'].forEach(function(id){document.getElementById(id).classList.remove('on');});
+  ['form-in','form-up','form-co'].forEach(function(id){document.getElementById(id).classList.remove('on');});
+  document.getElementById('tab-co').classList.add('on');
+  document.getElementById('form-co').classList.add('on');
+  aclr();
+});
 
 /* SIGN IN */
 document.getElementById('btn-in').addEventListener('click', doSignIn);
@@ -433,7 +474,7 @@ function doSignIn(){
       if(!res.ok){
         var msg=res.d.error||'Sign-in failed.';
         if(res.d.status==='pending') msg='⏳ Your account is pending approval. Check your email — you\'ll be notified once an admin approves your request.';
-        if(res.d.status==='denied')  msg='❌ Your account request was not approved. Contact dispatch@cmplogistics.ca for help.';
+        if(res.d.status==='denied')  msg='❌ Your account request was not approved. Contact your company admin for help.';
         throw new Error(msg);
       }
       if(res.d.user.role!=='dispatcher')throw new Error('Dispatcher accounts only.');
@@ -446,6 +487,50 @@ function doSignIn(){
 /* REGISTER / REQUEST ACCESS */
 document.getElementById('btn-up').addEventListener('click', doRegister);
 document.getElementById('reg-pw').addEventListener('keydown',function(e){if(e.key==='Enter')doRegister();});
+
+/* CREATE COMPANY (new tenant self-sign-up) */
+document.getElementById('btn-co').addEventListener('click', doCreateCompany);
+document.getElementById('co-pw').addEventListener('keydown',function(e){if(e.key==='Enter')doCreateCompany();});
+
+function doCreateCompany(){
+  aclr();
+  var company=document.getElementById('co-company').value.trim();
+  var name=document.getElementById('co-name').value.trim();
+  var email=document.getElementById('co-email').value.trim().toLowerCase();
+  var pass=document.getElementById('co-pw').value;
+  if(!company||!name||!email||!pass)return aerr('All fields are required.');
+  if(pass.length<8)return aerr('Password must be at least 8 characters.');
+  var btn=document.getElementById('btn-co'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Creating company…';
+
+  // ── Offline / local mode ──────────────────────────────────────────────────
+  if(!isLive()){
+    var accs=JSON.parse(localStorage.getItem('cmp_accounts')||'[]');
+    for(var i=0;i<accs.length;i++){if(accs[i].email===email){btn.disabled=false;btn.textContent='Create Company & Sign In';return aerr('An account with that email already exists.');}}
+    var tenantId='local-'+Date.now();
+    var newUser={name:name,email:email,role:'dispatcher',tenantId:tenantId,companyName:company,plan:'trial',passwordHash:sha256(pass),status:'active'};
+    accs.push(newUser);
+    localStorage.setItem('cmp_accounts',JSON.stringify(accs));
+    session={token:'local',user:{name:name,email:email,role:'dispatcher',tenantId:tenantId,companyName:company,plan:'trial'}};
+    localStorage.setItem('cmp_session',JSON.stringify(session));
+    btn.disabled=false;btn.textContent='Create Company & Sign In';
+    enterApp();
+    toast('🎉 Welcome, '+company+'! Your 14-day trial has started.');
+    return;
+  }
+
+  // ── Live backend ──────────────────────────────────────────────────────────
+  fetch(API+'/companies/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({companyName:company,adminName:name,adminEmail:email,password:pass})})
+    .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
+    .then(function(res){
+      if(!res.ok)throw new Error(res.d.error||'Company registration failed.');
+      session={token:res.d.token,user:res.d.user};
+      localStorage.setItem('cmp_session',JSON.stringify(session));
+      enterApp();
+      toast('🎉 Welcome, '+company+'! Your 14-day trial has started.');
+    })
+    .catch(function(e){aerr(e.message&&e.message!=='Failed to fetch'?e.message:'Cannot reach the server. Try again later.');})
+    .finally(function(){btn.disabled=false;btn.textContent='Create Company & Sign In';});
+}
 
 function showPendingScreen(email){
   document.getElementById('form-up').classList.remove('on');
@@ -473,7 +558,9 @@ function doRegister(){
     btn.disabled=false; btn.textContent='Request Access';
     showPendingScreen(email); return;
   }
-  fetch(API+'/users/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,email:email,phone:phone,password:pass,role:'dispatcher'})})
+  var regBody={name:name,email:email,phone:phone,password:pass,role:'dispatcher'};
+  if(window._inviteTenantId) regBody.tenantId=window._inviteTenantId;
+  fetch(API+'/users/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(regBody)})
     .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
     .then(function(res){
       if(!res.ok)throw new Error(res.d.error||'Request failed.');
@@ -494,12 +581,90 @@ document.getElementById('btn-out').addEventListener('click',function(){
 
 /* ENTER APP */
 function enterApp(){
-  document.getElementById('nav-name').textContent=session.user.name||session.user.email;
+  var u = session.user;
+  document.getElementById('nav-name').textContent = u.name || u.email;
+
+  // Show company name in nav brand
+  if(u.companyName){
+    document.getElementById('nav-company').textContent = u.companyName;
+    document.getElementById('nav-platform-tag').style.display = '';
+    // Also update auth screen subtitle so it shows the company on next load
+    var sub = document.getElementById('auth-subtitle');
+    if(sub) sub.textContent = u.companyName + ' · CMP Logistics';
+  }
+
+  // Show plan badge
+  var planBadge = document.getElementById('nav-plan-badge');
+  if(u.plan === 'trial'){
+    planBadge.textContent = '⏳ Trial';
+    planBadge.style.display = '';
+    planBadge.title = 'Free trial active — click to upgrade';
+  } else if(u.plan === 'free'){
+    planBadge.textContent = '⬆️ Upgrade';
+    planBadge.style.display = '';
+    planBadge.title = 'Click to upgrade to Pro';
+  } else if(u.plan === 'pro'){
+    planBadge.textContent = '⭐ Pro';
+    planBadge.style.background = 'rgba(52,199,89,.15)';
+    planBadge.style.color = '#34C759';
+    planBadge.style.borderColor = 'rgba(52,199,89,.3)';
+    planBadge.style.cursor = 'default';
+    planBadge.title = 'Pro plan active';
+    planBadge.style.display = '';
+  }
+
+  // Show invite driver button for multi-tenant companies
+  if(u.tenantId){
+    document.getElementById('btn-invite').style.display = '';
+  }
+
   showApp();
   loadDrivers();
   loadData();
   requestWebNotifPermission();
   startBackgroundPoll();
+
+  // Handle billing query params (return from Stripe)
+  var params = new URLSearchParams(window.location.search);
+  if(params.get('billing')==='success'){
+    toast('✅ Subscription activated! Thank you.');
+    window.history.replaceState({}, '', window.location.pathname);
+  } else if(params.get('billing')==='cancelled'){
+    toast('Checkout cancelled — you have not been charged.');
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+}
+
+/* INVITE DRIVER — copies a pre-filled registration link with tenantId */
+function copyInviteLink(){
+  var tenantId = session && session.user && session.user.tenantId;
+  if(!tenantId){ toast('No company associated with your account.'); return; }
+  var base = window.location.origin + window.location.pathname.replace('dispatcher.html','');
+  var link = base + 'dispatcher.html?invite=' + encodeURIComponent(tenantId);
+  navigator.clipboard.writeText(link).then(function(){
+    toast('📋 Driver invite link copied! Share it with your drivers so they can register.');
+  }).catch(function(){
+    prompt('Copy this invite link:', link);
+  });
+}
+
+/* UPGRADE PLAN — redirect to Stripe Checkout */
+function upgradePlan(){
+  var u = session && session.user;
+  if(!u || !u.tenantId){ toast('Sign in with a company account to upgrade.'); return; }
+  if(!isLive()){ toast('Billing is only available on the live portal.'); return; }
+  var btn = document.getElementById('nav-plan-badge');
+  if(btn) btn.textContent = '⏳ Loading…';
+  fetch(API+'/billing/checkout',{method:'POST',headers:ah(),body:JSON.stringify({plan:'pro'})})
+    .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
+    .then(function(res){
+      if(!res.ok) throw new Error(res.d.error||'Could not start checkout.');
+      window.location.href = res.d.url;
+    })
+    .catch(function(e){
+      toast('❌ '+e.message);
+      if(btn) btn.textContent = u.plan==='trial'?'⏳ Trial':'⬆️ Upgrade';
+    });
 }
 
 /* ── WEB NOTIFICATIONS ───────────────────────────────────────────────────── */
@@ -598,9 +763,27 @@ function bgPollLoads(){
           }
         });
         renderList();
-        // Only re-render the detail panel if the selected load actually
-        // changed — avoids destroying and rebuilding the map on every poll.
-        if(selId && _selLoadChanged(fresh)) renderDetail();
+        // Never call renderDetail() from the poll — it would destroy the map.
+        // Instead, patch just the status badge + dropdown in-place if the
+        // selected load's status changed.
+        if(selId){
+          var selLoad=null;
+          for(var i=0;i<loads.length;i++){if(loads[i].id===selId){selLoad=loads[i];break;}}
+          if(selLoad){
+            var badge=document.querySelector('#dc .dhdr .'+selLoad.status.replace(' ','-'));
+            // Update status dropdown value without re-rendering
+            var ssel=document.getElementById('d-status');
+            if(ssel && ssel.value!==selLoad.status) ssel.value=selLoad.status;
+            // Update status badge class/text
+            var allBadges=document.querySelectorAll('#dc .dhdr span[class]');
+            allBadges.forEach(function(b){
+              if(['Pending','Assigned','Accepted','In Transit','Delivered','Cancelled'].some(function(s){return b.textContent.trim()===s;})){
+                b.className=bc(selLoad.status);
+                b.textContent=selLoad.status;
+              }
+            });
+          }
+        }
       })
       .catch(function(){});
   } else {
@@ -637,7 +820,19 @@ function checkStatusChange(l){
     if(loads[i].id===l.id){ loads[i]=l; found=true; break; }
   }
   if(!found) loads.push(l);
-  if(selId===l.id) renderDetail();
+  // If this is the selected load, update the status badge/dropdown in-place
+  // rather than calling renderDetail() which would destroy the live map.
+  if(selId===l.id){
+    var ssel=document.getElementById('d-status');
+    if(ssel && ssel.value!==l.status) ssel.value=l.status;
+    var allBadges=document.querySelectorAll('#dc .dhdr span[class]');
+    allBadges.forEach(function(b){
+      if(['Pending','Assigned','Accepted','In Transit','Delivered','Cancelled'].some(function(s){return b.textContent.trim()===s;})){
+        b.className=bc(l.status);
+        b.textContent=l.status;
+      }
+    });
+  }
 }
 
 /* LOAD DRIVERS */
@@ -866,7 +1061,9 @@ function renderDetail(){
         +'<div class="map-stat"><div class="map-stat-val" id="dms-lat">—</div><div class="map-stat-lbl">Latitude</div></div>'
         +'<div class="map-stat"><div class="map-stat-val" id="dms-lng">—</div><div class="map-stat-lbl">Longitude</div></div>'
         +'</div>'
-        +'<div class="stale-warn" id="disp-stale-warn"><span class="stale-icon">⚠️</span><span id="disp-stale-msg">No location update received — signal may be lost.</span></div>'
+        +'<div class="stale-warn" id="disp-stale-warn"><span class="stale-icon">⚠️</span><span id="disp-stale-msg">No location update received — signal may be lost.</span>'
+        +'<button class="btn btn-sm" id="btn-ping-driver" style="margin-left:auto;background:#FF9500;color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;" onclick="pingDriver()">📲 Ping Driver</button>'
+        +'</div>'
         +'</div>'
       : ''
     )
@@ -944,9 +1141,6 @@ function renderDetail(){
     }
   });
 
-  // Save a snapshot so bgPollLoads can skip re-renders when nothing changed.
-  _selLoadSnapshot = JSON.stringify(load);
-
   // Start live map polling for In Transit / Assigned loads
   startDispatcherMap(load);
 }
@@ -971,13 +1165,27 @@ function _selLoadChanged(freshArray){
 }
 
 var _dispMap=null, _dispMarker=null, _dispTrail=null, _dispTrailPts=[], _dispPollTimer=null, _dispStaleTimer=null, _lastLocTimestamp=null;
+var _lastGpsTimestamp=null; // actual timestamp of driver's last GPS fix
 // Track which load the dispatcher map is currently showing.
 var _dispMapLoadId=null;
+
+// Update the "Last update" stat — shows "Just now" / "30s ago" etc.
+// Called on every successful poll AND by the stale timer between polls.
+function updateLastSeenLabel(){
+  var el=document.getElementById('dms-updated');
+  if(!el||!_lastGpsTimestamp)return;
+  var d=new Date(_lastGpsTimestamp);
+  var h=d.getHours(),m=d.getMinutes(),s=d.getSeconds();
+  var ampm=h>=12?'PM':'AM';
+  h=h%12||12;
+  var timeStr=h+':'+(m<10?'0':'')+m+':'+(s<10?'0':'')+s+' '+ampm;
+  el.textContent=timeStr;
+}
 
 function stopDispatcherMap(){
   if(_dispPollTimer){clearInterval(_dispPollTimer);_dispPollTimer=null;}
   if(_dispStaleTimer){clearInterval(_dispStaleTimer);_dispStaleTimer=null;}
-  _dispMap=null; _dispMarker=null; _dispTrail=null; _dispTrailPts=[]; _lastLocTimestamp=null;
+  _dispMap=null; _dispMarker=null; _dispTrail=null; _dispTrailPts=[]; _lastLocTimestamp=null; _lastGpsTimestamp=null;
   _dispMapLoadId=null;
 }
 
@@ -995,10 +1203,10 @@ function startDispatcherMap(load){
   _lastLocTimestamp=Date.now();
   // Immediate first fetch
   pollDispatcherMap(load.trackingToken);
-  // Then every 15 seconds
-  _dispPollTimer=setInterval(function(){pollDispatcherMap(load.trackingToken);},15000);
-  // Check for stale signal every 30 seconds (starts after first poll has run)
-  _dispStaleTimer=setInterval(function(){checkStaleSignal();},30000);
+  // Then every 5 seconds for smooth live tracking
+  _dispPollTimer=setInterval(function(){pollDispatcherMap(load.trackingToken);},5000);
+  // Refresh stale warning + "X ago" label every 5 s so it stays in sync with the poll
+  _dispStaleTimer=setInterval(function(){checkStaleSignal();updateLastSeenLabel();},5000);
 }
 
 function checkStaleSignal(){
@@ -1006,11 +1214,13 @@ function checkStaleSignal(){
   var msg=document.getElementById('disp-stale-msg');
   if(!warn)return;
   if(!_lastLocTimestamp){warn.classList.remove('on');return;}
-  var age=Date.now()-_lastLocTimestamp; // ms since last live poll update
-  var STALE_MS=5*60*1000; // 5 minutes of no new data from the live poll
+  var age=Date.now()-_lastLocTimestamp;
+  var STALE_MS=2*60*1000; // show warning after 2 minutes of no update
   if(age>=STALE_MS){
     var mins=Math.floor(age/60000);
-    if(msg) msg.textContent='No location update for '+mins+' min — driver signal may be lost.';
+    var secs=Math.floor((age%60000)/1000);
+    var timeStr = mins>0 ? mins+' min'+(mins>1?'s':'')+' ago' : secs+'s ago';
+    if(msg) msg.textContent='⚠️ Last ping '+timeStr+' — driver may have closed the app. Tap Ping Driver to alert them.';
     warn.classList.add('on');
   } else {
     warn.classList.remove('on');
@@ -1080,24 +1290,32 @@ function snapToRoads(history, callback){
 }
 
 function pollDispatcherMap(token){
-  fetch(API+'/track/'+token)
-    .then(function(r){return r.ok?r.json():null;})
+  var pollStart = Date.now();
+  fetch(API+'/track/'+token+'?live=1')
+    .then(function(r){
+      if(!r.ok){ console.warn('pollDispatcherMap HTTP '+r.status); return null; }
+      return r.json();
+    })
     .then(function(data){
-      if(!data)return;
+      if(!data){ console.warn('pollDispatcherMap: no data returned'); return; }
       var el=document.getElementById('disp-map-inner');
       if(!el)return;
 
-      // Filter history to current 24-hour window
-      var recentHistory=filterRecentLocations(data.locationHistory);
+      // Sort all history ascending so newest is last. No 24-hr cutoff —
+      // we want every point from the current trip regardless of age.
+      var history = Array.isArray(data.locationHistory) ? data.locationHistory.slice() : [];
+      history.sort(function(a,b){
+        return new Date(a.timestamp||0).getTime() - new Date(b.timestamp||0).getTime();
+      });
 
-      // Use the most recent point from history as position,
-      // always fall back to lastLocation (no age check — show last known position)
-      var loc=recentHistory.length
-        ? recentHistory[recentHistory.length-1]
+      // Best position: newest history point, then lastLocation on the load.
+      // Never bail just because history is empty — lastLocation is always fresh.
+      var loc = history.length
+        ? history[history.length-1]
         : (data.lastLocation || null);
 
-      if(!loc){
-        // No fresh location yet — driver hasn't started or data is stale
+      if(!loc || loc.latitude==null || loc.longitude==null){
+        console.warn('pollDispatcherMap: no usable location yet');
         return;
       }
 
@@ -1116,18 +1334,17 @@ function pollDispatcherMap(token){
         _dispMap.panTo([lat,lng]);
       }
 
-      // Trail: snap to roads using OSRM match API (free, no key needed)
-      if(recentHistory.length>=2){
-        snapToRoads(recentHistory, function(roadPts){
+      // Trail
+      if(history.length>=2){
+        snapToRoads(history, function(roadPts){
           if(roadPts && roadPts.length>=2){
             _dispTrail.setLatLngs(roadPts);
           } else {
-            // Fallback to straight line if OSRM fails
-            _dispTrail.setLatLngs(recentHistory.map(function(p){return[p.latitude,p.longitude];}));
+            _dispTrail.setLatLngs(history.map(function(p){return[p.latitude,p.longitude];}));
           }
         });
       } else {
-        _dispTrail.setLatLngs([]);
+        if(_dispTrail) _dispTrail.setLatLngs([]);
       }
 
       // Show stats bar
@@ -1137,13 +1354,51 @@ function pollDispatcherMap(token){
         document.getElementById('dms-speed').textContent=loc.speed!=null?Math.round(loc.speed):'0';
         document.getElementById('dms-lat').textContent=lat.toFixed(5);
         document.getElementById('dms-lng').textContent=lng.toFixed(5);
-        document.getElementById('dms-updated').textContent=loc.timestamp?new Date(loc.timestamp).toLocaleTimeString():'—';
-        // Update stale clock to NOW (time of this successful poll), not the stored GPS timestamp
-        _lastLocTimestamp=Date.now();
+        // Use server receive time for staleness check — driver phone clock may drift.
+        // Show the GPS timestamp in the label but base "X ago" on when we got the data.
+        var receiveTime = Date.now();
+        _lastGpsTimestamp = receiveTime;  // "ago" counts from when dispatcher received it
+        _lastLocTimestamp = receiveTime;
+        updateLastSeenLabel();
         checkStaleSignal();
       }
     })
-    .catch(function(){/* silently ignore network errors */});
+    .catch(function(err){ console.error('pollDispatcherMap fetch error:', err); });
+}
+
+/* ── PING DRIVER ─────────────────────────────────────────────────────────── */
+// Re-sends the driver tracking link (email + SMS) so driver gets a push
+// notification that brings them back to the tracking page.
+function pingDriver(){
+  var load=loads.find(function(l){return l.id===selectedLoadId;});
+  if(!load){toast('No load selected');return;}
+  if(!load.assignedDriverPhone && !load.assignedDriverEmail){
+    toast('No driver phone or email on file — edit the load to add contact info.');
+    return;
+  }
+  var btn=document.getElementById('btn-ping-driver');
+  if(btn){btn.disabled=true;btn.textContent='Sending…';}
+
+  fetch(API+'/loads/'+load.id+'/send-driver-link',{
+    method:'POST',
+    headers:ah(),
+    body:JSON.stringify({
+      dispatcherEmail: currentUser&&currentUser.email ? currentUser.email : (load.createdBy||''),
+      pingOnly: true,   // tells Lambda to use a short "reopen app" message
+    }),
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if(d.success||d.driverLink){
+      toast('📲 Driver has been pinged — they will receive a link to reopen the app.');
+    } else {
+      toast('Could not ping driver: '+(d.error||'unknown error'));
+    }
+  })
+  .catch(function(e){toast('Ping failed: '+e.message);})
+  .finally(function(){
+    if(btn){btn.disabled=false;btn.textContent='📲 Ping Driver';}
+  });
 }
 
 /* ASSIGN DRIVER */
@@ -1225,56 +1480,76 @@ function sendLink(id){
            + (encoded ? '&d=' + encodeURIComponent(encoded) : '');
 
   var pickupStr=load.pickupDate?new Date(load.pickupDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+  var companyName = (session && session.user && session.user.companyName) ? session.user.companyName : 'CMP Logistics';
 
   var msgText='Hi '+(load.assignedDriverName||'Driver')+',\n\n'
-    +'You have a new load assigned by CMP Logistics.\n\n'
+    +'You have a new load from '+companyName+'.\n\n'
     +'LOAD #: '+(load.loadNumber||'--')+'\n'
     +'PICKUP: '+(load.pickupAddress||'--')+'\n'
     +'DELIVERY: '+(load.deliveryAddress||'--')+'\n'
     +(pickupStr?'DATE: '+pickupStr+'\n':'')
     +(load.notes?'NOTES: '+load.notes+'\n':'')
-    +'\nOpen this link to see your full load details and START TRACKING:\n'
+    +'\n👉 Tap this link to accept and track your load:\n'
     +dURL
-    +'\n\nNo app needed - works in any browser.';
+    +'\n\nTip: After opening, tap "Add to Home Screen" for the best experience — works like an app, no App Store needed.';
 
   var smsLink=(dp?'sms:+'+dp.replace(/^\+/,''):'sms:')+('?body='+encodeURIComponent(msgText));
   var emailLink='mailto:'+(load.assignedDriverEmail||'')
-               +'?subject='+encodeURIComponent('CMP Load #'+(load.loadNumber||''))
+               +'?subject='+encodeURIComponent('New Load #'+(load.loadNumber||'')+' — '+companyName)
                +'&body='+encodeURIComponent(msgText);
-  var waLink=dp?'https://wa.me/'+dp.replace(/^\+/,'')+'?text='+encodeURIComponent(msgText):'';
+  var waLink=dp?'https://wa.me/'+dp.replace(/[^0-9]/g,'')+'?text='+encodeURIComponent(msgText):'';
 
   var modalBody=document.getElementById('send-modal-body');
   modalBody.innerHTML=''
-    +'<div style="background:rgba(0,122,255,.1);border:2px solid var(--blue);border-radius:13px;padding:14px;margin-bottom:14px">'
-    +'<div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Driver Tracking Link</div>'
-    +'<div style="background:var(--bg);border-radius:9px;padding:10px;font-family:monospace;font-size:11px;color:var(--text);word-break:break-all;margin-bottom:10px;line-height:1.5">'+esc(dURL)+'</div>'
-    +'<button class="btn btn-p btn-full" id="sm-copy-link" style="font-size:14px;padding:11px">📋 Copy Link</button>'
-    +'</div>'
+    // ── Primary: SMS tracking link ───────────────────────────────────────
+    +'<div style="background:rgba(0,122,255,.10);border:2px solid rgba(0,122,255,.4);border-radius:13px;padding:14px;margin-bottom:12px">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">📲 Send Load Link to Driver</div>'
+    +'<div style="font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.5">'
+    +'Driver taps the link → accepts the load → taps <strong style="color:var(--text)">"Add to Home Screen"</strong> → gets an app icon on their phone. <strong style="color:var(--text)">No App Store. No account. Works on iPhone &amp; Android.</strong></div>'
     +(dp
-      ?'<button id="sm-send-sms" style="width:100%;margin-bottom:10px;background:#34C759;color:#fff;font-size:17px;font-weight:700;padding:16px;border:none;border-radius:13px;cursor:pointer">📱 Open SMS App – Send to '+esc(dp)+'</button>'
-      :'<div style="background:var(--s2);border-radius:9px;padding:12px 14px;font-size:13px;color:var(--muted);margin-bottom:10px;text-align:center">⚠️ No phone number on file.<br>Add driver phone in the Assigned Driver section.</div>'
+      ?'<button id="sm-send-sms" style="width:100%;margin-bottom:8px;background:var(--blue);color:#fff;font-size:15px;font-weight:700;padding:13px;border:none;border-radius:11px;cursor:pointer">📱 Text Link to '+esc(dp)+'</button>'
+      :'<div style="background:var(--s2);border-radius:9px;padding:10px 12px;font-size:13px;color:var(--muted);margin-bottom:8px">⚠️ No phone number on file. Add driver phone to enable SMS.</div>'
     )
-    +'<a class="btn btn-full" href="'+esc(emailLink)+'" style="margin-bottom:10px;display:flex;align-items:center;justify-content:center;font-size:15px;padding:13px;text-decoration:none">✉️ Send via Email</a>'
-    +'<p style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px">Driver opens link, sees load details, taps Start Tracking, you get notified by email.</p>';
+    +(waLink?'<button id="sm-send-wa" style="width:100%;margin-bottom:8px;background:#25D366;color:#fff;font-size:15px;font-weight:600;padding:12px;border:none;border-radius:11px;cursor:pointer">💬 Send via WhatsApp</button>':'')
+    +'<a class="btn btn-full" href="'+esc(emailLink)+'" style="margin-bottom:8px;display:flex;align-items:center;justify-content:center;font-size:14px;padding:12px;text-decoration:none">✉️ Send via Email</a>'
+    +'<button class="btn btn-full" id="sm-copy-link" style="font-size:14px;padding:11px">📋 Copy Link</button>'
+    +'</div>'
+    // ── Link preview ────────────────────────────────────────────────────
+    +'<div style="background:var(--s2);border-radius:10px;padding:10px 12px;font-family:monospace;font-size:11px;color:var(--muted);word-break:break-all;line-height:1.5;margin-bottom:12px">'+esc(dURL)+'</div>'
+    // ── How it works tip ────────────────────────────────────────────────
+    +'<div style="background:rgba(255,255,255,.04);border-radius:10px;padding:12px 14px">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">How it works</div>'
+    +'<div style="font-size:12px;color:var(--muted);line-height:1.7">'
+    +'1️⃣ Driver taps SMS link → opens in browser<br>'
+    +'2️⃣ Taps <strong style="color:var(--text)">Accept Load</strong><br>'
+    +'3️⃣ Prompted to <strong style="color:var(--text)">Add to Home Screen</strong> (one tap on Android, 2 taps on iPhone)<br>'
+    +'4️⃣ Opens the 🚛 icon → taps <strong style="color:var(--text)">Start Tracking</strong><br>'
+    +'5️⃣ GPS streams live to your dispatcher map — works in background'
+    +'</div></div>';
 
   document.getElementById('send-modal-ov').classList.add('on');
+
+  if(dp){
+    document.getElementById('sm-send-sms').addEventListener('click',function(){
+      window.open(smsLink,'_blank');
+      this.textContent='✅ SMS Opened';
+      var self=this; setTimeout(function(){ self.textContent='📱 Text Link to '+dp; },4000);
+    });
+  }
+
+  if(waLink){
+    document.getElementById('sm-send-wa').addEventListener('click',function(){
+      window.open(waLink,'_blank');
+      this.textContent='✅ WhatsApp Opened';
+      var self=this; setTimeout(function(){ self.textContent='💬 Send via WhatsApp'; },4000);
+    });
+  }
 
   document.getElementById('sm-copy-link').addEventListener('click',function(){
     copyText(dURL);
     this.textContent='✅ Copied!';
     var self=this; setTimeout(function(){self.textContent='📋 Copy Link';},2500);
   });
-
-  if(dp){
-    document.getElementById('sm-send-sms').addEventListener('click',function(){
-      // Open native SMS app pre-filled — free, works on any phone, no backend needed
-      window.open(smsLink, '_blank');
-      this.textContent='✅ SMS App Opened';
-      this.style.background='#1a7a35';
-      var self=this;
-      setTimeout(function(){ self.textContent='📱 Send SMS to '+dp; self.style.background='#34C759'; },4000);
-    });
-  }
 
 }
 
@@ -1598,21 +1873,19 @@ function saveLoad(){
     fetch(API+'/loads/'+editingLoadId,{method:'PUT',headers:ah(),body:JSON.stringify(load)})
       .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
       .then(function(res){
+        if(!res.ok) throw new Error(res.d&&res.d.error ? res.d.error : 'Save failed (HTTP '+res.d.status+')');
         // Always prefer the local `load` we just built — it has the correct
-        // updatedAt and all edited fields.  Only adopt res.d if it is newer
-        // (e.g. the server added extra fields), but fall back to local in
-        // every other case to avoid DynamoDB eventual-consistency reverting edits.
-        var apiTs  = (res.ok && res.d && res.d.updatedAt) ? new Date(res.d.updatedAt).getTime() : 0;
+        // updatedAt and all edited fields.  Only adopt res.d if it is newer.
+        var apiTs  = (res.d && res.d.updatedAt) ? new Date(res.d.updatedAt).getTime() : 0;
         var localTs = new Date(load.updatedAt).getTime();
-        var updated = (res.ok && apiTs >= localTs) ? res.d : load;
+        var updated = (apiTs >= localTs) ? res.d : load;
         for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){loads[i]=updated;break;}}
         renderList();closeModal();selLoad(updated.id);toast('✅ Load updated');
       })
       .catch(function(e){
-        // If API doesn't support PUT yet, update locally and show warning
-        for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){loads[i]=load;break;}}
-        renderList();closeModal();selLoad(load.id);
-        toast('✅ Updated locally (API update pending)');
+        var err=document.getElementById('merr');
+        err.textContent='⚠️ ' + (e.message || 'Failed to save. Please try again.');
+        err.style.display='block';
       })
       .finally(function(){btn.disabled=false;btn.textContent='Save Changes';});
   } else {
@@ -1644,6 +1917,26 @@ function makeSamples(){
 (function(){
   var s=localStorage.getItem('cmp_session');
   if(s){try{var p=JSON.parse(s);if(p&&p.user){session=p;enterApp();return;}}catch(e){}}
+
+  // Handle invite link: ?invite=<tenantId>
+  // Switch to Create Account tab and store the tenantId so register uses it.
+  var params=new URLSearchParams(window.location.search);
+  var inviteTenantId=params.get('invite');
+  if(inviteTenantId){
+    window._inviteTenantId=inviteTenantId;
+    // Switch to Create Account tab automatically
+    document.getElementById('tab-in').classList.remove('on');
+    document.getElementById('form-in').classList.remove('on');
+    document.getElementById('tab-up').classList.add('on');
+    document.getElementById('form-up').classList.add('on');
+    // Show a note that they are joining a company
+    var note=document.createElement('p');
+    note.style.cssText='font-size:12px;color:var(--green);margin-bottom:8px;text-align:center';
+    note.textContent='✅ You\'ve been invited to join a company. Fill in your details below.';
+    document.getElementById('form-up').prepend(note);
+    window.history.replaceState({},document.title,window.location.pathname);
+  }
+
   showAuth();
 })();
 </script>
@@ -1651,3 +1944,4 @@ function makeSamples(){
 
 </body>
 </html>
+i

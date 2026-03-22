@@ -45,15 +45,37 @@ struct CMP_TrackingApp: App {
     @StateObject private var notifDelegate = AppNotificationDelegate()
     @State private var trackingToken: String? = nil
 
-    // SwiftData container storing UserAccount records
+    // SwiftData container — tries on-disk, self-heals on schema mismatch.
+    // Accounts are ALSO persisted in the Keychain so they survive any reset.
+    // This eliminates the "app reinstalls itself" crash loop caused by
+    // SwiftData schema changes between Xcode builds.
     let modelContainer: ModelContainer = {
         let schema = Schema([UserAccount.self])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-        do {
-            return try ModelContainer(for: schema, configurations: [config])
-        } catch {
-            fatalError("Could not create SwiftData ModelContainer: \(error)")
+        let storeURL = URL.applicationSupportDirectory
+            .appendingPathComponent("default.store")
+
+        // 1. Try the existing on-disk store
+        let diskConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        if let container = try? ModelContainer(for: schema, configurations: [diskConfig]) {
+            return container
         }
+
+        // 2. Schema mismatch — wipe the corrupted store and recreate it.
+        //    Keychain holds all account data so nothing is truly lost.
+        let fm = FileManager.default
+        let storeDir = URL.applicationSupportDirectory
+        for ext in ["", "-shm", "-wal"] {
+            let file = storeDir.appendingPathComponent("default.store\(ext)")
+            try? fm.removeItem(at: file)
+        }
+        if let container = try? ModelContainer(for: schema, configurations: [diskConfig]) {
+            return container
+        }
+
+        // 3. Last resort — pure in-memory (Keychain re-seeds on next launch)
+        let memConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        return (try? ModelContainer(for: schema, configurations: [memConfig]))
+            ?? { fatalError("SwiftData: cannot create any ModelContainer") }()
     }()
 
     var body: some Scene {

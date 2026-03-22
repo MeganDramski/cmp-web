@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  app.plist — iOS OTA (Over-The-Air) install manifest
+  
+  HOW TO USE:
+  1. Archive the app in Xcode: Product → Archive
+  2. Export as "Ad Hoc" or "Enterprise" distribution
+  3. Upload the .ipa to your CDN / S3 / Amplify hosting
+  4. Update the three values below:
+       - IPA_DOWNLOAD_URL  → direct HTTPS link to the .ipa file
+       - BUNDLE_ID         → must exactly match your Xcode bundle identifier
+       - BUNDLE_VERSION    → must match your app's CFBundleVersion
+  5. Host this plist at a public HTTPS URL
+  6. Update install.html: set window.CMP_PLIST_URL to that URL
+  7. Drivers tap the link on their iPhone → tap Install → done
+  
+  REQUIREMENTS:
+  - Apple Developer account ($99/year)
+  - The driver's device UDID must be in your Ad Hoc provisioning profile
+    OR you have an Apple Enterprise Developer account ($299/year) which
+    allows unlimited device installs without UDID registration.
+-->
+<plist version="1.0">
+<dict>
+  <key>items</key>
+  <array>
+    <dict>
+      <key>assets</key>
+      <array>
+        <dict>
+          <key>kind</key>
+          <string>software-package</string>
+          <key>url</key>
+          <!-- REPLACE: direct HTTPS URL to your .ipa file -->
+          <string>https://YOUR_CDN_URL/CMP-Tracking.ipa</string>
+        </dict>
+      </array>
+      <key>metadata</key>
+      <dict>
+        <key>bundle-identifier</key>
+        <!-- REPLACE: must exactly match PRODUCT_BUNDLE_IDENTIFIER in Xcode -->
+        <string>NA.CMP-Tracking</string>
+        <key>bundle-version</key>
+        <!-- REPLACE: increment this with each new build -->
+        <string>1.0</string>
+        <key>kind</key>
+        <string>software</string>
+        <key>title</key>
+        <string>CMP Tracking</string>
+      </dict>
+    </dict>
+  </array>
+</dict>
+</plist>

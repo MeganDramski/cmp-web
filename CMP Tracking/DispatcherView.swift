@@ -77,8 +77,11 @@ struct ActiveLoadsTab: View {
             .searchable(text: $searchText, prompt: "Search loads, customers, drivers…")
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { authManager.signOut(); appState.logout() }) {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                    HStack(spacing: 10) {
+                        ParceloLogoD(showWordmark: false, size: 32)
+                        Button(action: { authManager.signOut(); appState.logout() }) {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                        }
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -443,13 +446,26 @@ class DispatcherViewModel: ObservableObject {
     private let store    = LoadStore.shared
     private let firebase = FirebaseManager.shared
 
+    /// UserDefaults key — once set, we never auto-seed again (survives reinstall via iCloud KV seeding).
+    private let seededKey = "cmp.dispatcher.didSeedOnce"
+
     init() {
         // Load persisted data immediately so the UI is populated on launch
         let persisted = store.load()
         if persisted.isEmpty {
-            // First launch: seed with sample data and persist it
-            loads = Load.sampleLoads
-            store.save(loads)
+            // Only seed sample data if this is a genuine first-ever install.
+            // A re-install that hasn't synced from iCloud yet should NOT be seeded —
+            // the real loads will arrive when iCloud KV syncs (handled by the observer below).
+            let didSeedBefore = UserDefaults.standard.bool(forKey: seededKey) ||
+                                (NSUbiquitousKeyValueStore.default.bool(forKey: seededKey))
+            if !didSeedBefore {
+                loads = Load.sampleLoads
+                store.save(loads)
+                UserDefaults.standard.set(true, forKey: seededKey)
+                NSUbiquitousKeyValueStore.default.set(true, forKey: seededKey)
+                NSUbiquitousKeyValueStore.default.synchronize()
+            }
+            // else: leave loads empty — iCloud will push real data shortly
         } else {
             loads = persisted
         }
@@ -470,6 +486,9 @@ class DispatcherViewModel: ObservableObject {
     func refreshLoads() async {
         isLoading = true
 
+        // Trigger iCloud to push any pending remote changes before we read
+        NSUbiquitousKeyValueStore.default.synchronize()
+
         // Try Firebase first (if project ID is configured)
         if firebase.isConfigured {
             await withCheckedContinuation { continuation in
@@ -484,11 +503,9 @@ class DispatcherViewModel: ObservableObject {
                 }
             }
         } else {
-            // Fallback: reload from local store
+            // Reload from local store (iCloud KV + UserDefaults fallback)
             let persisted = store.load()
-            if !persisted.isEmpty {
-                loads = persisted
-            }
+            loads = persisted
         }
         history = store.loadHistory()
         isLoading = false
@@ -835,6 +852,7 @@ struct AddLoadView: View {
     @State private var pickupAddress = ""
     @State private var deliveryAddress = ""
     @State private var driverName = ""
+    @State private var driverEmail = ""          // ← driver's account email — used for load matching in app
     @State private var driverPhone = ""          // ← driver's cell — receives the SMS tracking link
     @State private var customerName = ""
     @State private var customerEmail = ""
@@ -862,6 +880,15 @@ struct AddLoadView: View {
                 Section {
                     TextField("Driver Name", text: $driverName)
                     HStack {
+                        Image(systemName: "envelope.fill")
+                            .foregroundColor(.accentColor)
+                            .frame(width: 20)
+                        TextField("Driver Email (for app login)", text: $driverEmail)
+                            .keyboardType(.emailAddress)
+                            .autocapitalization(.none)
+                            .autocorrectionDisabled()
+                    }
+                    HStack {
                         Image(systemName: "phone.fill")
                             .foregroundColor(.accentColor)
                             .frame(width: 20)
@@ -871,7 +898,7 @@ struct AddLoadView: View {
                 } header: {
                     Text("Driver")
                 } footer: {
-                    Text("A text message with a browser-based tracking link will be sent to this number. No app required.")
+                    Text("Enter the driver's email so the load appears in their app, and their phone to send an SMS tracking link.")
                         .font(.caption)
                 }
                 Section {
@@ -917,6 +944,7 @@ struct AddLoadView: View {
     }
 
     private func saveLoad() {
+        let normalizedPhone = driverPhone.filter { $0.isNumber }
         let newLoad = Load(
             id: UUID().uuidString,
             loadNumber: loadNumber.isEmpty ? "CMP-\(Int.random(in: 1000...9999))" : loadNumber,
@@ -927,15 +955,15 @@ struct AddLoadView: View {
             pickupDate: pickupDate,
             deliveryDate: deliveryDate,
             status: .pending,
-            assignedDriverId: driverName.isEmpty ? nil : "D\(Int.random(in: 100...999))",
+            assignedDriverId: normalizedPhone.isEmpty ? nil : normalizedPhone,
             assignedDriverName: driverName.isEmpty ? nil : driverName,
-            assignedDriverEmail: nil,
+            assignedDriverEmail: driverEmail.trimmingCharacters(in: .whitespaces).lowercased().isEmpty ? nil : driverEmail.trimmingCharacters(in: .whitespaces).lowercased(),
             assignedDriverPhone: driverPhone.isEmpty ? nil : driverPhone,
             trackingToken: UUID().uuidString,
             customerName: customerName,
             customerEmail: customerEmail,
             customerPhone: customerPhone,
-            dispatcherEmail: nil,  // set by dispatcher's signed-in email at send time
+            dispatcherEmail: nil,
             notifyCustomer: notifyCustomerByEmail,
             lastLocation: nil,
             notes: notes
