@@ -1,5 +1,5 @@
 /**
- * CMP Logistics — Driver Tracking Service Worker  (v3)
+ * CMP Logistics — Driver Tracking Service Worker  (v4)
  *
  * Responsibilities:
  *  1. Cache the page shell so the driver can open it even with no signal.
@@ -12,7 +12,7 @@
  *     when the page JS is suspended by the OS.
  */
 
-const CACHE_NAME   = 'cmp-driver-v3';
+const CACHE_NAME   = 'cmp-driver-v4';
 const ASSETS_CACHE = [
   'driver-tracking.html',
   'config.js',
@@ -52,9 +52,7 @@ self.addEventListener('activate', function (evt) {
 
 // ── Fetch: network-first for API calls, cache-first for static assets ────
 self.addEventListener('fetch', function (evt) {
-  var url = evt.request.url;
-
-  // Always go network-first for location POST/PATCH calls
+  // Always go network-first for non-GET (location POST, status PATCH etc.)
   if (evt.request.method !== 'GET') {
     evt.respondWith(
       fetch(evt.request.clone()).catch(function () {
@@ -99,31 +97,37 @@ self.addEventListener('periodicsync', function (evt) {
   }
 });
 
-/**
- * Post the last location stored by the page JS into IndexedDB.
- * If the page is open, ask it to send a fresh fix first.
- * If not, use the stale cached location (still beats nothing).
- */
+// ── Keep-alive ping to all open page clients every 25 s ──────────────────
+// Prevents the browser from suspending watchPosition when the tab is
+// backgrounded but still open (screen on, app minimised).
+setInterval(function () {
+  self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then(function (clients) {
+      clients.forEach(function (client) {
+        client.postMessage({ type: 'SW_KEEPALIVE' });
+        client.postMessage({ type: 'SW_REQUEST_LOCATION' });
+      });
+    });
+}, 25000);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function postLastKnownLocation() {
   try {
-    // 1. Ask any open page clients to post a fresh reading first
     var clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     if (clients.length > 0) {
-      clients.forEach(function (c) {
-        c.postMessage({ type: 'SW_REQUEST_LOCATION' });
-      });
-      // Give the page 3 s to respond before we fall back to stored data
+      clients.forEach(function (c) { c.postMessage({ type: 'SW_REQUEST_LOCATION' }); });
       await sleep(3000);
     }
 
-    // 2. Read last-known location from IndexedDB
-    var db      = await openLocationDB();
-    var record  = await dbGet(db, 'last_location');
+    var db     = await openLocationDB();
+    var record = await dbGet(db, 'last_location');
     db.close();
 
     if (!record || !record.apiBase || !record.token) return;
 
-    // Don't re-post if we already sent this exact timestamp
     var sentDb   = await openLocationDB();
     var lastSent = await dbGet(sentDb, 'last_sent_ts');
     sentDb.close();
@@ -138,9 +142,9 @@ async function postLastKnownLocation() {
     };
 
     var resp = await fetch(record.apiBase + '/track/' + record.token + '/location', {
-      method:    'POST',
-      headers:   { 'Content-Type': 'application/json' },
-      body:      JSON.stringify(payload),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
       keepalive: true,
     });
 
@@ -148,7 +152,7 @@ async function postLastKnownLocation() {
       var updateDb = await openLocationDB();
       await dbPut(updateDb, 'last_sent_ts', record.ts);
       updateDb.close();
-      console.log('[SW] periodic heartbeat posted location', payload.latitude, payload.longitude);
+      console.log('[SW] heartbeat posted', payload.latitude, payload.longitude);
     }
   } catch (e) {
     console.warn('[SW] postLastKnownLocation error:', e);
@@ -162,16 +166,14 @@ async function replayQueuedLocations() {
     for (var item of items) {
       try {
         var resp = await fetch(item.url, {
-          method:    'POST',
-          headers:   { 'Content-Type': 'application/json' },
-          body:      JSON.stringify(item.payload),
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(item.payload),
           keepalive: true,
         });
-        if (resp.ok) {
-          await dbDelete(db, item.id);
-        }
+        if (resp.ok) await dbDelete(db, item.id);
       } catch (e) {
-        break; // Still offline — leave in queue
+        break; // Still offline
       }
     }
     db.close();
@@ -180,7 +182,7 @@ async function replayQueuedLocations() {
   }
 }
 
-// ── IndexedDB — location queue (offline replay) ───────────────────────────
+// ── IndexedDB — offline location queue ───────────────────────────────────
 function openQueueDB() {
   return new Promise(function (resolve, reject) {
     var req = indexedDB.open('cmp_sw_queue', 1);
@@ -210,8 +212,7 @@ function dbDelete(db, id) {
   });
 }
 
-// ── IndexedDB — last-known location store (for periodic heartbeat) ────────
-// The page writes to 'cmp_location_state'; the SW reads from it.
+// ── IndexedDB — last-known location store ────────────────────────────────
 function openLocationDB() {
   return new Promise(function (resolve, reject) {
     var req = indexedDB.open('cmp_location_state', 1);
@@ -244,18 +245,3 @@ function dbPut(db, key, value) {
 function sleep(ms) {
   return new Promise(function (resolve) { setTimeout(resolve, ms); });
 }
-
-// ── Keep-alive ping to all open page clients every 25 s ──────────────────
-// Prevents the browser from suspending watchPosition when the tab is
-// backgrounded but still open (screen on, app minimised).
-// We also request a fresh location post at the same time.
-setInterval(function () {
-  self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clients) {
-    clients.forEach(function (client) {
-      // KEEPALIVE — tells the page to re-acquire wake lock & check GPS health
-      client.postMessage({ type: 'SW_KEEPALIVE' });
-      // REQUEST_LOCATION — tells the page to immediately call postLocation()
-      client.postMessage({ type: 'SW_REQUEST_LOCATION' });
-    });
-  });
-}, 25000);
