@@ -1,4 +1,4 @@
-    qwer// src/handlers/updateLoadStatus.js
+// src/handlers/updateLoadStatus.js
 // PATCH /loads/{id}/status
 
 const { DynamoDBClient, UpdateItemCommand, GetItemCommand } = require("@aws-sdk/client-dynamodb");

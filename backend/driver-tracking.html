@@ -719,6 +719,7 @@
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 status: 'In Transit',
+                loadId: loadData ? loadData.id : (LOAD_ID || null),
                 driverName: loadData ? (loadData.assignedDriverName || 'Driver') : 'Driver',
               }),
             }).catch(function(e) { console.warn('In Transit status patch failed:', e); });
@@ -789,7 +790,7 @@
         fetch(API_BASE + '/track/' + TOKEN + '/status', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'Accepted', driverName: driverName }),
+          body: JSON.stringify({ status: 'Accepted', loadId: loadId, driverName: driverName }),
         }).catch(function(){});
 
         // Also call the dedicated accept endpoint (sends dispatcher email)
@@ -884,6 +885,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             status: "Delivered",
+            loadId: loadData ? loadData.id : (LOAD_ID || null),
             driverName: loadData ? (loadData.assignedDriverName || "Driver") : "Driver",
           }),
         })

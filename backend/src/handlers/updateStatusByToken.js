@@ -1,10 +1,12 @@
 // src/handlers/updateStatusByToken.js
-// POST /track/{token}/status
+// PATCH /track/{token}/status
 //
 // Public endpoint — no JWT required. Driver web page uses this to update
 // load status (Accepted, In Transit, Delivered) using only the tracking token.
+// Accepts optional loadId in the body for a direct GetItem lookup (faster,
+// no GSI dependency).
 
-const { DynamoDBClient, QueryCommand, UpdateItemCommand } = require("@aws-sdk/client-dynamodb");
+const { DynamoDBClient, GetItemCommand, QueryCommand, UpdateItemCommand } = require("@aws-sdk/client-dynamodb");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
 
@@ -25,11 +27,7 @@ const CORS_HEADERS = {
 };
 
 function respond(statusCode, body) {
-  return {
-    statusCode,
-    headers: CORS_HEADERS,
-    body: JSON.stringify(body),
-  };
+  return { statusCode, headers: CORS_HEADERS, body: JSON.stringify(body) };
 }
 
 exports.handler = async (event) => {
@@ -47,23 +45,49 @@ exports.handler = async (event) => {
       return respond(400, { error: `status must be one of: ${ALLOWED_STATUSES.join(", ")}` });
     }
 
-    // 1. Look up load by trackingToken (GSI)
-    const result = await db.send(new QueryCommand({
-      TableName: LOADS_TABLE,
-      IndexName: "TrackingTokenIndex",
-      KeyConditionExpression: "trackingToken = :t",
-      ExpressionAttributeValues: marshall({ ":t": token }),
-      Limit: 1,
-    }));
+    // ── 1. Look up load ──────────────────────────────────────────────────────
+    // Primary: use loadId from body (direct GetItem — no GSI needed)
+    // Fallback: GSI query by trackingToken (works if GSI exists)
+    let load = null;
 
-    if (!result.Items || result.Items.length === 0) {
+    if (body.loadId) {
+      const getResult = await db.send(new GetItemCommand({
+        TableName: LOADS_TABLE,
+        Key: marshall({ id: body.loadId }),
+      }));
+      if (getResult.Item) {
+        load = unmarshall(getResult.Item);
+        // Safety check: token must match to prevent spoofing
+        if (load.trackingToken && load.trackingToken !== token) {
+          return respond(403, { error: "Token does not match this load." });
+        }
+      }
+    }
+
+    // Fallback: GSI query
+    if (!load) {
+      try {
+        const result = await db.send(new QueryCommand({
+          TableName: LOADS_TABLE,
+          IndexName: "TrackingTokenIndex",
+          KeyConditionExpression: "trackingToken = :t",
+          ExpressionAttributeValues: marshall({ ":t": token }),
+          Limit: 1,
+        }));
+        if (result.Items && result.Items.length > 0) {
+          load = unmarshall(result.Items[0]);
+        }
+      } catch (gsiErr) {
+        console.warn("GSI lookup failed (index may not exist):", gsiErr.message);
+      }
+    }
+
+    if (!load) {
       return respond(404, { error: "No shipment found for this tracking token." });
     }
 
-    const load = unmarshall(result.Items[0]);
-    const now  = new Date().toISOString();
-
-    // 2. Build update expression (set completedAt for terminal statuses)
+    // ── 2. Update DynamoDB ───────────────────────────────────────────────────
+    const now        = new Date().toISOString();
     const isTerminal = status === "Delivered" || status === "Cancelled";
     const updateExpr = isTerminal
       ? "SET #s = :s, updatedAt = :t, completedAt = :t"
@@ -74,14 +98,10 @@ exports.handler = async (event) => {
       Key: marshall({ id: load.id }),
       UpdateExpression: updateExpr,
       ExpressionAttributeNames: { "#s": "status" },
-      ExpressionAttributeValues: marshall(
-        isTerminal
-          ? { ":s": status, ":t": now }
-          : { ":s": status, ":t": now }
-      ),
+      ExpressionAttributeValues: marshall({ ":s": status, ":t": now }),
     }));
 
-    // 3. Send dispatcher email on key transitions
+    // ── 3. Send dispatcher email on key transitions ──────────────────────────
     if (FROM_EMAIL) {
       const dispatcherEmail = load.dispatcherEmail || load.createdBy;
       const driverName      = body.driverName || load.assignedDriverName || "Driver";
