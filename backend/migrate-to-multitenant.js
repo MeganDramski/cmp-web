@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+https://github.com/MeganDramski/multi-tenant-tackingapp.git#!/usr/bin/env node
 // migrate-to-multitenant.js
 // ─────────────────────────────────────────────────────────────────────────────
 // One-time migration script: stamps all existing CMP loads and users with the
