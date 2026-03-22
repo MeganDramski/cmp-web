@@ -112,6 +112,12 @@ struct DriverView: View {
             }
             .onAppear {
                 fetchAssignedLoad()
+                // Re-check whenever the dispatcher pushes a change from another device
+                NotificationCenter.default.addObserver(
+                    forName: .cmpLoadsDidChangeRemotely,
+                    object: nil,
+                    queue: .main
+                ) { _ in fetchAssignedLoad() }
                 switch locationManager.authorizationStatus {
                 case .notDetermined:
                     // Show our explanation screen first, THEN trigger the system dialog
@@ -464,19 +470,29 @@ struct DriverView: View {
     // MARK: - Actions
 
     /// Finds the load assigned to the currently logged-in driver.
-    /// Fetches fresh loads from the server first, then falls back to local cache.
+    /// Reads from iCloud KV (LoadStore) immediately — the source of truth for
+    /// loads created in the iOS dispatcher app.  Also fires a background server
+    /// fetch to merge any loads created via the web dispatcher.
     private func fetchAssignedLoad() {
         guard let driver = appState.currentUser else { return }
         isLoadingLoad = true
 
-        // Try server first so the driver always sees the latest assignment
+        // 1. Nudge iCloud to push any pending remote changes
+        NSUbiquitousKeyValueStore.default.synchronize()
+
+        // 2. Match immediately from local / iCloud store — this is the fast path
+        //    and works even when the server is unreachable or the driver has no JWT.
+        matchLoadForDriver(driver)
+
+        // 3. Fire a background server fetch to pick up loads created via the
+        //    web dispatcher portal.  If it succeeds, merge & re-match.
+        //    Ignore any errors — the local store result already shown to driver.
         network.fetchLoads { serverLoads, _ in
             if let serverLoads = serverLoads, !serverLoads.isEmpty {
-                // Merge into local store so offline use still works
                 for load in serverLoads { LoadStore.shared.upsert(load) }
+                // Re-match in case the server returned a newly-assigned load
+                self.matchLoadForDriver(driver)
             }
-            // Now match from the (now-updated) local store
-            self.matchLoadForDriver(driver)
             self.isLoadingLoad = false
         }
     }
@@ -494,20 +510,24 @@ struct DriverView: View {
     private func matchLoadForDriver(_ driver: Driver) {
         let driverEmail = driver.email.lowercased()
         let driverPhone = driver.phone.filter { $0.isNumber }
+        let driverName  = driver.name.lowercased().trimmingCharacters(in: .whitespaces)
         let allLoads = LoadStore.shared.load()
 
         let activeStatuses: Set<LoadStatus> = [.assigned, .accepted, .inTransit]
 
         let match = allLoads.first(where: {
             guard activeStatuses.contains($0.status) else { return false }
-            // Match against assignedDriverPhone (primary — dispatcher fills this in)
+            // 1. Phone match against assignedDriverPhone or assignedDriverId
             let phoneMatch = !driverPhone.isEmpty &&
                 ($0.assignedDriverPhone?.filter { $0.isNumber } == driverPhone ||
                  $0.assignedDriverId?.filter    { $0.isNumber } == driverPhone)
-            // Match against assignedDriverEmail (fallback for older loads)
+            // 2. Email match against assignedDriverEmail
             let emailMatch = !driverEmail.isEmpty &&
                 ($0.assignedDriverEmail?.lowercased() == driverEmail)
-            return phoneMatch || emailMatch
+            // 3. Name match as last resort (case-insensitive)
+            let nameMatch = !driverName.isEmpty &&
+                ($0.assignedDriverName?.lowercased().trimmingCharacters(in: .whitespaces) == driverName)
+            return phoneMatch || emailMatch || nameMatch
         })
 
         assignedLoad = match
