@@ -1072,11 +1072,10 @@
      var loadNumber = loadData ? loadData.loadNumber : '';
      var driverName = loadData ? (loadData.assignedDriverName || 'Driver') : 'Driver';
 
-     // Guard so onAccepted only runs once even if both fetch callbacks resolve
-     var _accepted = false;
-     function onAccepted() {
-       if (_accepted) return;
-       _accepted = true;
+     var _accepted      = false;
+     var _acceptTimeout = null;
+
+     function doAcceptUI() {
        if (_acceptTimeout) { clearTimeout(_acceptTimeout); _acceptTimeout = null; }
        updateLocalStatus('Accepted');
        var badge = document.getElementById('status-badge');
@@ -1086,24 +1085,23 @@
        document.getElementById('accept-card').style.display  = 'none';
        document.getElementById('gps-card').style.display     = 'block';
        document.getElementById('btn-start').style.display    = 'flex';
-       showSuccess('✅ Load accepted! Dispatcher has been notified. Tap Start Tracking when ready.');
+       showSuccess('✅ Load accepted! Tap Start Tracking when ready.');
        addLog('✅ Load accepted');
        driverNotify('✅ Load Accepted',
          'Load ' + (loadData ? loadData.loadNumber : '') + ' accepted. Pickup reminders are set.');
-       // Prompt driver to add to home screen right after accepting
        showPWABanner();
      }
 
-     function onAcceptError() {
-       if (_accepted) return; // already succeeded via the other fetch
+     function onAccepted() {
+       if (_accepted) return;
        _accepted = true;
-       if (_acceptTimeout) { clearTimeout(_acceptTimeout); _acceptTimeout = null; }
-       // Still complete the accept locally — dispatcher email may not send but local state is correct
-       onAccepted();
+       doAcceptUI();
      }
 
-     // Safety net: if both API calls hang, auto-complete after 8 s so button never stays stuck
-     var _acceptTimeout = setTimeout(onAccepted, 8000);
+     // Safety net: if API call hangs, complete locally after 8 s
+     _acceptTimeout = setTimeout(function() {
+       if (!_accepted) { _accepted = true; doAcceptUI(); }
+     }, 8000);
 
      if (isLive() && TOKEN) {
        fetch(API_BASE + '/track/' + TOKEN + '/status', {
@@ -1123,7 +1121,7 @@
        })
        .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
        .then(function() { onAccepted(); })
-       .catch(function(err) { console.warn('Accept endpoint error:', err); onAcceptError(); });
+       .catch(function(err) { console.warn('Accept endpoint error:', err); onAccepted(); });
      } else {
        onAccepted();
        if (loadData && loadData.dispatcherEmail) {

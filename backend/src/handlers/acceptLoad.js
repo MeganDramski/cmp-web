@@ -1,14 +1,15 @@
 // src/handlers/acceptLoad.js
 // POST /loads/{id}/accept
 //
-// Driver calls this when they tap "Accept Load".
+// Called from the public driver browser page — NO JWT required.
+// The driver uses only their tracking token link; this endpoint is
+// protected by loadId + matching trackingToken in the body.
 // 1. Updates load status to "Accepted" in DynamoDB
 // 2. Emails the dispatcher a confirmation
 
 const { DynamoDBClient, UpdateItemCommand, GetItemCommand } = require("@aws-sdk/client-dynamodb");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
-const { verifyToken, respond } = require("../utils/auth");
 
 const db  = new DynamoDBClient({});
 const ses = new SESClient({});
@@ -16,10 +17,22 @@ const ses = new SESClient({});
 const TABLE      = process.env.LOADS_TABLE;
 const FROM_EMAIL = process.env.SES_FROM_EMAIL;
 
-exports.handler = async (event) => {
-  try {
-    verifyToken(event);
+const CORS_HEADERS = {
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin":  "*",
+  "Access-Control-Allow-Methods": "POST,OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type,Authorization",
+};
 
+function respond(statusCode, body) {
+  return { statusCode, headers: CORS_HEADERS, body: JSON.stringify(body) };
+}
+
+exports.handler = async (event) => {
+  if (event.requestContext?.http?.method === "OPTIONS" || event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers: CORS_HEADERS, body: "" };
+  }
+  try {
     const loadId = event.pathParameters?.id;
     if (!loadId) return respond(400, { error: "Load ID is required." });
 
