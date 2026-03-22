@@ -77,8 +77,11 @@ struct ActiveLoadsTab: View {
             .searchable(text: $searchText, prompt: "Search loads, customers, drivers…")
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { authManager.signOut(); appState.logout() }) {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                    HStack(spacing: 10) {
+                        ParceloLogo(showWordmark: false, size: 32)
+                        Button(action: { authManager.signOut(); appState.logout() }) {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                        }
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {

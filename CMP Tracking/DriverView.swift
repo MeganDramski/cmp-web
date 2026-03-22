@@ -90,6 +90,9 @@ struct DriverView: View {
             .navigationTitle("Driver Dashboard")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    ParceloLogo(showWordmark: false, size: 32)
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 16) {
                         // Refresh loads from server
