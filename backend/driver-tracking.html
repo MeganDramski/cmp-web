@@ -419,30 +419,38 @@
      font-size: 14px; padding: 8px 20px; cursor: pointer;
      -webkit-tap-highlight-color: transparent;
    }
-   /* Animated arrow pointing DOWN to Safari share button */
+   /* Animated arrow pointing DOWN to Safari share button at the bottom */
    #pwa-arrow {
      display: none;
-     position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%);
-     z-index: 10000; text-align: center;
-     animation: bounceArrow 0.9s ease-in-out infinite;
+     position: fixed;
+     bottom: 88px;          /* sits just above the Safari toolbar */
+     left: 50%;
+     transform: translateX(-50%);
+     z-index: 10000;
+     text-align: center;
+     pointer-events: none;
+     animation: bounceArrowDown 0.8s ease-in-out infinite;
    }
    #pwa-arrow.visible { display: block; }
-   @keyframes bounceArrow {
-     0%,100% { transform: translateX(-50%) translateY(0);  }
-     50%      { transform: translateX(-50%) translateY(8px); }
+   @keyframes bounceArrowDown {
+     0%,100% { transform: translateX(-50%) translateY(0);   }
+     50%      { transform: translateX(-50%) translateY(7px); }
    }
+   /* Triangle pointing DOWN */
    #pwa-arrow-inner {
      background: #007AFF; color: #fff;
      font-size: 13px; font-weight: 700;
-     padding: 8px 16px 6px; border-radius: 20px;
-     white-space: nowrap; box-shadow: 0 4px 16px rgba(0,122,255,0.5);
+     padding: 8px 18px 8px; border-radius: 20px;
+     white-space: nowrap; box-shadow: 0 4px 20px rgba(0,122,255,0.6);
+     display: inline-block;
    }
+   /* downward-pointing triangle BELOW the pill */
    #pwa-arrow-inner::after {
      content: ''; display: block; width: 0; height: 0;
-     border-left: 10px solid transparent;
-     border-right: 10px solid transparent;
-     border-top: 12px solid #007AFF;
-     margin: 2px auto 0;
+     border-left: 11px solid transparent;
+     border-right: 11px solid transparent;
+     border-top: 13px solid #007AFF;  /* points DOWN */
+     margin: 4px auto 0;
    }
    /* keep old ids so legacy references don't crash */
    #pwa-banner { display: none; }
@@ -467,12 +475,12 @@
      <div id="pwa-modal-sub" id="pwa-modal-sub">Keeps GPS running in the background — no App Store needed.</div>
      <div id="pwa-modal-body"><!-- filled by JS --></div>
      <button id="pwa-android-btn" style="display:none" onclick="triggerAndroidInstall()">📲 Add to Home Screen</button>
-     <button id="pwa-modal-dismiss" onclick="dismissPWABanner()">Maybe later</button>
+     <button id="pwa-modal-dismiss" onclick="dismissPWABanner()">Skip — show my load ›</button>
    </div>
  </div>
- <!-- Animated arrow pointing at Safari share button (iOS only) -->
+ <!-- Animated arrow pointing DOWN at Safari share button (iOS only) -->
  <div id="pwa-arrow">
-   <div id="pwa-arrow-inner">Tap the Share button ⬆</div>
+   <div id="pwa-arrow-inner">👇 Tap this button below ↓</div>
  </div>
  <!-- keep old ids so legacy JS refs don't crash -->
  <div id="pwa-banner" style="display:none"></div>
@@ -1588,11 +1596,16 @@
      });
    }
 
-   // Hide modal and remember dismissal
+   // Hide modal and scroll to the load card so driver sees their load immediately
    function dismissPWABanner() {
      document.getElementById('pwa-modal-overlay').classList.remove('visible');
      document.getElementById('pwa-arrow').classList.remove('visible');
      try { localStorage.setItem('cmp_pwa_banner_dismissed', '1'); } catch(e) {}
+     // Scroll load card into view smoothly
+     setTimeout(function() {
+       var card = document.getElementById('load-card');
+       if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+     }, 200);
    }
 
    // ── Show the install modal for iOS or Android ─────────────────────────────
@@ -1617,22 +1630,33 @@
      var arrow    = document.getElementById('pwa-arrow');
 
      if (isIOS) {
+       // Inline SVG of the actual Safari share button (box with arrow)
+       var shareIcon = '<svg width="28" height="32" viewBox="0 0 50 60" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">'
+         + '<rect x="5" y="18" width="40" height="32" rx="6" stroke="#007AFF" stroke-width="3.5" fill="none"/>'
+         + '<line x1="25" y1="2" x2="25" y2="36" stroke="#007AFF" stroke-width="3.5" stroke-linecap="round"/>'
+         + '<polyline points="14,13 25,2 36,13" fill="none" stroke="#007AFF" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>'
+         + '</svg>';
+       var addIcon = '<svg width="28" height="28" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">'
+         + '<rect x="3" y="3" width="44" height="44" rx="10" stroke="#8e8ea0" stroke-width="3" fill="none"/>'
+         + '<line x1="25" y1="13" x2="25" y2="37" stroke="#8e8ea0" stroke-width="3.5" stroke-linecap="round"/>'
+         + '<line x1="13" y1="25" x2="37" y2="25" stroke="#8e8ea0" stroke-width="3.5" stroke-linecap="round"/>'
+         + '</svg>';
        body.innerHTML =
          '<div class="pwa-ios-step highlight">'
-         + '<div class="pwa-ios-step-icon">⬆️</div>'
-         + '<div class="pwa-ios-step-text"><strong>1. Tap the Share button</strong>'
-         + '<span>The box-with-arrow icon at the bottom of Safari</span></div></div>'
+         + '<div class="pwa-ios-step-icon">' + shareIcon + '</div>'
+         + '<div class="pwa-ios-step-text"><strong>1. Tap this button at the bottom of Safari</strong>'
+         + '<span>The arrow-in-a-box icon in the middle of the bottom bar</span></div></div>'
          + '<div class="pwa-ios-step">'
-         + '<div class="pwa-ios-step-icon">➕</div>'
+         + '<div class="pwa-ios-step-icon">' + addIcon + '</div>'
          + '<div class="pwa-ios-step-text"><strong>2. Tap "Add to Home Screen"</strong>'
-         + '<span>Scroll down in the share sheet to find it</span></div></div>'
+         + '<span>Scroll down a little in the menu that opens</span></div></div>'
          + '<div class="pwa-ios-step">'
-         + '<div class="pwa-ios-step-icon">✅</div>'
-         + '<div class="pwa-ios-step-text"><strong>3. Tap Add</strong>'
-         + '<span>The 🚛 icon will appear on your home screen</span></div></div>';
+         + '<div class="pwa-ios-step-icon"><span style="font-size:28px">✅</span></div>'
+         + '<div class="pwa-ios-step-text"><strong>3. Tap Add — you\'re done!</strong>'
+         + '<span>A 🚛 icon appears on your home screen — always open that next time</span></div></div>';
        androidBtn.style.display = 'none';
-       // Show animated arrow pointing at Safari share button after a short delay
-       setTimeout(function() { arrow.classList.add('visible'); }, 600);
+       // Show the bouncing arrow after a short delay
+       setTimeout(function() { arrow.classList.add('visible'); }, 500);
      } else {
        // Android
        body.innerHTML =
