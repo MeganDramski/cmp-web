@@ -208,7 +208,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     <div class="alogo">
       <div class="ico">🚛</div>
       <h1>Parcelo</h1>
-      <p>Powered by OTTIO · Dispatcher Portal</p>
+      <p id="auth-subtitle">Dispatcher Portal · Powered by OTTIO</p>
     </div>
     <div class="atabs">
       <button class="atab on" id="tab-in">Sign In</button>
@@ -254,7 +254,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <!-- APP -->
 <div id="app-screen">
   <nav class="nav">
-    <div class="brand">🚛 <span id="nav-company">Parcelo</span></div>
+    <div class="brand">🚛 <span id="nav-company">Parcelo</span><span id="nav-platform-tag" style="display:none;font-size:10px;font-weight:500;color:var(--muted);margin-left:6px;padding:2px 7px;background:rgba(255,255,255,.06);border-radius:20px;border:1px solid var(--border)">via Parcelo</span></div>
     <div class="spacer"></div>
     <span id="nav-plan-badge" style="display:none;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:rgba(255,149,0,.15);color:#FF9500;border:1px solid rgba(255,149,0,.3);cursor:pointer" title="Upgrade plan" onclick="upgradePlan()"></span>
     <div class="uchip"><span>👤</span><strong id="nav-name">Dispatcher</strong></div>
@@ -577,6 +577,10 @@ function enterApp(){
   // Show company name in nav brand
   if(u.companyName){
     document.getElementById('nav-company').textContent = u.companyName;
+    document.getElementById('nav-platform-tag').style.display = '';
+    // Also update auth screen subtitle so it shows the company on next load
+    var sub = document.getElementById('auth-subtitle');
+    if(sub) sub.textContent = u.companyName + ' · Powered by Parcelo';
   }
 
   // Show plan badge
@@ -1468,9 +1472,10 @@ function sendLink(id){
            + (encoded ? '&d=' + encodeURIComponent(encoded) : '');
 
   var pickupStr=load.pickupDate?new Date(load.pickupDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+  var companyName = (session && session.user && session.user.companyName) ? session.user.companyName : 'CMP Logistics';
 
   var msgText='Hi '+(load.assignedDriverName||'Driver')+',\n\n'
-    +'You have a new load from CMP Logistics.\n\n'
+    +'You have a new load from '+companyName+'.\n\n'
     +'LOAD #: '+(load.loadNumber||'--')+'\n'
     +'PICKUP: '+(load.pickupAddress||'--')+'\n'
     +'DELIVERY: '+(load.deliveryAddress||'--')+'\n'
@@ -1482,7 +1487,7 @@ function sendLink(id){
 
   var smsLink=(dp?'sms:+'+dp.replace(/^\+/,''):'sms:')+('?body='+encodeURIComponent(msgText));
   var emailLink='mailto:'+(load.assignedDriverEmail||'')
-               +'?subject='+encodeURIComponent('New Load #'+(load.loadNumber||'')+' — CMP Logistics')
+               +'?subject='+encodeURIComponent('New Load #'+(load.loadNumber||'')+' — '+companyName)
                +'&body='+encodeURIComponent(msgText);
   var waLink=dp?'https://wa.me/'+dp.replace(/[^0-9]/g,'')+'?text='+encodeURIComponent(msgText):'';
 
