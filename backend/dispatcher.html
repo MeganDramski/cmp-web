@@ -917,7 +917,18 @@ function renderDetail(){
     } else {
       var dr=drivers.find(function(d){return d.email===driverId;});
       if(dr){
-        assignDriver(selId,dr.email,dr.name,dr.email,dr.phone||null);
+        // Find the current load so we can preserve a custom phone if
+        // the same driver is merely being re-selected (not swapped out).
+        var curLoad=null;
+        for(var i=0;i<loads.length;i++){if(loads[i].id===selId){curLoad=loads[i];break;}}
+        var isSameDriver = curLoad && curLoad.assignedDriverId === dr.email;
+        // If it's the same driver, keep the phone already stored on the load
+        // (it may have been customised via Edit Load). Only fall back to
+        // dr.phone when a brand-new driver is being assigned.
+        var phoneToUse = isSameDriver
+          ? (curLoad.assignedDriverPhone || dr.phone || null)
+          : (dr.phone || null);
+        assignDriver(selId,dr.email,dr.name,dr.email,phoneToUse);
       } else {
         for(var i=0;i<loads.length;i++){
           if(loads[i].id===selId&&loads[i].assignedDriverId===driverId){
