@@ -222,21 +222,6 @@ Resources:
             Path: /users/approve
             Method: GET
 
-  # GET /users/approve?token= (admin clicks Approve/Deny in email)
-  ApproveUserFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: cmp-approve-user
-      CodeUri: src/
-      Handler: handlers/approveUser.handler
-      Role: !GetAtt LambdaRole.Arn
-      Events:
-        Api:
-          Type: HttpApi
-          Properties:
-            Path: /users/approve
-            Method: GET
-
   # POST /users/login
   LoginFunction:
     Type: AWS::Serverless::Function
@@ -463,5 +448,20 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
+            Path: /track/{token}/location
+            Method: POST
+
+  # PATCH /track/{token}/status  (public – driver updates load status, no auth needed)
+  UpdateStatusByTokenFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-update-status-by-token
+      CodeUri: src/
+      Handler: handlers/updateStatusByToken.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApief HttpApiief HttpApiief HttpApiief HttpApi
+            Path: /track/{token}/status
+            Method: PATCH

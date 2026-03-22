@@ -1,7 +1,4 @@
-'
-
-
-'notifications <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -774,12 +771,12 @@
       }
 
       // Try backend accept endpoint
-      if (isLive() && loadId) {
-        // Always update status via the proven PATCH endpoint first
-        fetch(API_BASE + '/loads/' + loadId + '/status', {
+      if (isLive() && TOKEN) {
+        // Update status via the public token-based endpoint (no JWT required)
+        fetch(API_BASE + '/track/' + TOKEN + '/status', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'Accepted' }),
+          body: JSON.stringify({ status: 'Accepted', driverName: driverName }),
         }).catch(function(){});
 
         // Also call the dedicated accept endpoint (sends dispatcher email)
@@ -864,11 +861,14 @@
       isTracking = false;
       updateLocalStatus("Delivered");
 
-      if (isLive()) {
-        fetch(API_BASE + "/loads/" + (loadData ? loadData.id : LOAD_ID) + "/status", {
+      if (isLive() && TOKEN) {
+        fetch(API_BASE + "/track/" + TOKEN + "/status", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "Delivered" }),
+          body: JSON.stringify({
+            status: "Delivered",
+            driverName: loadData ? (loadData.assignedDriverName || "Driver") : "Driver",
+          }),
         }).catch(function() {});
       }
 
