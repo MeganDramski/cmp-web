@@ -760,22 +760,18 @@
      if (data.status === "In Transit") {
        badge.className   = "status-badge active";
        badge.textContent = "🚛 In Transit";
-       document.getElementById("btn-start").style.display = "none";
-       document.getElementById("btn-stop").style.display  = "flex";
-       document.getElementById("gps-card").style.display  = "block";
+       document.getElementById("btn-start").style.display   = "none";
+       document.getElementById("btn-stop").style.display    = "flex";
+       document.getElementById("btn-deliver").style.display = "flex";
+       document.getElementById("gps-card").style.display    = "block";
+       document.getElementById("log-card").style.display    = "block";
        isTracking = true;
        loadTrailHistory();
-       // ── Auto-resume if we were tracking before the page was closed ────────
-       var savedState = loadTrackingState();
-       if (savedState) {
-         // GPS was running; show resume banner so driver can tap to re-activate
-         document.getElementById('bg-resume-banner').classList.add('visible');
-         setConnBar('paused', '⚠️ GPS paused — tap to resume tracking');
-         document.getElementById('btn-deliver').style.display = 'flex';
-         document.getElementById('log-card').style.display    = 'block';
-       } else {
-         startGPS(false);
-       }
+       startNoSleep();
+       // ── Auto-resume GPS immediately — don't require a tap ─────────────────
+       // Whether this is a fresh open or a reload after a crash/lock, just
+       // restart GPS right away so the dispatcher gets location immediately.
+       startGPS(false);
      } else if (data.status === "Delivered") {
        badge.className   = "status-badge stopped";
        badge.textContent = "✅ Delivered";
@@ -1089,12 +1085,21 @@
    function startGPS(fresh) {
      if (gpsRestartTimer) { clearTimeout(gpsRestartTimer); gpsRestartTimer = null; }
      if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+     // Always clear and restart the interval so we never have a stale/missing one
+     if (intervalId != null) { clearInterval(intervalId); intervalId = null; }
+
+     var _firstFix = true; // post immediately on the very first fix
 
      watchId = navigator.geolocation.watchPosition(
        function(pos) {
          gpsRestartDelay = 5000;
          lastPosition = pos;
          updateGPSDisplay(pos);
+         // Post immediately on the first fix — don't wait for the interval
+         if (_firstFix) {
+           _firstFix = false;
+           if (isTracking) postLocation(pos);
+         }
          // Dismiss the "paused" banner once GPS is flowing again
          var resumeBanner = document.getElementById('bg-resume-banner');
          if (resumeBanner && resumeBanner.classList.contains('visible')) {
@@ -1119,13 +1124,11 @@
        { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
      );
 
-     if (!intervalId) {
-       intervalId = setInterval(function() {
-         if (lastPosition && isTracking) {
-           postLocation(lastPosition);
-         }
-       }, UPDATE_INTERVAL_MS);
-     }
+     intervalId = setInterval(function() {
+       if (lastPosition && isTracking) {
+         postLocation(lastPosition);
+       }
+     }, UPDATE_INTERVAL_MS);
    }
 
    function stopGPS() {
@@ -1446,12 +1449,25 @@
      if (document.visibilityState === "visible") {
        // Flush offline queue
        if (navigator.onLine) flushOfflineQueue();
-       // If we were tracking but GPS dropped (browser killed it in background),
-       // show the resume banner instead of silently failing
-       if (isTracking && watchId === null && !gpsRestartTimer) {
-         var resumeBanner = document.getElementById('bg-resume-banner');
-         resumeBanner.classList.add('visible');
-         setConnBar('paused', '⚠️ GPS stopped in background — tap to resume');
+       // If we were tracking but GPS/interval dropped while backgrounded,
+       // restart everything automatically — no user tap required.
+       if (isTracking) {
+         var needsRestart = (watchId === null && !gpsRestartTimer) || (intervalId === null);
+         if (needsRestart) {
+           // Kill any stale timers first, then restart cleanly
+           stopGPS();
+           startGPS(false);
+           startNoSleep();
+           // Re-acquire wake lock with user-activation if available
+           if ('wakeLock' in navigator) {
+             navigator.wakeLock.request('screen').then(function(wl){ wakeLock = wl; }).catch(function(){});
+           }
+           // Hide resume banner if it was shown
+           var resumeBanner = document.getElementById('bg-resume-banner');
+           if (resumeBanner) resumeBanner.classList.remove('visible');
+           setConnBar('');
+           addLog('▶ GPS auto-resumed after screen lock');
+         }
        }
      }
    });
