@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Parcelo - Dispatcher Portal</title>
+<title>CMP Logistics - Dispatcher Portal</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -206,23 +206,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <div id="auth-screen">
   <div class="acard">
     <div class="alogo">
-      <!-- Parcelo logo: pin icon + wordmark -->
+      <!-- CMP Logistics logo -->
       <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:14px">
-        <svg width="38" height="33" viewBox="0 0 62 55" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="16" cy="16" r="16" fill="#378ADD"/>
-          <circle cx="16" cy="16" r="6" fill="white"/>
-          <path d="M7 30 L25 30 L21.5 40.5 L16 47 L10.5 40.5 Z" fill="#378ADD"/>
-          <rect x="35" y="14" width="5" height="3.5" rx="1.75" fill="#378ADD"/>
-          <rect x="42" y="14" width="5" height="3.5" rx="1.75" fill="#378ADD"/>
-          <rect x="49" y="14" width="5" height="3.5" rx="1.75" fill="#378ADD"/>
-          <circle cx="60" cy="15.75" r="4.5" stroke="#378ADD" stroke-width="2.5" fill="none"/>
-        </svg>
+        <div style="width:42px;height:42px;background:linear-gradient(135deg,#533AB7,#AFA9EC);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;flex-shrink:0">C</div>
         <div style="text-align:left;line-height:1">
-          <div style="font-size:24px;font-weight:600;color:#fff;letter-spacing:-0.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">Parcelo</div>
-          <div style="font-size:9px;font-weight:400;color:#8e8ea0;letter-spacing:2.5px;text-transform:uppercase;margin-top:3px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">Logistics</div>
+          <div style="font-size:24px;font-weight:600;color:#fff;letter-spacing:-0.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">CMP Logistics</div>
+          <div style="font-size:9px;font-weight:400;color:#8e8ea0;letter-spacing:2.5px;text-transform:uppercase;margin-top:3px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">FREIGHT MANAGEMENT</div>
         </div>
       </div>
-      <p id="auth-subtitle" style="margin:0">Dispatcher Portal · Powered by OTTIO</p>
+      <p id="auth-subtitle" style="margin:0">Dispatcher Portal</p>
     </div>
     <div class="atabs">
       <button class="atab on" id="tab-in">Sign In</button>
@@ -269,17 +261,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <div id="app-screen">
   <nav class="nav">
     <div class="brand" style="display:flex;align-items:center;gap:8px">
-      <!-- Parcelo pin icon (small, nav size) -->
-      <svg width="22" height="20" viewBox="0 0 62 55" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">
-        <circle cx="16" cy="16" r="16" fill="#378ADD"/>
-        <circle cx="16" cy="16" r="6" fill="white"/>
-        <path d="M7 30 L25 30 L21.5 40.5 L16 47 L10.5 40.5 Z" fill="#378ADD"/>
-        <rect x="35" y="14" width="5" height="3.5" rx="1.75" fill="#378ADD"/>
-        <rect x="42" y="14" width="5" height="3.5" rx="1.75" fill="#378ADD"/>
-        <rect x="49" y="14" width="5" height="3.5" rx="1.75" fill="#378ADD"/>
-        <circle cx="60" cy="15.75" r="4.5" stroke="#378ADD" stroke-width="2.5" fill="none"/>
-      </svg>
-      <span id="nav-company">Parcelo</span><span id="nav-platform-tag" style="display:none;font-size:10px;font-weight:500;color:var(--muted);margin-left:6px;padding:2px 7px;background:rgba(255,255,255,.06);border-radius:20px;border:1px solid var(--border)">via Parcelo</span>
+      <!-- CMP Logistics icon (small, nav size) -->
+      <div style="width:28px;height:28px;background:linear-gradient(135deg,#533AB7,#AFA9EC);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;flex-shrink:0">C</div>
+      <span id="nav-company">CMP Logistics</span><span id="nav-platform-tag" style="display:none;font-size:10px;font-weight:500;color:var(--muted);margin-left:6px;padding:2px 7px;background:rgba(255,255,255,.06);border-radius:20px;border:1px solid var(--border)">via CMP Logistics</span>
     </div>
     <div class="spacer"></div>
     <span id="nav-plan-badge" style="display:none;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:rgba(255,149,0,.15);color:#FF9500;border:1px solid rgba(255,149,0,.3);cursor:pointer" title="Upgrade plan" onclick="upgradePlan()"></span>
@@ -606,7 +590,7 @@ function enterApp(){
     document.getElementById('nav-platform-tag').style.display = '';
     // Also update auth screen subtitle so it shows the company on next load
     var sub = document.getElementById('auth-subtitle');
-    if(sub) sub.textContent = u.companyName + ' · Powered by Parcelo';
+    if(sub) sub.textContent = u.companyName + ' · CMP Logistics';
   }
 
   // Show plan badge

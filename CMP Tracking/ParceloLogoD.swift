@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Parcelo Logo (Option D — Minimal Lettermark)
+// MARK: - CMP Logistics Logo (Option D — Minimal Lettermark)
 struct ParceloLogoD: View {
     var showWordmark: Bool = true
     var size: CGFloat = 120
@@ -30,8 +30,8 @@ struct ParceloLettermark: View {
                 .fill(Color.parceloPurple)
                 .frame(width: boxSize, height: boxSize)
 
-            // Bold "P" letter
-            Text("P")
+            // Bold "C" letter
+            Text("C")
                 .font(.system(size: boxSize * 0.58, weight: .bold, design: .default))
                 .foregroundColor(.white)
                 .frame(width: boxSize, height: boxSize)
@@ -52,12 +52,12 @@ struct ParceloWordmarkD: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: size * 0.025) {
-            Text("Parcelo")
+            Text("CMP Logistics")
                 .font(.system(size: size * 0.26, weight: .semibold, design: .default))
                 .foregroundColor(.primary)
                 .kerning(-0.5)
 
-            Text("YOUR DELIVERY HUB")
+            Text("FREIGHT MANAGEMENT")
                 .font(.system(size: size * 0.083, weight: .regular, design: .default))
                 .foregroundColor(.secondary)
                 .kerning(1.8)
