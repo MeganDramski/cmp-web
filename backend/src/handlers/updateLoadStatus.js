@@ -13,7 +13,7 @@ const TABLE      = process.env.LOADS_TABLE;
 const FROM_EMAIL = process.env.SES_FROM_EMAIL;
 const BASE_URL   = (process.env.AMPLIFY_BASE_URL || process.env.TRACKING_BASE_URL || "").replace(/\/$/, "");
 
-const VALID_STATUSES = ["Pending", "Assigned", "In Transit", "Delivered", "Cancelled"];
+const VALID_STATUSES = ["Pending", "Assigned", "Accepted", "In Transit", "Delivered", "Cancelled"];
 
 exports.handler = async (event) => {
   try {

@@ -11,6 +11,7 @@ import MapKit
 struct DriverView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var authManager: AuthManager
+    @EnvironmentObject var notifDelegate: AppNotificationDelegate
     @StateObject private var locationManager = LocationManager()
     @StateObject private var network = NetworkManager.shared
 
@@ -21,6 +22,8 @@ struct DriverView: View {
     @State private var showNotificationBanner = false
     @State private var notificationBannerMessage = ""
     @State private var isSendingNotification = false
+    @State private var isAcceptingLoad = false
+    @State private var isLoadingLoad = false
     /// Controls the pre-prompt sheet shown before the iOS system permission dialog
     @State private var showLocationPrePrompt = false
     /// Shown when driver appears to have stopped at the delivery address
@@ -37,36 +40,44 @@ struct DriverView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
-
                     // ── Status Card ──────────────────────────────────────────
                     trackingStatusCard
 
                     // ── Assigned Load Card ───────────────────────────────────
                     if let load = assignedLoad {
                         loadInfoCard(load: load)
+
+                        // ── Accept Load Card (only when still in Assigned state) ──
+                        if load.status == .assigned {
+                            acceptLoadCard(load: load)
+                        }
                     } else {
                         noLoadCard
                     }
 
-                    // ── Live Location Card ───────────────────────────────────
-                    liveLocationCard
+                    // ── Live Location / Tracking controls (only after accepted) ──
+                    let isAccepted = assignedLoad.map { $0.status == .accepted || $0.status == .inTransit } ?? false
+                    if isAccepted {
+                        // ── Live Location Card ───────────────────────────────────
+                        liveLocationCard
 
-                    // ── Map Preview ──────────────────────────────────────────
-                    mapPreviewCard
+                        // ── Map Preview ──────────────────────────────────────────
+                        mapPreviewCard
 
-                    // ── Start / Stop Button ──────────────────────────────────
-                    trackingButton
+                        // ── Start / Stop Button ──────────────────────────────────
+                        trackingButton
 
-                    // ── Send Tracking Link ───────────────────────────────────
-                    if let load = assignedLoad {
-                        SendTrackingView(
-                            load: load,
-                            dispatcherEmail: appState.currentUser?.email ?? ""
-                        ) { bannerMsg in
-                            notificationBannerMessage = bannerMsg
-                            showNotificationBanner = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
-                                showNotificationBanner = false
+                        // ── Send Tracking Link ───────────────────────────────────
+                        if let load = assignedLoad {
+                            SendTrackingView(
+                                load: load,
+                                dispatcherEmail: appState.currentUser?.email ?? ""
+                            ) { bannerMsg in
+                                notificationBannerMessage = bannerMsg
+                                showNotificationBanner = true
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                                    showNotificationBanner = false
+                                }
                             }
                         }
                     }
@@ -75,12 +86,24 @@ struct DriverView: View {
                 }
                 .padding()
             }
+            .refreshable { await fetchAssignedLoadAsync() }
             .navigationTitle("Driver Dashboard")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { authManager.signOut(); appState.logout() }) {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                    HStack(spacing: 16) {
+                        // Refresh loads from server
+                        Button(action: { fetchAssignedLoad() }) {
+                            if isLoadingLoad {
+                                ProgressView().scaleEffect(0.8)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                        }
+                        .disabled(isLoadingLoad)
+                        Button(action: { authManager.signOut(); appState.logout() }) {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                        }
                     }
                 }
             }
@@ -149,6 +172,17 @@ struct DriverView: View {
                     showDeliveryReminderAlert = true
                 }
             }
+            // Pickup reminder notification was tapped — prompt driver to start
+            .onChange(of: notifDelegate.shouldOpenDriverDashboard) { tapped in
+                guard tapped else { return }
+                notifDelegate.shouldOpenDriverDashboard = false
+                // Surface a banner nudging the driver to press Start Tracking
+                notificationBannerMessage = "🚛 It's pickup time! Tap Start Tracking to begin."
+                showNotificationBanner = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
+                    showNotificationBanner = false
+                }
+            }
             .alert("Delivery Reminder", isPresented: $showDeliveryReminderAlert) {
                 Button("Mark as Delivered") {
                     // Stop tracking and update load status to delivered
@@ -160,6 +194,7 @@ struct DriverView: View {
                         assignedLoad = load
                         LoadStore.shared.upsert(load)
                         network.updateLoadStatus(loadId: load.id, status: .delivered)
+                        PickupReminderService.cancel(loadId: load.id)
                     }
                 }
                 Button("Not Yet", role: .cancel) {
@@ -255,22 +290,72 @@ struct DriverView: View {
     }
 
     private var noLoadCard: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "shippingbox")
-                .font(.largeTitle)
-                .foregroundColor(.secondary)
-            Text("No Load Assigned")
-                .font(.headline)
-                .foregroundColor(.secondary)
-            Text("Contact dispatch for your next assignment.")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
+        VStack(spacing: 12) {
+            if isLoadingLoad {
+                ProgressView("Checking for assigned loads…")
+                    .padding(.vertical, 8)
+            } else {
+                Image(systemName: "shippingbox")
+                    .font(.largeTitle)
+                    .foregroundColor(.secondary)
+                Text("No Load Assigned")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+                Text("Contact dispatch for your next assignment.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                Button(action: { fetchAssignedLoad() }) {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                        .font(.subheadline)
+                        .foregroundColor(.accentColor)
+                }
+            }
         }
         .frame(maxWidth: .infinity)
         .padding()
         .background(Color(.secondarySystemBackground))
         .cornerRadius(14)
+    }
+
+    private func acceptLoadCard(load: Load) -> some View {
+        VStack(spacing: 14) {
+            HStack(spacing: 10) {
+                Image(systemName: "bell.badge.fill")
+                    .font(.title2)
+                    .foregroundColor(.purple)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("New Load Assigned")
+                        .font(.headline)
+                    Text("Pickup: \(load.pickupDate.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+            }
+
+            Button(action: { acceptLoad(load) }) {
+                HStack {
+                    if isAcceptingLoad {
+                        ProgressView().tint(.white).scaleEffect(0.85)
+                        Text("Accepting…").fontWeight(.semibold)
+                    } else {
+                        Image(systemName: "checkmark.circle.fill")
+                        Text("Accept Load").fontWeight(.semibold)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.purple)
+                .foregroundColor(.white)
+                .cornerRadius(12)
+            }
+            .disabled(isAcceptingLoad)
+        }
+        .padding()
+        .background(Color.purple.opacity(0.08))
+        .cornerRadius(14)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.purple.opacity(0.3), lineWidth: 1))
     }
 
     private var liveLocationCard: some View {
@@ -376,33 +461,95 @@ struct DriverView: View {
     // MARK: - Actions
 
     /// Finds the load assigned to the currently logged-in driver.
-    /// Matches on assignedDriverEmail (set by dispatcher when creating the load).
+    /// Fetches fresh loads from the server first, then falls back to local cache.
     private func fetchAssignedLoad() {
         guard let driver = appState.currentUser else { return }
+        isLoadingLoad = true
+
+        // Try server first so the driver always sees the latest assignment
+        network.fetchLoads { serverLoads, _ in
+            if let serverLoads = serverLoads, !serverLoads.isEmpty {
+                // Merge into local store so offline use still works
+                for load in serverLoads { LoadStore.shared.upsert(load) }
+            }
+            // Now match from the (now-updated) local store
+            self.matchLoadForDriver(driver)
+            self.isLoadingLoad = false
+        }
+    }
+
+    /// Async wrapper used by pull-to-refresh (.refreshable).
+    private func fetchAssignedLoadAsync() async {
+        await withCheckedContinuation { cont in
+            fetchAssignedLoad()
+            // fetchAssignedLoad sets isLoadingLoad = false when done;
+            // give it a tiny moment to finish before releasing the refresh spinner
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { cont.resume() }
+        }
+    }
+
+    private func matchLoadForDriver(_ driver: Driver) {
         let driverEmail = driver.email.lowercased()
         let driverPhone = driver.phone.filter { $0.isNumber }
         let allLoads = LoadStore.shared.load()
 
+        let activeStatuses: Set<LoadStatus> = [.assigned, .accepted, .inTransit]
+
+        // Primary match: email/phone AND active status
         let match = allLoads.first(where: {
             let emailMatch = !driverEmail.isEmpty &&
                 ($0.assignedDriverEmail?.lowercased() == driverEmail)
             let phoneMatch = !driverPhone.isEmpty &&
                 ($0.assignedDriverId?.filter { $0.isNumber } == driverPhone ||
                  $0.assignedDriverEmail?.filter { $0.isNumber } == driverPhone)
-            return (emailMatch || phoneMatch) &&
-                   ($0.status == .assigned || $0.status == .inTransit)
+            return (emailMatch || phoneMatch) && activeStatuses.contains($0.status)
         }) ?? allLoads.first(where: {
+            // Secondary match: email/phone only, but STILL require active status
             let emailMatch = !driverEmail.isEmpty &&
                 ($0.assignedDriverEmail?.lowercased() == driverEmail)
             let phoneMatch = !driverPhone.isEmpty &&
                 ($0.assignedDriverEmail?.filter { $0.isNumber } == driverPhone)
-            return emailMatch || phoneMatch
+            return (emailMatch || phoneMatch) && activeStatuses.contains($0.status)
         })
+
         assignedLoad = match
+
+        // Schedule (or cancel) pickup reminders based on the assigned load
+        if let load = match {
+            PickupReminderService.schedule(load: load)
+        }
     }
 
-    private func toggleTracking() {
-        if locationManager.isTracking {
+    private func acceptLoad(_ load: Load) {
+        guard let driver = appState.currentUser else { return }
+        isAcceptingLoad = true
+
+        // 1. Update status locally & persist
+        var updated = load
+        updated.status = .accepted
+        assignedLoad = updated
+        LoadStore.shared.upsert(updated)
+
+        // 2. Push status to server
+        network.updateLoadStatus(loadId: load.id, status: .accepted)
+
+        // 3. Notify dispatcher via server (fire-and-forget — graceful fallback)
+        network.notifyDispatcherLoadAccepted(load: updated, driverName: driver.name) { _ in
+            isAcceptingLoad = false
+        }
+
+        // 4. Re-schedule pickup reminders now that load is accepted
+        PickupReminderService.schedule(load: updated)
+
+        // 5. Show confirmation banner
+        notificationBannerMessage = "✅ Load accepted — dispatcher has been notified!"
+        showNotificationBanner = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+            showNotificationBanner = false
+        }
+    }
+
+    private func toggleTracking() {        if locationManager.isTracking {
             locationManager.stopTracking()
             network.disconnectWebSocket()
             statusMessage = "Stopped at \(Date().formatted(date: .omitted, time: .shortened))"
@@ -461,6 +608,7 @@ struct StatusBadge: View {
         switch status {
         case .pending:   return .gray
         case .assigned:  return .blue
+        case .accepted:  return .purple
         case .inTransit: return .orange
         case .delivered: return .green
         case .cancelled: return .red
@@ -565,3 +713,4 @@ struct NotificationBanner: View {
     DriverView()
         .environmentObject(AppState.shared)
 }
+,

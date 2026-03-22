@@ -9,10 +9,40 @@ import SwiftUI
 import SwiftData
 import UserNotifications
 
+// MARK: - Notification Delegate
+
+/// Receives local notification callbacks on behalf of the app.
+/// • Foreground: shows the banner while the app is open.
+/// • Tap: routes the driver to their dashboard.
+final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate, ObservableObject {
+
+    /// Set to true when a pickup-reminder notification is tapped — DriverView observes this.
+    @Published var shouldOpenDriverDashboard = false
+
+    // Show banner even when the app is in the foreground
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                 willPresent notification: UNNotification,
+                                 withCompletionHandler handler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        handler([.banner, .sound, .badge])
+    }
+
+    // Handle tap on a pickup reminder notification
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                 didReceive response: UNNotificationResponse,
+                                 withCompletionHandler handler: @escaping () -> Void) {
+        let info = response.notification.request.content.userInfo
+        if (info["action"] as? String) == "openDriver" {
+            DispatchQueue.main.async { self.shouldOpenDriverDashboard = true }
+        }
+        handler()
+    }
+}
+
 @main
 struct CMP_TrackingApp: App {
-    @StateObject private var appState   = AppState.shared
+    @StateObject private var appState    = AppState.shared
     @StateObject private var authManager = AuthManager()
+    @StateObject private var notifDelegate = AppNotificationDelegate()
     @State private var trackingToken: String? = nil
 
     // SwiftData container storing UserAccount records
@@ -37,15 +67,19 @@ struct CMP_TrackingApp: App {
             }
             .environmentObject(appState)
             .environmentObject(authManager)
+            .environmentObject(notifDelegate)
             .onOpenURL { url in handleDeepLink(url) }
             .onAppear {
+                // Register the notification delegate so foreground banners & taps work
+                UNUserNotificationCenter.current().delegate = notifDelegate
+
                 // Give AuthManager access to the SwiftData context, then restore session
                 authManager.modelContext = modelContainer.mainContext
                 authManager.restoreSession()
                 if let account = authManager.currentAccount {
                     appState.login(from: account)
                 }
-                // Request permission to show local arrival notifications
+                // Request permission to show local arrival & pickup notifications
                 UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
             }
         }

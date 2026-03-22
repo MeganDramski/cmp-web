@@ -17,9 +17,6 @@ Globals:
         LOCATIONS_TABLE: !Ref LocationsTable
         JWT_SECRET:        !Ref JwtSecret
         SES_FROM_EMAIL:    !Ref SesFromEmail
-        TWILIO_ACCOUNT_SID: !Ref TwilioAccountSid
-        TWILIO_AUTH_TOKEN:  !Ref TwilioAuthToken
-        TWILIO_FROM_NUMBER: !Ref TwilioFromNumber
         AMPLIFY_BASE_URL:   !Ref AmplifyBaseUrl
         TRACKING_BASE_URL:  !Ref TrackingBaseUrl
         APPROVAL_ADMINS:    !Ref ApprovalAdmins
@@ -51,19 +48,6 @@ Parameters:
       SES-verified sender address used for dispatcher & customer emails.
       Must be verified in Amazon SES before deploying.
 
-  TwilioAccountSid:
-    Type: String
-    Default: ""
-    Description: Twilio Account SID from twilio.com/console
-  TwilioAuthToken:
-    Type: String
-    NoEcho: true
-    Default: ""
-    Description: Twilio Auth Token
-  TwilioFromNumber:
-    Type: String
-    Default: ""
-    Description: Twilio phone number e.g. +15005550006
   AmplifyBaseUrl:
     Type: String
     Default: ""
@@ -179,14 +163,6 @@ Resources:
                   - ses:SendEmail
                   - ses:SendRawEmail
                 Resource: "*"
-        - PolicyName: SNSAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - sns:Publish
-                Resource: "*"
 
 # ─────────────────────────────────────────────────────────────────
 # Lambda Functions
@@ -206,21 +182,6 @@ Resources:
           Properties:
             Path: /users/register
             Method: POST
-
-  # GET /users/approve?token= (admin clicks Approve/Deny in email)
-  ApproveUserFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: cmp-approve-user
-      CodeUri: src/
-      Handler: handlers/approveUser.handler
-      Role: !GetAtt LambdaRole.Arn
-      Events:
-        Api:
-          Type: HttpApi
-          Properties:
-            Path: /users/approve
-            Method: GET
 
   # GET /users/approve?token= (admin clicks Approve/Deny in email)
   ApproveUserFunction:
@@ -294,7 +255,6 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi
             Path: /loads/{id}/status
             Method: PATCH
 
@@ -309,7 +269,6 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi
             Path: /loads/{id}
             Method: PUT
   # DELETE /loads/{id}
@@ -324,9 +283,23 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi
             Path: /loads/{id}
             Method: DELETE
+
+  # POST /loads/{id}/accept  (driver accepts an assigned load)
+  AcceptLoadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-accept-load
+      CodeUri: src/
+      Handler: handlers/acceptLoad.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /loads/{id}/accept
+            Method: POST
 
   # PATCH /loads/{id}/assign
   AssignDriverFunction:
@@ -340,7 +313,6 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi
             Path: /loads/{id}/assign
             Method: PATCH
 
@@ -356,7 +328,6 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi
             Path: /users
             Method: GET
 
@@ -447,5 +418,25 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
+            Path: /track/{token}/location
+            Method: POST
+
+  # PATCH /track/{token}/status  (public – driver updates load status, no auth needed)
+  UpdateStatusByTokenFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-update-status-by-token
+      CodeUri: src/
+      Handler: handlers/updateStatusByToken.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        ApiPatch:
+          Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApief HttpApiief HttpApiief HttpApiief HttpApi
+            Path: /track/{token}/status
+            Method: PATCH
+        ApiOptions:
+          Type: HttpApi
+          Properties:
+            Path: /track/{token}/status
+            Method: OPTIONS

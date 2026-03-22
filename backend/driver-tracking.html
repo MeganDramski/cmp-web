@@ -112,8 +112,43 @@
       margin-top: 14px;
     }
     .status-badge.pending   { background: rgba(142,142,160,0.15); color: var(--muted); }
+    .status-badge.accepted  { background: rgba(175,82,222,0.15);  color: #af52de; }
     .status-badge.active    { background: rgba(52,199,89,0.15);   color: var(--green); }
     .status-badge.stopped   { background: rgba(255,59,48,0.15);   color: var(--red); }
+
+    /* Accept Load card */
+    .accept-card {
+      width: 100%;
+      max-width: 400px;
+      background: rgba(175,82,222,0.08);
+      border: 1px solid rgba(175,82,222,0.3);
+      border-radius: 20px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+    }
+    .accept-card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .accept-icon {
+      font-size: 28px;
+      line-height: 1;
+    }
+    .accept-card-title {
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .accept-card-sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .btn-accept {
+      background: #af52de;
+      color: #fff;
+    }
 
     /* GPS card */
     .gps-grid {
@@ -339,8 +374,20 @@
     <div id="status-badge" class="status-badge pending">⏳ Pending</div>
   </div>
 
+  <!-- ── Accept Load Card (shown when status = Assigned) ──────────────────── -->
+  <div class="accept-card" id="accept-card" style="display:none;">
+    <div class="accept-card-header">
+      <div class="accept-icon">🔔</div>
+      <div>
+        <div class="accept-card-title">New Load Assigned</div>
+        <div class="accept-card-sub" id="accept-pickup-time">Pickup: —</div>
+      </div>
+    </div>
+    <button id="btn-accept" class="btn btn-accept" onclick="acceptLoad()">✅ Accept Load</button>
+  </div>
+
   <!-- ── GPS / Map Card ──────────────────────────────────────────────────── -->
-  <div class="card" id="gps-card">
+  <div class="card" id="gps-card" style="display:none;">
     <p class="card-title">Live Location</p>
     <div id="map"></div>
     <div class="map-coords">
@@ -365,7 +412,7 @@
   </div>
 
   <!-- ── Action Buttons ──────────────────────────────────────────────────── -->
-  <button id="btn-start"   class="btn btn-start"   onclick="startTracking()">🚛 Start Tracking</button>
+  <button id="btn-start"   class="btn btn-start"   onclick="startTracking()" style="display:none;">🚛 Start Tracking</button>
   <button id="btn-stop"    class="btn btn-stop"    onclick="stopTracking()"   style="display:none;">⏸ Pause Tracking</button>
   <button id="btn-deliver" class="btn"             onclick="markDelivered()"  style="display:none;background:#34C759;color:#fff;">✅ Mark as Delivered</button>
 
@@ -398,6 +445,56 @@
     let gpsRestartDelay  = 5000;        // ms before restarting GPS after error
 
     function isLive() { return !!API_BASE; }
+
+    // ── Web Notifications ─────────────────────────────────────────────────────
+    var _pickupReminderTimers = [];
+
+    function requestDriverNotifPermission(onGranted) {
+      if (!('Notification' in window)) { if(onGranted) onGranted(false); return; }
+      if (Notification.permission === 'granted') { if(onGranted) onGranted(true); return; }
+      if (Notification.permission === 'denied')  { if(onGranted) onGranted(false); return; }
+      Notification.requestPermission().then(function(p) {
+        if(onGranted) onGranted(p === 'granted');
+      });
+    }
+
+    function driverNotify(title, body) {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      try {
+        var n = new Notification(title, { body: body || '', tag: title });
+        n.onclick = function() { window.focus(); n.close(); };
+        setTimeout(function() { n.close(); }, 10000);
+      } catch(e) {}
+    }
+
+    function schedulePickupReminders(pickupDateStr) {
+      // Clear any previously scheduled reminders
+      _pickupReminderTimers.forEach(function(t) { clearTimeout(t); });
+      _pickupReminderTimers = [];
+
+      if (!pickupDateStr) return;
+      var pickupMs = new Date(pickupDateStr).getTime();
+      var now = Date.now();
+
+      // 30-minute early warning
+      var earlyMs = pickupMs - 30 * 60 * 1000;
+      if (earlyMs > now) {
+        _pickupReminderTimers.push(setTimeout(function() {
+          driverNotify('🚛 Pickup in 30 Minutes',
+            (loadData ? 'Load ' + loadData.loadNumber + ': ' : '') +
+            'Head to ' + (loadData ? loadData.pickupAddress : 'your pickup location'));
+        }, earlyMs - now));
+      }
+
+      // On-time pickup alert
+      if (pickupMs > now) {
+        _pickupReminderTimers.push(setTimeout(function() {
+          driverNotify('🚛 Time to Start Driving!',
+            (loadData ? 'Load ' + loadData.loadNumber + ' — ' : '') +
+            'Pickup: ' + (loadData ? loadData.pickupAddress : 'your pickup location'));
+        }, pickupMs - now));
+      }
+    }
 
     // ── Connection status bar ─────────────────────────────────────────────────
     var _connHideTimer = null;
@@ -432,6 +529,12 @@
         document.getElementById("btn-start").disabled = true;
         return;
       }
+      // Ask for notification permission straight away so reminders can fire
+      requestDriverNotifPermission(function(granted) {
+        if (granted) {
+          driverNotify('🚛 CMP Tracking', 'Notifications enabled — we\'ll remind you at pickup time.');
+        }
+      });
       loadLoadInfo();
     })();
 
@@ -498,6 +601,17 @@
       document.getElementById("pickup-addr").textContent   = data.pickupAddress || "—";
       document.getElementById("delivery-addr").textContent = data.deliveryAddress || "—";
 
+      // Schedule pickup time reminders (works for Assigned & Accepted statuses)
+      if (data.pickupDate && (data.status === 'Assigned' || data.status === 'Accepted')) {
+        schedulePickupReminders(data.pickupDate);
+      }
+
+      // New assignment notification
+      if (data.status === 'Assigned') {
+        driverNotify('📋 New Load Assigned',
+          'Load ' + (data.loadNumber || '') + ' — pickup at ' + (data.pickupAddress || ''));
+      }
+
       // Show extra details row if available
       var extras = "";
       if (data.weight)       extras += '<div style="font-size:13px;color:var(--muted);margin-top:6px">⚖️ ' + Number(data.weight).toLocaleString() + ' lbs</div>';
@@ -518,6 +632,7 @@
         badge.textContent = "🚛 In Transit";
         document.getElementById("btn-start").style.display = "none";
         document.getElementById("btn-stop").style.display  = "flex";
+        document.getElementById("gps-card").style.display  = "block";
         isTracking = true;
         loadTrailHistory();
         startGPS(false);
@@ -525,9 +640,50 @@
         badge.className   = "status-badge stopped";
         badge.textContent = "✅ Delivered";
         document.getElementById("btn-start").style.display = "none";
+        document.getElementById("gps-card").style.display  = "none";
         document.getElementById("delivered-screen").style.display = "flex";
+      } else if (data.status === "Accepted") {
+        badge.className   = "status-badge accepted";
+        badge.textContent = "✅ Accepted";
+        document.getElementById("gps-card").style.display  = "block";
+        document.getElementById("btn-start").style.display = "flex";
       } else {
+        // Assigned, Pending, or anything else — always show Accept card
+        // (Pending means the link was sent before status was saved as Assigned,
+        //  but the driver still needs to accept and start tracking)
         badge.textContent = "⏳ " + (data.status || "Pending");
+        document.getElementById("gps-card").style.display   = "none";
+        document.getElementById("btn-start").style.display  = "none";
+        var acceptCard = document.getElementById("accept-card");
+        acceptCard.style.display = "block";
+        if (data.pickupDate) {
+          document.getElementById("accept-pickup-time").textContent =
+            "Pickup: " + new Date(data.pickupDate).toLocaleDateString("en-US", {
+              month: "short", day: "numeric", year: "numeric",
+              hour: "2-digit", minute: "2-digit"
+            });
+        }
+        // If we have a live backend, check whether the status has already been
+        // updated (e.g. dispatcher changed it after sending the link)
+        if (isLive() && (TOKEN || LOAD_ID)) {
+          var liveUrl = TOKEN ? API_BASE + '/track/' + TOKEN
+                              : API_BASE + '/loads/' + LOAD_ID;
+          fetch(liveUrl)
+            .then(function(r){ return r.ok ? r.json() : null; })
+            .then(function(live){
+              if (!live) return;
+              var liveStatus = live.status || data.status;
+              if (liveStatus !== data.status) {
+                // Backend has a newer status — re-render with it
+                live.pickupDate    = live.pickupDate    || data.pickupDate;
+                live.deliveryDate  = live.deliveryDate  || data.deliveryDate;
+                live.pickupAddress = live.pickupAddress || data.pickupAddress;
+                live.deliveryAddress = live.deliveryAddress || data.deliveryAddress;
+                populateLoad(live);
+              }
+            })
+            .catch(function(){});
+        }
       }
     }
 
@@ -552,8 +708,22 @@
           // Update status in URL-decoded load
           updateLocalStatus('In Transit');
 
-          // Notify dispatcher
+          // Notify dispatcher via /start (sets In Transit + sends email)
           notifyDispatcher(pos);
+
+          // Belt-and-suspenders: also PATCH status directly so DynamoDB is
+          // updated even if /start fails or is slow
+          if (isLive() && TOKEN) {
+            fetch(API_BASE + '/track/' + TOKEN + '/status', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                status: 'In Transit',
+                loadId: loadData ? loadData.id : (LOAD_ID || null),
+                driverName: loadData ? (loadData.assignedDriverName || 'Driver') : 'Driver',
+              }),
+            }).catch(function(e) { console.warn('In Transit status patch failed:', e); });
+          }
 
           isTracking = true;
           document.getElementById('status-badge').className   = 'status-badge active';
@@ -564,6 +734,7 @@
           document.getElementById('log-card').style.display    = 'block';
           showSuccess('✅ Tracking started! Dispatcher has been notified.');
           addLog('🚛 Tracking started');
+          driverNotify('🚛 Tracking Started', 'Your location is now being shared. Drive safe!');
 
           postLocation(pos);
           startGPS(true);
@@ -578,6 +749,77 @@
         },
         { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
       );
+    }
+
+    // ── Accept Load ───────────────────────────────────────────────────────────
+    function acceptLoad() {
+      var btn = document.getElementById('btn-accept');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Accepting…';
+
+      var loadId     = loadData ? loadData.id     : LOAD_ID;
+      var loadNumber = loadData ? loadData.loadNumber : '';
+      var driverName = loadData ? (loadData.assignedDriverName || 'Driver') : 'Driver';
+
+      function onAccepted() {
+        // Update local status
+        updateLocalStatus('Accepted');
+
+        // Update badge
+        var badge = document.getElementById('status-badge');
+        badge.className   = 'status-badge accepted';
+        badge.textContent = '✅ Accepted';
+
+        // Re-schedule pickup reminders (in case permission was just granted)
+        if (loadData && loadData.pickupDate) schedulePickupReminders(loadData.pickupDate);
+
+        // Hide accept card, reveal tracking controls
+        document.getElementById('accept-card').style.display  = 'none';
+        document.getElementById('gps-card').style.display     = 'block';
+        document.getElementById('btn-start').style.display    = 'flex';
+
+        showSuccess('✅ Load accepted! Dispatcher has been notified. Tap Start Tracking when ready.');
+        addLog('✅ Load accepted');
+        driverNotify('✅ Load Accepted',
+          'Load ' + (loadData ? loadData.loadNumber : '') + ' accepted. Pickup reminders are set.');
+      }
+
+      // Try backend accept endpoint
+      if (isLive() && TOKEN) {
+        // Update status via the public token-based endpoint (no JWT required)
+        fetch(API_BASE + '/track/' + TOKEN + '/status', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'Accepted', loadId: loadId, driverName: driverName }),
+        }).catch(function(){});
+
+        // Also call the dedicated accept endpoint (sends dispatcher email)
+        fetch(API_BASE + '/loads/' + loadId + '/accept', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            loadId:          loadId,
+            loadNumber:      loadNumber,
+            driverName:      driverName,
+            dispatcherEmail: loadData ? (loadData.dispatcherEmail || '') : ''
+          }),
+        })
+        .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+        .then(function() { onAccepted(); })
+        .catch(function(err) {
+          // Graceful fallback — status already patched above, just show UI
+          console.warn('Accept endpoint error:', err);
+          onAccepted();
+        });
+      } else {
+        // No backend — update locally and open mailto
+        onAccepted();
+        if (loadData && loadData.dispatcherEmail) {
+          var subject = 'Load ' + loadNumber + ' Accepted by ' + driverName;
+          var body    = driverName + ' has accepted load ' + loadNumber + '.\nThey are ready to start tracking at pickup time.';
+          openMailtoDispatcher(subject, body);
+        }
+      }
     }
 
     // ── Notify Dispatcher ─────────────────────────────────────────────────────
@@ -629,32 +871,73 @@
     // ── Mark Delivered ────────────────────────────────────────────────────────
     function markDelivered() {
       if (!confirm("Mark this load as Delivered?")) return;
-      stopGPS();
-      isTracking = false;
-      updateLocalStatus("Delivered");
 
-      if (isLive()) {
-        fetch(API_BASE + "/loads/" + (loadData ? loadData.id : LOAD_ID) + "/status", {
+      var btn = document.getElementById('btn-deliver');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Saving…';
+
+      function doDeliver(attempt) {
+        if (!isLive() || !TOKEN) {
+          finishDelivered(); return;
+        }
+        fetch(API_BASE + "/track/" + TOKEN + "/status", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "Delivered" }),
-        }).catch(function() {});
+          body: JSON.stringify({
+            status: "Delivered",
+            loadId: loadData ? loadData.id : (LOAD_ID || null),
+            driverName: loadData ? (loadData.assignedDriverName || "Driver") : "Driver",
+          }),
+        })
+        .then(function(r) {
+          if (!r.ok) return r.json().then(function(d) { throw new Error(d.error || ("HTTP " + r.status)); });
+          finishDelivered();
+        })
+        .catch(function(err) {
+          console.error("markDelivered attempt " + attempt + " failed:", err);
+          if (attempt < 3) {
+            setTimeout(function() { doDeliver(attempt + 1); }, 2000 * attempt);
+          } else {
+            // All retries failed — still mark locally but warn driver
+            finishDelivered();
+            showError("⚠️ Could not reach server after 3 tries (" + (err.message || "network error") + "). Status saved locally — ask dispatcher to update manually if needed.");
+          }
+        });
       }
 
-      document.getElementById("btn-stop").style.display    = "none";
-      document.getElementById("btn-deliver").style.display = "none";
-      document.getElementById("status-badge").className    = "status-badge stopped";
-      document.getElementById("status-badge").textContent  = "✅ Delivered";
-      document.getElementById("delivered-screen").style.display = "flex";
-      addLog("✅ Marked as Delivered");
+      function finishDelivered() {
+        stopGPS();
+        isTracking = false;
+        updateLocalStatus("Delivered");
+        document.getElementById("btn-stop").style.display    = "none";
+        document.getElementById("btn-deliver").style.display = "none";
+        document.getElementById("status-badge").className    = "status-badge stopped";
+        document.getElementById("status-badge").textContent  = "✅ Delivered";
+        document.getElementById("delivered-screen").style.display = "flex";
+        addLog("✅ Marked as Delivered");
+        driverNotify('📦 Delivery Complete!',
+          'Load ' + (loadData ? loadData.loadNumber : '') + ' marked as delivered. Great work!');
+      }
+
+      doDeliver(1);
     }
 
     function updateLocalStatus(newStatus) {
       var stored = JSON.parse(localStorage.getItem("cmp_loads") || "[]");
+      var updated = false;
       for (var i = 0; i < stored.length; i++) {
-        if ((TOKEN && stored[i].trackingToken === TOKEN) || (LOAD_ID && stored[i].id === LOAD_ID)) {
-          stored[i].status = newStatus; break;
+        if ((TOKEN  && stored[i].trackingToken === TOKEN)  ||
+            (LOAD_ID && stored[i].id           === LOAD_ID)) {
+          stored[i].status = newStatus;
+          updated = true;
+          break;
         }
+      }
+      // If not found in stored loads, add a minimal record so dispatcher can see it
+      if (!updated && loadData) {
+        var entry = JSON.parse(JSON.stringify(loadData));
+        entry.status = newStatus;
+        stored.push(entry);
       }
       localStorage.setItem("cmp_loads", JSON.stringify(stored));
       if (loadData) loadData.status = newStatus;

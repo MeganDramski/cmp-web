@@ -99,10 +99,11 @@ struct ActiveLoadsTab: View {
     private var summaryBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
-                SummaryCard(title: "Active",   count: viewModel.loads.filter { $0.status == .inTransit }.count, icon: "truck.box.fill",      color: .orange)
-                SummaryCard(title: "Assigned", count: viewModel.loads.filter { $0.status == .assigned  }.count, icon: "person.fill",          color: .blue)
-                SummaryCard(title: "Pending",  count: viewModel.loads.filter { $0.status == .pending   }.count, icon: "clock",               color: .gray)
-                SummaryCard(title: "Delivered",count: viewModel.loads.filter { $0.status == .delivered }.count, icon: "checkmark.seal.fill",  color: .green)
+                SummaryCard(title: "In Transit", count: viewModel.loads.filter { $0.status == .inTransit }.count, icon: "truck.box.fill",      color: .orange)
+                SummaryCard(title: "Accepted",   count: viewModel.loads.filter { $0.status == .accepted  }.count, icon: "hand.thumbsup.fill",    color: .purple)
+                SummaryCard(title: "Assigned",   count: viewModel.loads.filter { $0.status == .assigned  }.count, icon: "person.fill",           color: .blue)
+                SummaryCard(title: "Pending",    count: viewModel.loads.filter { $0.status == .pending   }.count, icon: "clock",                 color: .gray)
+                SummaryCard(title: "Delivered",  count: viewModel.loads.filter { $0.status == .delivered }.count, icon: "checkmark.seal.fill",   color: .green)
             }
             .padding()
         }
@@ -764,7 +765,7 @@ struct LoadDetailView: View {
 
     private func openSMSFallback(driverPhone: String) {
         let link = load.webTrackingURL
-        let msg = "CMP Freight – Load \(load.loadNumber)\nPickup: \(load.pickupAddress)\nDelivery: \(load.deliveryAddress)\n\nTap here to start tracking:\n\(link)"
+        let msg = "CMP Logistics – Load \(load.loadNumber)\nPickup: \(load.pickupAddress)\nDelivery: \(load.deliveryAddress)\n\nTap here to start tracking:\n\(link)"
         let encoded = msg.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let smsTarget = driverPhone.filter { $0.isNumber || $0 == "+" }
         let urlStr = smsTarget.isEmpty ? "sms:?body=\(encoded)" : "sms:\(smsTarget)?body=\(encoded)"
