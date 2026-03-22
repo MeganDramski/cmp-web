@@ -1413,13 +1413,14 @@ function editLoad(id){
         });
       },0);
     } else {
-      // Driver was manually entered - show in manual fields
-      document.getElementById('manual-driver').style.display='block';
-      document.getElementById('toggle-manual').textContent='- Use driver picker instead';
+      // Driver was manually entered - show manual name field
       document.getElementById('al-dn').value=load.assignedDriverName||'';
-      document.getElementById('al-dp').value=load.assignedDriverPhone||'';
     }
   }
+  // Always show the phone field and fill it with the current phone — editable regardless of driver source
+  document.getElementById('manual-driver').style.display='block';
+  document.getElementById('toggle-manual').textContent='- Use driver picker instead';
+  document.getElementById('al-dp').value=load.assignedDriverPhone||'';
 
   document.getElementById('modal-ov').classList.add('on');
 }
@@ -1485,12 +1486,14 @@ function saveLoad(){
 
   // Resolve driver from picker or manual fields
   var dId=null,dName=null,dEmail=null,dPhone=null;
+  // Always read the phone from the input field first — it may have been edited
+  var phoneFieldVal = document.getElementById('al-dp').value.trim() || null;
   if(selectedDriverId){
     var dr=drivers.find(function(d){return d.email===selectedDriverId;});
-    if(dr){dId=dr.email;dName=dr.name;dEmail=dr.email;dPhone=dr.phone||null;}
+    if(dr){dId=dr.email;dName=dr.name;dEmail=dr.email;dPhone=phoneFieldVal||dr.phone||null;}
   } else {
     dName=document.getElementById('al-dn').value.trim()||null;
-    dPhone=document.getElementById('al-dp').value.trim()||null;
+    dPhone=phoneFieldVal;
     if(dName)dId='D'+Math.floor(Math.random()*900+100);
   }
 
