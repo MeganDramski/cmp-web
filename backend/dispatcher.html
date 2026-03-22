@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>CMP Logistics - Dispatcher Portal</title>
+<title>Parcelo - Dispatcher Portal</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -207,8 +207,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   <div class="acard">
     <div class="alogo">
       <div class="ico">🚛</div>
-      <h1>CMP Logistics</h1>
-      <p>Dispatcher Portal</p>
+      <h1>Parcelo</h1>
+      <p>Powered by OTTIO · Dispatcher Portal</p>
     </div>
     <div class="atabs">
       <button class="atab on" id="tab-in">Sign In</button>
@@ -254,7 +254,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <!-- APP -->
 <div id="app-screen">
   <nav class="nav">
-    <div class="brand">🚛 <span id="nav-company">CMP Logistics</span></div>
+    <div class="brand">🚛 <span id="nav-company">Parcelo</span></div>
     <div class="spacer"></div>
     <span id="nav-plan-badge" style="display:none;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:rgba(255,149,0,.15);color:#FF9500;border:1px solid rgba(255,149,0,.3);cursor:pointer" title="Upgrade plan" onclick="upgradePlan()"></span>
     <div class="uchip"><span>👤</span><strong id="nav-name">Dispatcher</strong></div>
@@ -1387,7 +1387,7 @@ function sendLink(id){
   var pickupStr=load.pickupDate?new Date(load.pickupDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
 
   var msgText='Hi '+(load.assignedDriverName||'Driver')+',\n\n'
-    +'You have a new load assigned by CMP Logistics.\n\n'
+    +'You have a new load assigned by Parcelo (powered by OTTIO).\n\n'
     +'LOAD #: '+(load.loadNumber||'--')+'\n'
     +'PICKUP: '+(load.pickupAddress||'--')+'\n'
     +'DELIVERY: '+(load.deliveryAddress||'--')+'\n'
