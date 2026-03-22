@@ -795,6 +795,44 @@
      loadLoadInfo();
    })();
 
+   // ── Live status poll ──────────────────────────────────────────────────────
+   // Polls the API every 30 s while the page is open so status changes made
+   // by the dispatcher (e.g. Unassigned) are reflected in the driver's browser
+   // without requiring a page refresh.
+   var _statusPollTimer = null;
+   var STATUS_POLL_MS   = 30000;
+
+   function startStatusPoll() {
+     stopStatusPoll();
+     if (!isLive() || (!TOKEN && !LOAD_ID)) return;
+     _statusPollTimer = setInterval(function() {
+       // Don't interfere while actively tracking — postLocation already talks to the server.
+       if (isTracking) return;
+       var url = TOKEN ? API_BASE + '/track/' + TOKEN : API_BASE + '/loads/' + LOAD_ID;
+       fetch(url)
+         .then(function(r) { return r.ok ? r.json() : null; })
+         .then(function(live) {
+           if (!live) return;
+           var currentStatus = loadData ? loadData.status : null;
+           if (live.status && live.status !== currentStatus) {
+             // Merge in any missing fields from cached data so we don't lose them
+             if (loadData) {
+               live.pickupDate      = live.pickupDate      || loadData.pickupDate;
+               live.deliveryDate    = live.deliveryDate    || loadData.deliveryDate;
+               live.pickupAddress   = live.pickupAddress   || loadData.pickupAddress;
+               live.deliveryAddress = live.deliveryAddress || loadData.deliveryAddress;
+             }
+             populateLoad(live);
+           }
+         })
+         .catch(function() {});
+     }, STATUS_POLL_MS);
+   }
+
+   function stopStatusPoll() {
+     if (_statusPollTimer) { clearInterval(_statusPollTimer); _statusPollTimer = null; }
+   }
+
    // ── Fetch load details ────────────────────────────────────────────────────
    function loadLoadInfo() {
      try {
@@ -802,7 +840,28 @@
        if (dParam) {
          try {
            var decoded = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(dParam)))));
-           if (decoded && decoded.loadNumber) { populateLoad(decoded); return; }
+           if (decoded && decoded.loadNumber) {
+             populateLoad(decoded);
+             // ?d= param is baked-in at link-send time — always verify live status
+             if (isLive() && (TOKEN || LOAD_ID)) {
+               var url = TOKEN ? API_BASE + '/track/' + TOKEN : API_BASE + '/loads/' + LOAD_ID;
+               fetch(url)
+                 .then(function(r) { return r.ok ? r.json() : null; })
+                 .then(function(live) {
+                   if (!live) return;
+                   if (live.status && live.status !== decoded.status) {
+                     live.pickupDate      = live.pickupDate      || decoded.pickupDate;
+                     live.deliveryDate    = live.deliveryDate    || decoded.deliveryDate;
+                     live.pickupAddress   = live.pickupAddress   || decoded.pickupAddress;
+                     live.deliveryAddress = live.deliveryAddress || decoded.deliveryAddress;
+                     populateLoad(live);
+                   }
+                 })
+                 .catch(function() {});
+             }
+             startStatusPoll();
+             return;
+           }
          } catch(e) {}
        }
        var stored = JSON.parse(localStorage.getItem('cmp_loads') || '[]');
@@ -813,11 +872,32 @@
            found = stored[i]; break;
          }
        }
-       if (found) { populateLoad(found); return; }
+       if (found) {
+         populateLoad(found);
+         // Cache may be stale — always verify live status
+         if (isLive() && (TOKEN || LOAD_ID)) {
+           var url2 = TOKEN ? API_BASE + '/track/' + TOKEN : API_BASE + '/loads/' + LOAD_ID;
+           fetch(url2)
+             .then(function(r) { return r.ok ? r.json() : null; })
+             .then(function(live) {
+               if (!live) return;
+               if (live.status && live.status !== found.status) {
+                 live.pickupDate      = live.pickupDate      || found.pickupDate;
+                 live.deliveryDate    = live.deliveryDate    || found.deliveryDate;
+                 live.pickupAddress   = live.pickupAddress   || found.pickupAddress;
+                 live.deliveryAddress = live.deliveryAddress || found.deliveryAddress;
+                 populateLoad(live);
+               }
+             })
+             .catch(function() {});
+         }
+         startStatusPoll();
+         return;
+       }
        if (isLive()) {
          fetch(API_BASE + '/track/' + TOKEN)
            .then(function(r) { return r.ok ? r.json() : r.json().then(function(d){ throw new Error(d.error||'Load not found.'); }); })
-           .then(function(d) { populateLoad(d); })
+           .then(function(d) { populateLoad(d); startStatusPoll(); })
            .catch(function(err) {
              document.getElementById('load-number').textContent = 'Load Not Found';
              document.getElementById('load-desc').textContent   = err.message;
@@ -908,23 +988,6 @@
              hour: "2-digit", minute: "2-digit"
            });
        }
-       if (isLive() && (TOKEN || LOAD_ID)) {
-         var liveUrl = TOKEN ? API_BASE + '/track/' + TOKEN : API_BASE + '/loads/' + LOAD_ID;
-         fetch(liveUrl)
-           .then(function(r){ return r.ok ? r.json() : null; })
-           .then(function(live){
-             if (!live) return;
-             var liveStatus = live.status || data.status;
-             if (liveStatus !== data.status) {
-               live.pickupDate    = live.pickupDate    || data.pickupDate;
-               live.deliveryDate  = live.deliveryDate  || data.deliveryDate;
-               live.pickupAddress = live.pickupAddress || data.pickupAddress;
-               live.deliveryAddress = live.deliveryAddress || data.deliveryAddress;
-               populateLoad(live);
-             }
-           })
-           .catch(function(){});
-       }
      }
    }
 
@@ -973,6 +1036,8 @@
 
          // Start NoSleep to prevent OS from killing the tab while in background
          startNoSleep();
+         // No longer need dispatcher-change polling once we're actively tracking
+         stopStatusPoll();
 
          // Show Add-to-Home-Screen banner (iOS + Android) if not already a PWA
          showPWABanner();
@@ -1120,6 +1185,7 @@
      function finishDelivered() {
        stopGPS();
        stopNoSleep();
+       stopStatusPoll();
        isTracking = false;
        saveTrackingState(false);
        updateLocalStatus("Delivered");
