@@ -598,7 +598,9 @@ function bgPollLoads(){
           }
         });
         renderList();
-        if(selId) renderDetail();
+        // Only re-render the detail panel if the selected load actually
+        // changed — avoids destroying and rebuilding the map on every poll.
+        if(selId && _selLoadChanged(fresh)) renderDetail();
       })
       .catch(function(){});
   } else {
@@ -773,6 +775,8 @@ var _renderedLoads=[];
 
 /* SELECT LOAD */
 function selLoad(id){
+  // If switching to a different load, tear down the existing map immediately.
+  if(selId && selId !== id){ stopDispatcherMap(); _selLoadSnapshot=null; }
   selId=id;
   renderList();
   // Find load in live loads or rendered list (history)
@@ -790,6 +794,7 @@ function selLoad(id){
 /* CLOSE DETAIL — just clears selection */
 function closeDetailPanel(){
   selId=null;
+  _selLoadSnapshot=null;
   stopDispatcherMap();
   document.getElementById('dc').style.display='none';
   document.getElementById('dph').style.display='flex';
@@ -798,7 +803,6 @@ function closeDetailPanel(){
 
 /* RENDER DETAIL */
 function renderDetail(){
-  stopDispatcherMap();
   var load=null; for(var i=0;i<loads.length;i++){if(loads[i].id===selId){load=loads[i];break;}}
   if(!load)return;
   document.getElementById('dph').style.display='none';
@@ -940,22 +944,52 @@ function renderDetail(){
     }
   });
 
+  // Save a snapshot so bgPollLoads can skip re-renders when nothing changed.
+  _selLoadSnapshot = JSON.stringify(load);
+
   // Start live map polling for In Transit / Assigned loads
   startDispatcherMap(load);
 }
 
 /* ── DISPATCHER LIVE MAP ─────────────────────────────────────────────────── */
+// Snapshot of the selected load used to detect real changes from the poll.
+var _selLoadSnapshot = null;
+function _snapSelLoad(){
+  if(!selId) return null;
+  for(var i=0;i<loads.length;i++){if(loads[i].id===selId) return JSON.stringify(loads[i]);}
+  return null;
+}
+// Returns true only if the selected load's data changed since last render.
+function _selLoadChanged(freshArray){
+  if(!selId) return false;
+  var fresh=null;
+  for(var i=0;i<freshArray.length;i++){if(freshArray[i].id===selId){fresh=freshArray[i];break;}}
+  if(!fresh) return false;
+  var snap=JSON.stringify(fresh);
+  if(snap===_selLoadSnapshot) return false;
+  return true;
+}
+
 var _dispMap=null, _dispMarker=null, _dispTrail=null, _dispTrailPts=[], _dispPollTimer=null, _dispStaleTimer=null, _lastLocTimestamp=null;
+// Track which load the dispatcher map is currently showing.
+var _dispMapLoadId=null;
 
 function stopDispatcherMap(){
   if(_dispPollTimer){clearInterval(_dispPollTimer);_dispPollTimer=null;}
   if(_dispStaleTimer){clearInterval(_dispStaleTimer);_dispStaleTimer=null;}
   _dispMap=null; _dispMarker=null; _dispTrail=null; _dispTrailPts=[]; _lastLocTimestamp=null;
+  _dispMapLoadId=null;
 }
 
 function startDispatcherMap(load){
+  if(!isLive()||!load.trackingToken||(load.status!=='In Transit'&&load.status!=='Assigned'&&load.status!=='Accepted')){
+    stopDispatcherMap();
+    return;
+  }
+  // Already running for this load — don't tear it down, just let the poll continue.
+  if(_dispMapLoadId===load.id && _dispMap && _dispPollTimer) return;
   stopDispatcherMap();
-  if(!isLive()||!load.trackingToken||(load.status!=='In Transit'&&load.status!=='Assigned'&&load.status!=='Accepted'))return;
+  _dispMapLoadId=load.id;
   // Seed last-loc timestamp to NOW so the stale timer doesn't fire immediately
   // on a freshly-opened panel (the last DB timestamp could be old).
   _lastLocTimestamp=Date.now();
