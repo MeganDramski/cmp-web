@@ -97,10 +97,67 @@ if (isIOS) {
 
   var btn = document.getElementById('btn-install-ios');
   if (PLIST_URL) {
-    // OTA install via itms-services — launches the iOS install dialog directly
-    btn.href = 'itms-services://?action=download-manifest&url=' + encodeURIComponent(PLIST_URL);
-    btn.textContent = '📲 Tap to Install';
-    document.getElementById('trust-warn').style.display = 'block';
+    // Check if app is already installed by attempting to open the custom URL scheme.
+    // If the scheme resolves, show "Open App" instead of "Install" to avoid reinstallation.
+    var appScheme = 'cmptracking://';
+    var iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+
+    var appAlreadyInstalled = false;
+    var schemeCheckTimeout;
+
+    function showInstallButton() {
+      // OTA install via itms-services — launches the iOS install dialog directly
+      btn.href = 'itms-services://?action=download-manifest&url=' + encodeURIComponent(PLIST_URL);
+      btn.textContent = '📲 Tap to Install';
+      document.getElementById('trust-warn').style.display = 'block';
+
+      // Disable button after first tap to prevent double-install
+      btn.addEventListener('click', function onInstallTap(e) {
+        btn.removeEventListener('click', onInstallTap);
+        setTimeout(function() {
+          btn.style.opacity = '0.5';
+          btn.style.pointerEvents = 'none';
+          btn.textContent = '⏳ Installing…';
+        }, 500);
+      });
+    }
+
+    function showOpenButton() {
+      appAlreadyInstalled = true;
+      btn.href = appScheme;
+      btn.textContent = '✅ App Installed — Tap to Open';
+      btn.classList.add('green');
+      document.getElementById('trust-warn').style.display = 'none';
+      // Replace install steps with a note that app is already installed
+      var stepsEl = document.querySelector('.steps');
+      if (stepsEl) {
+        stepsEl.innerHTML =
+          '<div class="steps-title">Already installed</div>' +
+          '<div class="step"><span class="step-num">✓</span><span>CMP Tracking is already on this device. Tap the button above to open it.</span></div>';
+      }
+    }
+
+    // Try to silently open the custom scheme via the hidden iframe.
+    // If the app is installed, iOS will open it and we can detect the page blur.
+    var pageBlurred = false;
+    window.addEventListener('blur', function onBlur() {
+      pageBlurred = true;
+    });
+
+    try { iframe.src = appScheme; } catch(e) {}
+
+    schemeCheckTimeout = setTimeout(function() {
+      document.body.removeChild(iframe);
+      window.removeEventListener('blur', function onBlur() {});
+      if (pageBlurred) {
+        showOpenButton();
+      } else {
+        showInstallButton();
+      }
+    }, 600);
+
   } else {
     // No IPA hosted yet — show TestFlight or manual instructions
     btn.style.display = 'none';
