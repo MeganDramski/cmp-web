@@ -1,18 +1,19 @@
 /**
- * CMP Logistics — Driver Tracking Service Worker  (v5)
+ * CMP Logistics — Driver Tracking Service Worker  (v6)
  *
  * Responsibilities:
  *  1. Cache the page shell so the driver can open it even with no signal.
  *  2. Background Sync  — replay queued POST /location when back online.
  *  3. Periodic Background Sync (Android Chrome) — post last-known location
  *     from IndexedDB even when the page is fully closed / backgrounded.
- *  4. Keep-alive ping every 25 s to open pages so the browser doesn't
- *     suspend GPS watchPosition, AND request a fresh location from them.
+ *  4. Keep-alive ping every 20 s to open pages so the browser doesn't
+ *     suspend GPS watchPosition, AND post location directly from IDB so
+ *     updates reach the server even when page JS is frozen by iOS/Android.
  *  5. Store last-known location in IndexedDB so the SW can send it even
  *     when the page JS is suspended by the OS.
  */
 
-const CACHE_NAME   = 'cmp-driver-v5';
+const CACHE_NAME   = 'cmp-driver-v6';
 const ASSETS_CACHE = [
   'driver-tracking.html',
   'config.js',
@@ -104,10 +105,11 @@ self.addEventListener('periodicsync', function (evt) {
   }
 });
 
-// ── Keep-alive ping to all open page clients every 25 s ──────────────────
-// Prevents the browser from suspending watchPosition when the tab is
-// backgrounded but still open (screen on, app minimised).
+// ── Keep-alive: every 20 s ping open pages AND post location directly ────
+// Posting directly from IDB means location reaches the server even when
+// the page JS is frozen by iOS/Android background throttling.
 setInterval(function () {
+  // 1. Ping all open page clients (keeps watchPosition alive if JS is running)
   self.clients.matchAll({ type: 'window', includeUncontrolled: true })
     .then(function (clients) {
       clients.forEach(function (client) {
@@ -115,7 +117,10 @@ setInterval(function () {
         client.postMessage({ type: 'SW_REQUEST_LOCATION' });
       });
     });
-}, 25000);
+  // 2. Also post the last-known location directly from IDB — this fires even
+  //    when page JS is fully suspended (screen locked, app backgrounded).
+  postLastKnownLocation();
+}, 20000);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers

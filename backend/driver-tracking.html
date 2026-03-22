@@ -1626,6 +1626,40 @@
      }
    });
 
+   // ── freeze event: fired by iOS/Android right before the page is frozen ───
+   // This is the last guaranteed execution window before JS is fully suspended.
+   // Post the last known location with keepalive:true so it reaches the server.
+   document.addEventListener("freeze", function() {
+     if (!isTracking || !lastPosition || !isLive() || !navigator.onLine) return;
+     var c = lastPosition.coords;
+     fetch(API_BASE + "/track/" + TOKEN + "/location", {
+       method: "POST", keepalive: true,
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({
+         latitude:  c.latitude,  longitude: c.longitude,
+         speed:     c.speed   != null ? c.speed * 2.237 : 0,
+         heading:   c.heading != null ? c.heading        : 0,
+         timestamp: new Date().toISOString(),
+       }),
+     }).catch(function(){});
+     // Also persist to IDB so the SW keep-alive can resend if the fetch fails
+     saveLocationToIDB(lastPosition);
+   });
+
+   // ── resume event: page unfrozen — restart GPS if it dropped ─────────────
+   document.addEventListener("resume", function() {
+     if (!isTracking) return;
+     if (wakeLock !== null) {
+       navigator.wakeLock.request("screen").then(function(wl){ wakeLock = wl; }).catch(function(){});
+     }
+     if ((watchId === null && !gpsRestartTimer) || intervalId === null) {
+       stopGPS();
+       startGPS(false);
+       startNoSleep();
+       addLog('▶ GPS auto-resumed after freeze/resume');
+     }
+   });
+
    // ── PWA: Save token so the home-screen icon always opens the right load ──
    // When driver adds to home screen, start_url is just /driver-tracking.html
    // (no query params). We save the token to localStorage so we can restore it.
