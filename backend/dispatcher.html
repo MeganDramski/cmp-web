@@ -1174,15 +1174,12 @@ var _dispMapLoadId=null;
 function updateLastSeenLabel(){
   var el=document.getElementById('dms-updated');
   if(!el||!_lastGpsTimestamp)return;
-  var age=Date.now()-_lastGpsTimestamp;
-  var mins=Math.floor(age/60000);
-  var secs=Math.floor((age%60000)/1000);
-  var rel;
-  if(age<10000)        rel='Just now';
-  else if(mins===0)    rel=secs+'s ago';
-  else if(mins===1)    rel='1 min ago';
-  else                 rel=mins+' min ago';
-  el.textContent=rel;
+  var d=new Date(_lastGpsTimestamp);
+  var h=d.getHours(),m=d.getMinutes(),s=d.getSeconds();
+  var ampm=h>=12?'PM':'AM';
+  h=h%12||12;
+  var timeStr=h+':'+(m<10?'0':'')+m+':'+(s<10?'0':'')+s+' '+ampm;
+  el.textContent=timeStr;
 }
 
 function stopDispatcherMap(){

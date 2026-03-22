@@ -498,21 +498,16 @@ struct DriverView: View {
 
         let activeStatuses: Set<LoadStatus> = [.assigned, .accepted, .inTransit]
 
-        // Primary match: email/phone AND active status
         let match = allLoads.first(where: {
+            guard activeStatuses.contains($0.status) else { return false }
+            // Match against assignedDriverPhone (primary — dispatcher fills this in)
+            let phoneMatch = !driverPhone.isEmpty &&
+                ($0.assignedDriverPhone?.filter { $0.isNumber } == driverPhone ||
+                 $0.assignedDriverId?.filter    { $0.isNumber } == driverPhone)
+            // Match against assignedDriverEmail (fallback for older loads)
             let emailMatch = !driverEmail.isEmpty &&
                 ($0.assignedDriverEmail?.lowercased() == driverEmail)
-            let phoneMatch = !driverPhone.isEmpty &&
-                ($0.assignedDriverId?.filter { $0.isNumber } == driverPhone ||
-                 $0.assignedDriverEmail?.filter { $0.isNumber } == driverPhone)
-            return (emailMatch || phoneMatch) && activeStatuses.contains($0.status)
-        }) ?? allLoads.first(where: {
-            // Secondary match: email/phone only, but STILL require active status
-            let emailMatch = !driverEmail.isEmpty &&
-                ($0.assignedDriverEmail?.lowercased() == driverEmail)
-            let phoneMatch = !driverPhone.isEmpty &&
-                ($0.assignedDriverEmail?.filter { $0.isNumber } == driverPhone)
-            return (emailMatch || phoneMatch) && activeStatuses.contains($0.status)
+            return phoneMatch || emailMatch
         })
 
         assignedLoad = match
