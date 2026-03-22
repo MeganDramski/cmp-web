@@ -1155,17 +1155,22 @@ var _lastGpsTimestamp=null; // actual timestamp of driver's last GPS fix
 // Track which load the dispatcher map is currently showing.
 var _dispMapLoadId=null;
 
-// Update the "Last update" stat to show relative time (e.g. "30s ago", "2 min ago")
+// Update the "Last update" stat — shows "Just now" / "30s ago" etc.
+// Called on every successful poll AND by the stale timer between polls.
 function updateLastSeenLabel(){
   var el=document.getElementById('dms-updated');
   if(!el||!_lastGpsTimestamp)return;
   var age=Date.now()-_lastGpsTimestamp;
   var mins=Math.floor(age/60000);
   var secs=Math.floor((age%60000)/1000);
-  if(age<10000)       el.textContent='Just now';
-  else if(mins===0)   el.textContent=secs+'s ago';
-  else if(mins===1)   el.textContent='1 min ago';
-  else                el.textContent=mins+' min ago';
+  var rel;
+  if(age<10000)        rel='Just now';
+  else if(mins===0)    rel=secs+'s ago';
+  else if(mins===1)    rel='1 min ago';
+  else                 rel=mins+' min ago';
+  // Also show the actual clock time so it's easy to compare with driver logs
+  var clock=new Date(_lastGpsTimestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  el.textContent=clock+' ('+rel+')';
 }
 
 function stopDispatcherMap(){
@@ -1191,8 +1196,8 @@ function startDispatcherMap(load){
   pollDispatcherMap(load.trackingToken);
   // Then every 5 seconds for smooth live tracking
   _dispPollTimer=setInterval(function(){pollDispatcherMap(load.trackingToken);},5000);
-  // Refresh stale warning every 15 s so the "X min ago" counter stays current
-  _dispStaleTimer=setInterval(function(){checkStaleSignal();updateLastSeenLabel();},15000);
+  // Refresh stale warning + "X ago" label every 5 s so it stays in sync with the poll
+  _dispStaleTimer=setInterval(function(){checkStaleSignal();updateLastSeenLabel();},5000);
 }
 
 function checkStaleSignal(){
@@ -1277,27 +1282,30 @@ function snapToRoads(history, callback){
 
 function pollDispatcherMap(token){
   fetch(API+'/track/'+token)
-    .then(function(r){return r.ok?r.json():null;})
+    .then(function(r){
+      if(!r.ok){ console.warn('pollDispatcherMap HTTP '+r.status); return null; }
+      return r.json();
+    })
     .then(function(data){
-      if(!data)return;
+      if(!data){ console.warn('pollDispatcherMap: no data returned'); return; }
       var el=document.getElementById('disp-map-inner');
       if(!el)return;
 
-      // Filter history to current 24-hour window and sort by timestamp ascending
-      // so the newest point is always last in the array.
-      var recentHistory=filterRecentLocations(data.locationHistory);
-      recentHistory.sort(function(a,b){
+      // Sort all history ascending so newest is last. No 24-hr cutoff —
+      // we want every point from the current trip regardless of age.
+      var history = Array.isArray(data.locationHistory) ? data.locationHistory.slice() : [];
+      history.sort(function(a,b){
         return new Date(a.timestamp||0).getTime() - new Date(b.timestamp||0).getTime();
       });
 
-      // Use the most recent point from history as position,
-      // always fall back to lastLocation (no age check — show last known position)
-      var loc=recentHistory.length
-        ? recentHistory[recentHistory.length-1]
+      // Best position: newest history point, then lastLocation on the load.
+      // Never bail just because history is empty — lastLocation is always fresh.
+      var loc = history.length
+        ? history[history.length-1]
         : (data.lastLocation || null);
 
-      if(!loc){
-        // No fresh location yet — driver hasn't started or data is stale
+      if(!loc || loc.latitude==null || loc.longitude==null){
+        console.warn('pollDispatcherMap: no usable location yet');
         return;
       }
 
@@ -1316,18 +1324,17 @@ function pollDispatcherMap(token){
         _dispMap.panTo([lat,lng]);
       }
 
-      // Trail: snap to roads using OSRM match API (free, no key needed)
-      if(recentHistory.length>=2){
-        snapToRoads(recentHistory, function(roadPts){
+      // Trail
+      if(history.length>=2){
+        snapToRoads(history, function(roadPts){
           if(roadPts && roadPts.length>=2){
             _dispTrail.setLatLngs(roadPts);
           } else {
-            // Fallback to straight line if OSRM fails
-            _dispTrail.setLatLngs(recentHistory.map(function(p){return[p.latitude,p.longitude];}));
+            _dispTrail.setLatLngs(history.map(function(p){return[p.latitude,p.longitude];}));
           }
         });
       } else {
-        _dispTrail.setLatLngs([]);
+        if(_dispTrail) _dispTrail.setLatLngs([]);
       }
 
       // Show stats bar
@@ -1337,15 +1344,14 @@ function pollDispatcherMap(token){
         document.getElementById('dms-speed').textContent=loc.speed!=null?Math.round(loc.speed):'0';
         document.getElementById('dms-lat').textContent=lat.toFixed(5);
         document.getElementById('dms-lng').textContent=lng.toFixed(5);
-        // Record actual GPS timestamp for live "X ago" label
+        // Set actual GPS timestamp and update the "X ago" / clock label immediately
         _lastGpsTimestamp = loc.timestamp ? new Date(loc.timestamp).getTime() : Date.now();
         updateLastSeenLabel();
-        // Update stale clock to NOW (time of this successful poll), not the stored GPS timestamp
-        _lastLocTimestamp=Date.now();
+        _lastLocTimestamp = Date.now();
         checkStaleSignal();
       }
     })
-    .catch(function(){/* silently ignore network errors */});
+    .catch(function(err){ console.error('pollDispatcherMap fetch error:', err); });
 }
 
 /* ── PING DRIVER ─────────────────────────────────────────────────────────── */
