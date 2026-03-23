@@ -200,6 +200,21 @@ Resources:
             Path: /users/register
             Method: POST
 
+  # POST /companies/register  (self-serve new company sign-up)
+  RegisterCompanyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-register-company
+      CodeUri: src/
+      Handler: handlers/registerCompany.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /companies/register
+            Method: POST
+
   # GET /users/approve?token= (admin clicks Approve/Deny in email)
   ApproveUserFunction:
     Type: AWS::Serverless::Function

@@ -13,7 +13,6 @@ const jwt    = require("jsonwebtoken");
 const db  = new DynamoDBClient({});
 const ses = new SESClient({});
 
-const COMPANIES_TABLE = process.env.COMPANIES_TABLE;
 const USERS_TABLE     = process.env.USERS_TABLE;
 const JWT_SECRET      = process.env.JWT_SECRET;
 const SES_FROM        = process.env.SES_FROM_EMAIL;
@@ -56,23 +55,15 @@ exports.handler = async (event) => {
     const tenantId  = crypto.randomUUID();
     const now       = new Date().toISOString();
 
-    // ── Create company record ──────────────────────────────────────────────
+    // Company metadata stored inline on the user record (no separate table needed)
     const company = {
       tenantId,
       companyName:  companyName.trim(),
       adminEmail:   email,
-      plan:         "trial",      // free 14-day trial, upgrades via Stripe
-      status:       "active",
+      plan:         "trial",
       trialEndsAt:  new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-      stripeCustomerId:      null,
-      stripeSubscriptionId:  null,
       createdAt:    now,
     };
-
-    await db.send(new PutItemCommand({
-      TableName: COMPANIES_TABLE,
-      Item: marshall(company, { removeUndefinedValues: true }),
-    }));
 
     // ── Create admin user record ───────────────────────────────────────────
     const user = {
