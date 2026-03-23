@@ -223,6 +223,21 @@ Resources:
             Path: /users/register
             Method: POST
 
+  # GET /companies/lookup?name=...  (public – check if company exists + subscription status)
+  LookupCompanyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-lookup-company
+      CodeUri: src/
+      Handler: handlers/lookupCompany.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /companies/lookup
+            Method: GET
+
   # POST /companies/register  (self-serve new company sign-up)
   RegisterCompanyFunction:
     Type: AWS::Serverless::Function

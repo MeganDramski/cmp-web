@@ -242,11 +242,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
       <button type="button" class="btn btn-p btn-full" id="btn-in">Sign In</button>
     </div>
     <div class="aform" id="form-up">
-      <div class="fg"><label>Full Name</label><input type="text" id="reg-name" placeholder="Jane Dispatcher"/></div>
-      <div class="fg"><label>Work Email</label><input type="email" id="reg-email" placeholder="dispatcher@yourcompany.com"/></div>
-      <div class="fg"><label>Phone (optional)</label><input type="tel" id="reg-phone" placeholder="+1 312 555 0100"/></div>
-      <div class="fg"><label>Password (min 6 chars)</label><input type="password" id="reg-pw" placeholder="Password"/></div>
-      <button type="button" class="btn btn-p btn-full" id="btn-up">Request Access</button>
+      <!-- Step 1: Company lookup -->
+      <div id="reg-step1">
+        <div class="fg">
+          <label>Company Name</label>
+          <input type="text" id="reg-company" placeholder="Acme Freight Inc." autocomplete="organization"/>
+          <div id="reg-company-status" style="margin-top:7px;font-size:12px;border-radius:8px;padding:8px 11px;display:none"></div>
+        </div>
+        <button type="button" class="btn btn-p btn-full" id="btn-lookup-company">Find My Company</button>
+      </div>
+      <!-- Step 2: User details (shown after company confirmed) -->
+      <div id="reg-step2" style="display:none">
+        <div id="reg-company-banner" style="background:rgba(52,199,89,.1);border:1px solid rgba(52,199,89,.3);border-radius:9px;padding:9px 12px;font-size:13px;color:#34C759;margin-bottom:12px;display:flex;align-items:center;gap:7px">
+          <span>✅</span><span id="reg-company-banner-name"></span>
+        </div>
+        <div class="fg"><label>Full Name</label><input type="text" id="reg-name" placeholder="Jane Dispatcher"/></div>
+        <div class="fg"><label>Work Email</label><input type="email" id="reg-email" placeholder="dispatcher@yourcompany.com"/></div>
+        <div class="fg"><label>Phone (optional)</label><input type="tel" id="reg-phone" placeholder="+1 312 555 0100"/></div>
+        <div class="fg"><label>Password (min 6 chars)</label><input type="password" id="reg-pw" placeholder="Password"/></div>
+        <button type="button" class="btn btn-p btn-full" id="btn-up">Request Access</button>
+        <button type="button" class="btn btn-full" style="margin-top:7px;background:var(--s2);font-size:12px" id="btn-reg-back">← Different company</button>
+      </div>
     </div>
     <!-- Create Company — self-service sign-up for new tenants -->
     <div class="aform" id="form-co">
@@ -271,7 +287,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
       </div>
       <button class="btn btn-full" style="background:var(--s2)" onclick="document.getElementById('tab-in').click()">Back to Sign In</button>
     </div>
-    <p class="anote">Existing user? Sign in above. New company? Use the New Company tab.</p>
+    <p class="anote">Signing in? Use Sign In above. New company? Use the New Company tab to subscribe.</p>
   </div>
 </div>
 
@@ -455,6 +471,12 @@ document.getElementById('tab-up').addEventListener('click',function(){
   ['form-in','form-up','form-co'].forEach(function(id){document.getElementById(id).classList.remove('on');});
   document.getElementById('tab-up').classList.add('on');
   document.getElementById('form-up').classList.add('on');
+  // Reset to step 1
+  document.getElementById('reg-step1').style.display='';
+  document.getElementById('reg-step2').style.display='none';
+  document.getElementById('reg-company-status').style.display='none';
+  document.getElementById('reg-company').value='';
+  window._regTenantId=null;
   aclr();
 });
 document.getElementById('tab-co').addEventListener('click',function(){
@@ -504,8 +526,84 @@ function doSignIn(){
 /* REGISTER / REQUEST ACCESS */
 document.getElementById('btn-up').addEventListener('click', doRegister);
 document.getElementById('reg-pw').addEventListener('keydown',function(e){if(e.key==='Enter')doRegister();});
+document.getElementById('btn-lookup-company').addEventListener('click', doLookupCompany);
+document.getElementById('reg-company').addEventListener('keydown',function(e){if(e.key==='Enter')doLookupCompany();});
+document.getElementById('btn-reg-back').addEventListener('click', function(){
+  document.getElementById('reg-step1').style.display='';
+  document.getElementById('reg-step2').style.display='none';
+  document.getElementById('reg-company-status').style.display='none';
+  window._regTenantId=null;
+  aclr();
+});
 
-/* CREATE COMPANY (new tenant self-sign-up) */
+/* COMPANY LOOKUP for Create Account flow */
+function doLookupCompany(){
+  aclr();
+  var companyName = document.getElementById('reg-company').value.trim();
+  if(!companyName) return aerr('Please enter your company name.');
+  var btn = document.getElementById('btn-lookup-company');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span> Looking up…';
+  var statusEl = document.getElementById('reg-company-status');
+  statusEl.style.display='none';
+
+  if(!isLive()){
+    // Offline: check local accounts
+    var accs=JSON.parse(localStorage.getItem('cmp_accounts')||'[]');
+    var match=accs.find(function(a){return a.companyName&&a.companyName.toLowerCase()===companyName.toLowerCase()&&a.role==='dispatcher';});
+    btn.disabled=false; btn.textContent='Find My Company';
+    if(match){
+      window._regTenantId=match.tenantId;
+      showRegStep2(match.companyName);
+    } else {
+      showCompanyNotFound(companyName);
+    }
+    return;
+  }
+
+  fetch(API+'/companies/lookup?name='+encodeURIComponent(companyName))
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(!d.exists){
+        showCompanyNotFound(companyName);
+      } else if(!d.hasActiveSubscription){
+        showCompanyNoSub(d.companyName);
+      } else {
+        window._regTenantId = d.tenantId;
+        showRegStep2(d.companyName);
+      }
+    })
+    .catch(function(){
+      statusEl.style.cssText='display:block;background:rgba(255,59,48,.1);border:1px solid rgba(255,59,48,.3);color:#FF3B30';
+      statusEl.textContent='⚠️ Could not reach server. Check your connection.';
+    })
+    .finally(function(){btn.disabled=false; btn.textContent='Find My Company';});
+}
+
+function showCompanyNotFound(name){
+  var statusEl=document.getElementById('reg-company-status');
+  statusEl.style.cssText='display:block;background:rgba(255,149,0,.1);border:1px solid rgba(255,149,0,.3);color:#FF9500';
+  statusEl.innerHTML='⚠️ <strong>'+esc(name)+'</strong> is not registered on Routelo yet.<br><span style="font-size:11px;opacity:.85">Use the <strong>New Company</strong> tab to create your company and subscribe.</span>';
+  // Flash the New Company tab
+  var tabCo=document.getElementById('tab-co');
+  tabCo.style.animation='none'; tabCo.offsetHeight;
+  tabCo.style.background='rgba(0,122,255,.25)';
+  setTimeout(function(){tabCo.style.background='';},1500);
+}
+
+function showCompanyNoSub(name){
+  var statusEl=document.getElementById('reg-company-status');
+  statusEl.style.cssText='display:block;background:rgba(255,59,48,.1);border:1px solid rgba(255,59,48,.3);color:#FF3B30';
+  statusEl.innerHTML='❌ <strong>'+esc(name)+'</strong> exists but does not have an active subscription.<br><span style="font-size:11px;opacity:.85">Ask your company admin to activate the subscription first.</span>';
+}
+
+function showRegStep2(companyName){
+  document.getElementById('reg-step1').style.display='none';
+  document.getElementById('reg-step2').style.display='';
+  document.getElementById('reg-company-banner-name').textContent='Joining: '+companyName;
+  aclr();
+}
+
+/* REGISTER / REQUEST ACCESS */
 document.getElementById('btn-co').addEventListener('click', doCreateCompany);
 document.getElementById('co-pw').addEventListener('keydown',function(e){if(e.key==='Enter')doCreateCompany();});
 
@@ -549,11 +647,14 @@ function doCreateCompany(){
     .finally(function(){btn.disabled=false;btn.textContent='Create Company & Sign In';});
 }
 
-function showPendingScreen(email){
+function showPendingScreen(email, msg){
   document.getElementById('form-up').classList.remove('on');
   document.getElementById('form-pending').classList.add('on');
   document.getElementById('pending-email').textContent=email;
-  // Hide the tabs so the user can't accidentally go back to Create Account
+  if(msg){
+    var msgEl=document.querySelector('#form-pending > div:nth-child(3)');
+    if(msgEl) msgEl.innerHTML=esc(msg)+'<br><br>You\'ll receive an email at <span style="color:var(--text);font-weight:600">'+esc(email)+'</span> once your account is approved.';
+  }
   document.getElementById('tab-up').style.display='none';
 }
 
@@ -565,24 +666,23 @@ function doRegister(){
   var pass=document.getElementById('reg-pw').value;
   if(!name||!email||!pass)return aerr('Name, email, and password are required.');
   if(pass.length<6)return aerr('Password must be at least 6 characters.');
+  var tenantId = window._regTenantId || null;
   var btn=document.getElementById('btn-up'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Sending request…';
   if(!isLive()){
-    // Offline/local mode — save as pending locally and show the waiting screen
     var accs=JSON.parse(localStorage.getItem('cmp_accounts')||'[]');
     for(var i=0;i<accs.length;i++){if(accs[i].email===email){btn.disabled=false;btn.textContent='Request Access';return aerr('An account with that email already exists.');}}
-    accs.push({name:name,email:email,phone:phone,role:'dispatcher',passwordHash:sha256(pass),status:'pending'});
+    accs.push({name:name,email:email,phone:phone,role:'dispatcher',tenantId:tenantId,passwordHash:sha256(pass),status:'pending'});
     localStorage.setItem('cmp_accounts',JSON.stringify(accs));
     btn.disabled=false; btn.textContent='Request Access';
     showPendingScreen(email); return;
   }
   var regBody={name:name,email:email,phone:phone,password:pass,role:'dispatcher'};
-  if(window._inviteTenantId) regBody.tenantId=window._inviteTenantId;
+  if(tenantId) regBody.tenantId=tenantId;
   fetch(API+'/users/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(regBody)})
     .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
     .then(function(res){
       if(!res.ok)throw new Error(res.d.error||'Request failed.');
-      // status === 'pending' — show the waiting screen
-      showPendingScreen(email);
+      showPendingScreen(email, res.d.message);
     })
     .catch(function(e){aerr(e.message&&e.message!=='Failed to fetch'?e.message:'Cannot reach the server. Try again later.');})
     .finally(function(){btn.disabled=false;btn.textContent='Request Access';});
