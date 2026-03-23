@@ -5,8 +5,29 @@
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
  <meta name="theme-color" content="#1a1a2e" />
  <title>CMP Driver Tracking</title>
- <!-- PWA manifest — enables "Add to Home Screen" on Android Chrome -->
- <link rel="manifest" href="driver-manifest.json" />
+ <!-- PWA manifest — patched at runtime to bake token into start_url -->
+ <link rel="manifest" id="pwa-manifest-link" href="driver-manifest.json" />
+ <script>
+   (function patchManifest() {
+     var p = new URLSearchParams(location.search);
+     var t = p.get('token'); var l = p.get('loadId');
+     if (!t && !l) return; // no token — leave manifest as-is
+     var startUrl = location.pathname + '?token=' + encodeURIComponent(t||'') + '&loadId=' + encodeURIComponent(l||'');
+     var manifest = {
+       name:'CMP Driver Tracking', short_name:'CMP Driver',
+       start_url: startUrl, display:'standalone',
+       background_color:'#0f0f1a', theme_color:'#1a1a2e', orientation:'portrait',
+       icons:[
+         {src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='38' fill='%230f0f1a'/%3E%3Ctext x='96' y='130' font-size='100' text-anchor='middle'%3E🚛%3C/text%3E%3C/svg%3E",sizes:'192x192',type:'image/svg+xml',purpose:'any maskable'},
+         {src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%230f0f1a'/%3E%3Ctext x='256' y='340' font-size='260' text-anchor='middle'%3E🚛%3C/text%3E%3C/svg%3E",sizes:'512x512',type:'image/svg+xml',purpose:'any maskable'}
+       ]
+     };
+     var blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+     var url  = URL.createObjectURL(blob);
+     var link = document.getElementById('pwa-manifest-link');
+     if (link) link.href = url;
+   })();
+ </script>
  <!-- Apple PWA meta tags — enables "Add to Home Screen" on iOS Safari -->
  <meta name="apple-mobile-web-app-capable" content="yes" />
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -607,6 +628,11 @@
      : null;
    const UPDATE_INTERVAL_MS = 5000;
 
+   // ── Save token IMMEDIATELY so the PWA home screen icon can pick it up ────
+   // This must run before restorePWATokenEarly so the token is always fresh.
+   if (TOKEN)   try { localStorage.setItem('cmp_pwa_token',  TOKEN);   } catch(e) {}
+   if (LOAD_ID) try { localStorage.setItem('cmp_pwa_loadid', LOAD_ID); } catch(e) {}
+
    // ── PWA token restore — MUST run before init() ───────────────────────────
    // When the driver opens the app from the home screen icon, there are no
    // URL params. Restore the saved token from localStorage and redirect so
@@ -615,7 +641,7 @@
      if (TOKEN || LOAD_ID) return; // already have params — nothing to restore
      var isStandalone = window.navigator.standalone === true ||
                         window.matchMedia('(display-mode: standalone)').matches;
-     if (!isStandalone) return;
+     if (!isStandalone) return; // only restore when running as installed PWA
      var savedToken  = '';
      var savedLoadId = '';
      try { savedToken  = localStorage.getItem('cmp_pwa_token')  || ''; } catch(e) {}
@@ -625,7 +651,6 @@
          + '?token='  + encodeURIComponent(savedToken)
          + '&loadId=' + encodeURIComponent(savedLoadId);
        window.location.replace(newURL);
-       // Stop all further script execution — page will reload with params
        throw new Error('PWA_REDIRECT');
      }
    })();
@@ -1756,29 +1781,34 @@
      showInstalledAndClose();
    });
 
-   // Show a "installed — you can close this tab" screen, then try to close the tab.
+   // Show a "installed" success screen.
    function showInstalledAndClose() {
      try {
        localStorage.setItem('cmp_pwa_banner_dismissed', '1');
-       localStorage.setItem('cmp_pwa_installed', '1'); // permanent flag — never show install prompt again
+       localStorage.setItem('cmp_pwa_installed', '1');
      } catch(e) {}
-     // Replace the modal content with a success message
      var box = document.getElementById('pwa-modal-box');
      if (box) {
+       var ua = navigator.userAgent;
+       var isIOS = /iphone|ipad|ipod/i.test(ua);
        box.innerHTML =
          '<div style="font-size:64px;margin-bottom:16px">✅</div>'
          + '<div style="font-size:20px;font-weight:700;margin-bottom:8px">App Installed!</div>'
-         + '<div style="font-size:14px;color:#8e8ea0;line-height:1.6;margin-bottom:24px">'
-         + 'CMP Tracking has been added to your home screen.<br>'
-         + 'You can now <strong style="color:#fff">close this tab</strong> and open the app from your home screen.</div>'
-         + '<button onclick="window.close()" style="width:100%;padding:14px;background:#34C759;color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px">✕ Close This Tab</button>';
+         + '<div style="font-size:14px;color:#8e8ea0;line-height:1.6;margin-bottom:20px">'
+         + 'The 🚛 icon is now on your home screen.</div>'
+         + (isIOS
+           ? '<div style="background:rgba(52,199,89,.12);border:1px solid rgba(52,199,89,.3);border-radius:12px;padding:14px;font-size:14px;line-height:1.7;margin-bottom:16px;text-align:left">'
+             + '<strong style="color:#fff">Next step:</strong><br>'
+             + '1. Press the iPhone home button (or swipe up)<br>'
+             + '2. Find the 🚛 <strong style="color:#fff">CMP Driver</strong> icon<br>'
+             + '3. Tap it — your load will be ready</div>'
+           : '<div style="background:rgba(52,199,89,.12);border:1px solid rgba(52,199,89,.3);border-radius:12px;padding:14px;font-size:14px;line-height:1.7;margin-bottom:16px;text-align:left">'
+             + 'Go to your home screen and tap the 🚛 <strong style="color:#fff">CMP Driver</strong> icon to open your load.</div>'
+         )
+         + '<button onclick="dismissPWABanner()" style="width:100%;padding:14px;background:#007AFF;color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer">Continue in browser →</button>';
      }
      var overlay = document.getElementById('pwa-modal-overlay');
      if (overlay) overlay.classList.add('visible');
-     // Attempt automatic close after a short delay (works when tab was opened by a link)
-     setTimeout(function() {
-       try { window.close(); } catch(e) {}
-     }, 2000);
    }
 
    // Called when driver taps the green "Add to Home Screen" button (Android)
