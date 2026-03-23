@@ -41,8 +41,8 @@ struct AuthView: View {
 
                     // ── Logo ──────────────────────────────────────────────
                     VStack(spacing: 8) {
-                        ParceloLogoD(size: 90)
-                        Text("Logistics. Simplified.")
+                        RouteloLogo(size: 90)
+                        Text("Powered by OTTIO")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }

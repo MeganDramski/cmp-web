@@ -1,6 +1,6 @@
 //
 //  TrackingNotificationService.swift
-//  CMP Tracking
+//  Routelo
 //
 //  Handles sending the tracking link directly to the customer (email + SMS)
 //  and dispatcher (email) using the device's built-in Mail and Messages apps.
@@ -226,7 +226,7 @@ struct SendTrackingView: View {
         </p>
         <p style="color:#999;font-size:11px;">
           This link is private and unique to your shipment.<br>
-          — CMP Logistics
+          — Routelo
         </p>
         </body></html>
         """
@@ -240,7 +240,7 @@ struct SendTrackingView: View {
     }
 
     private var smsBody: String {
-        "📦 CMP Logistics: Your shipment \(load.loadNumber) is on its way! Track live: \(load.trackingURL)"
+        "📦 Routelo: Your shipment \(load.loadNumber) is on its way! Track live: \(load.trackingURL)"
     }
 
     // MARK: Body
@@ -261,7 +261,7 @@ struct SendTrackingView: View {
         .sheet(isPresented: $showMailComposer) {
             MailComposer(
                 to: emailTo,
-                subject: "Your CMP Logistics Shipment \(load.loadNumber) Is On Its Way!",
+                subject: "Your Routelo Shipment \(load.loadNumber) Is On Its Way!",
                 body: emailBody
             ) { result in
                 showMailComposer = false
@@ -453,7 +453,7 @@ struct SimulatorTrackingTestView: View {
                     .padding(.vertical, 6)
                 Divider()
                 LabeledContent("Subject",
-                    value: "Your CMP Logistics Shipment \(load.loadNumber) Is On Its Way!")
+                    value: "Your Routelo Shipment \(load.loadNumber) Is On Its Way!")
                     .padding(.vertical, 6)
             }
             .padding(.horizontal)

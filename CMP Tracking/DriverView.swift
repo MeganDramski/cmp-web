@@ -91,7 +91,7 @@ struct DriverView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Text("CMP Logistics")
+                    Text("Routelo")
                         .font(.headline)
                         .fontWeight(.semibold)
                 }
