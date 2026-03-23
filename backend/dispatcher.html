@@ -729,8 +729,8 @@ function startBackgroundPoll(){
   if(_bgPollTimer) return;
   // Snapshot current statuses so we don't fire on first load
   loads.forEach(function(l){ _knownStatuses[l.id] = l.status; });
-  // Poll every 10 seconds (live backend) or 5 seconds (localStorage)
-  var interval = isLive() ? 10000 : 5000;
+  // Poll every 5 seconds (live backend) or 3 seconds (localStorage)
+  var interval = isLive() ? 5000 : 3000;
   _bgPollTimer = setInterval(bgPollLoads, interval);
   // Also poll immediately when tab regains focus or becomes visible
   document.addEventListener('visibilitychange', function(){
@@ -746,29 +746,26 @@ function bgPollLoads(){
       .then(function(fresh){
         if(!Array.isArray(fresh)) return;
         fresh = filterDeleted(fresh);
+        // Check for status changes BEFORE merging so checkStatusChange sees old vs new
         fresh.forEach(function(l){ checkStatusChange(l); });
-        // Merge fresh data into loads[], but never overwrite a load that
-        // was edited more recently than what the API returned (handles
-        // DynamoDB eventual-consistency lag after a PUT).
+        // Merge fresh data into loads[].
+        // The server is the source of truth for status — driver status changes
+        // (Accepted, In Transit, etc.) come from the driver's browser via PATCH
+        // and must always be reflected here.
+        // We only keep the local copy if it is strictly newer by updatedAt timestamp
+        // (handles the ~1-2 s DynamoDB propagation lag after a dispatcher PUT).
         fresh.forEach(function(l){
           var existing = null;
           for(var i=0;i<loads.length;i++){if(loads[i].id===l.id){existing=loads[i];break;}}
           if(existing){
-            // If the local copy is newer, keep it — the PUT is still propagating.
             var localTs  = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
             var remoteTs = l.updatedAt        ? new Date(l.updatedAt).getTime()        : 0;
-            if(localTs > remoteTs){
-              // Still protect status from being rolled back
-              if(_knownStatuses[l.id] && _knownStatuses[l.id] !== existing.status){
-                // noop — local is already correct
-              }
-              return; // keep existing local copy untouched
+            // Only keep local if it is strictly newer AND the status hasn't changed
+            // (i.e. it was a field edit, not a driver status update).
+            if(localTs > remoteTs && existing.status === l.status){
+              return; // local edit still propagating — keep it
             }
-            // If _knownStatuses has a different (newer) status than what the API
-            // returned, keep the local one — the PATCH is still in-flight.
-            if(_knownStatuses[l.id] && _knownStatuses[l.id] !== l.status){
-              l.status = _knownStatuses[l.id];
-            }
+            // In all other cases trust the server (including driver status changes)
             for(var i=0;i<loads.length;i++){if(loads[i].id===l.id){loads[i]=l;break;}}
           } else {
             loads.push(l);
