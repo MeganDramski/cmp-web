@@ -302,6 +302,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   <div class="modal">
     <div class="mhdr"><h2>New Load</h2><button class="mclose" id="m-close">✕</button></div>
     <div class="mbody">
+      <div id="modal-offline-warn" style="display:none;background:rgba(255,149,0,.12);border:1px solid rgba(255,149,0,.4);color:#FF9500;border-radius:9px;padding:9px 13px;font-size:13px;margin-bottom:12px">⚠️ You are offline. Changes will be saved locally.</div>
       <div class="merr" id="merr"></div>
       <div class="ftitle">Load Info</div>
       <div class="frow">
@@ -1717,6 +1718,7 @@ function editLoad(id){
   document.getElementById('al-notes').value=load.notes||'';
   document.getElementById('al-nfy').checked=!!load.notifyCustomer;
   document.getElementById('merr').style.display='none';
+  document.getElementById('modal-offline-warn').style.display = (!navigator.onLine) ? 'block' : 'none';
 
   // Pre-select driver
   selectedDriverId=null;
@@ -1759,6 +1761,7 @@ function openModal(){
   ['al-num','al-wt','al-desc','al-pu','al-de','al-dn','al-dp','al-cn','al-ce','al-cp','al-notes'].forEach(function(id){document.getElementById(id).value='';});
   document.getElementById('al-nfy').checked=true;
   document.getElementById('merr').style.display='none';
+  document.getElementById('modal-offline-warn').style.display = (!navigator.onLine) ? 'block' : 'none';
   document.getElementById('manual-driver').style.display='none';
   document.getElementById('toggle-manual').textContent='+ Enter manually instead';
   selectedDriverId=null;
@@ -1872,9 +1875,20 @@ function saveLoad(){
         var localTs = new Date(load.updatedAt).getTime();
         var updated = (apiTs >= localTs) ? res.d : load;
         for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){loads[i]=updated;break;}}
+        localStorage.setItem('cmp_loads',JSON.stringify(loads));
         renderList();closeModal();selLoad(updated.id);toast('✅ Load updated');
       })
       .catch(function(e){
+        // Network error or server unreachable — save locally so changes aren't lost
+        var isNetworkErr = !navigator.onLine || (e instanceof TypeError) || (e.message && (e.message.toLowerCase().indexOf('fetch')!==-1||e.message.toLowerCase().indexOf('network')!==-1||e.message.toLowerCase().indexOf('offline')!==-1));
+        if(isNetworkErr){
+          for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){loads[i]=load;break;}}
+          localStorage.setItem('cmp_loads',JSON.stringify(loads));
+          renderList();closeModal();selLoad(load.id);
+          toast('✅ Load saved locally (you appear to be offline)');
+          btn.disabled=false;btn.textContent='Save Changes';
+          return;
+        }
         var err=document.getElementById('merr');
         err.textContent='⚠️ ' + (e.message || 'Failed to save. Please try again.');
         err.style.display='block';
@@ -1883,8 +1897,19 @@ function saveLoad(){
   } else {
     fetch(API+'/loads',{method:'POST',headers:ah(),body:JSON.stringify(load)})
       .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
-      .then(function(res){if(!res.ok)throw new Error(res.d.error||'Save failed');loads.unshift(res.d);renderList();closeModal();selLoad(res.d.id);toast('Load '+load.loadNumber+' created');})
-      .catch(function(e){var err=document.getElementById('merr');err.textContent=e.message;err.style.display='block';})
+      .then(function(res){if(!res.ok)throw new Error(res.d.error||'Save failed');loads.unshift(res.d);localStorage.setItem('cmp_loads',JSON.stringify(loads));renderList();closeModal();selLoad(res.d.id);toast('Load '+load.loadNumber+' created');})
+      .catch(function(e){
+        var isNetworkErr = !navigator.onLine || (e instanceof TypeError) || (e.message && (e.message.toLowerCase().indexOf('fetch')!==-1||e.message.toLowerCase().indexOf('network')!==-1||e.message.toLowerCase().indexOf('offline')!==-1));
+        if(isNetworkErr){
+          loads.unshift(load);
+          localStorage.setItem('cmp_loads',JSON.stringify(loads));
+          renderList();closeModal();selLoad(load.id);
+          toast('Load '+load.loadNumber+' saved locally (you appear to be offline)');
+          btn.disabled=false;btn.textContent='Save Load';
+          return;
+        }
+        var err=document.getElementById('merr');err.textContent='⚠️ '+(e.message||'Failed to save. Please try again.');err.style.display='block';
+      })
       .finally(function(){btn.disabled=false;btn.textContent='Save Load';});
   }
 }
