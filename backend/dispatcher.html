@@ -1,4 +1,4 @@
-<!that tDOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -1751,7 +1751,7 @@ function openModal(){
   document.querySelector('#modal-ov .mhdr h2').textContent='New Load';
   document.getElementById('btn-save').textContent='Save Load';
   var now=new Date(),tom=new Date(now.getTime()+86400000);
-  var tl=function(d){return d.toISOString().slice(0,16);};
+  var tl=function(d){var off=d.getTimezoneOffset()*60000;return new Date(d.getTime()-off).toISOString().slice(0,16);};
   document.getElementById('al-pd').value=tl(now);
   document.getElementById('al-dd').value=tl(tom);
   ['al-num','al-wt','al-desc','al-pu','al-de','al-dn','al-dp','al-cn','al-ce','al-cp','al-notes'].forEach(function(id){document.getElementById(id).value='';});
