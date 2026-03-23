@@ -729,8 +729,8 @@ function startBackgroundPoll(){
   if(_bgPollTimer) return;
   // Snapshot current statuses so we don't fire on first load
   loads.forEach(function(l){ _knownStatuses[l.id] = l.status; });
-  // Poll every 5 seconds (live backend) or 3 seconds (localStorage)
-  var interval = isLive() ? 5000 : 3000;
+  // Poll every 3 seconds (live backend) or 2 seconds (localStorage)
+  var interval = isLive() ? 3000 : 2000;
   _bgPollTimer = setInterval(bgPollLoads, interval);
   // Also poll immediately when tab regains focus or becomes visible
   document.addEventListener('visibilitychange', function(){

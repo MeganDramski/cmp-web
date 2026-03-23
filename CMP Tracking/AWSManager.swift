@@ -192,7 +192,17 @@ class AWSManager {
         let body: [String: Any] = ["status": status.rawValue, "loadId": loadId]
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
-        URLSession.shared.dataTask(with: req) { _, _, error in
+        print("📡 updateStatusByToken → PATCH \(url.absoluteString)")
+        print("📡   token=\(token)  loadId=\(loadId)  status=\(status.rawValue)")
+
+        URLSession.shared.dataTask(with: req) { data, response, error in
+            if let http = response as? HTTPURLResponse {
+                let body = data.flatMap { String(data: $0, encoding: .utf8) } ?? "(no body)"
+                print("📡 updateStatusByToken ← HTTP \(http.statusCode): \(body)")
+            }
+            if let error = error {
+                print("📡 updateStatusByToken ✗ error: \(error.localizedDescription)")
+            }
             DispatchQueue.main.async { completion?(error) }
         }.resume()
     }
