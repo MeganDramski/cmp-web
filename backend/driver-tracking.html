@@ -609,10 +609,18 @@
    <p id="no-load-msg" style="color:var(--muted);font-size:14px;line-height:1.6;max-width:300px;margin-bottom:24px;">
      You have no load assigned right now.
    </p>
-   <p style="color:var(--muted);font-size:13px;line-height:1.6;max-width:300px;">
-     When dispatch assigns your next load, you'll receive an SMS with a link.<br><br>
-     <strong style="color:var(--text);">Tap that link</strong> and this app will automatically update with your new load details.
-   </p>
+   <!-- Phone lookup — lets driver find their load by entering their cell number -->
+   <div id="phone-lookup" style="width:100%;max-width:320px;margin-bottom:20px;">
+     <p style="color:var(--muted);font-size:13px;margin-bottom:10px;">Have a load assigned? Enter your phone number:</p>
+     <input id="lookup-phone" type="tel" placeholder="e.g. +1 347 559 9151"
+       style="width:100%;padding:14px 16px;background:#1c1c2e;border:1px solid #2c2c3e;border-radius:12px;color:#fff;font-size:16px;margin-bottom:10px;box-sizing:border-box;"
+       onkeydown="if(event.key==='Enter')lookupByPhone()"/>
+     <button onclick="lookupByPhone()" id="btn-lookup"
+       style="width:100%;padding:14px;background:#007AFF;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;">
+       Find My Load
+     </button>
+     <p id="lookup-error" style="color:#FF3B30;font-size:13px;margin-top:8px;display:none;"></p>
+   </div>
  </div>
 
  <!-- ── Action Buttons ──────────────────────────────────────────────────── -->
@@ -827,16 +835,54 @@
 
    (function init() {
      if (!TOKEN && !LOAD_ID) {
-       // Check if running as an installed PWA (home screen icon)
        var isStandalone = window.navigator.standalone === true ||
                           window.matchMedia('(display-mode: standalone)').matches;
-       var deliveredAt  = localStorage.getItem('cmp_pwa_delivered_at');
        var noLoadScreen = document.getElementById('no-load-screen');
 
+       // ── Try to find an active load via stored driver phone ──────────────
+       // This covers the case where the PWA is installed and opened fresh —
+       // localStorage is separate from Safari so the token may not be here,
+       // but we stored the driver's phone when they last used the app.
+       var storedPhone = '';
+       try { storedPhone = localStorage.getItem('cmp_driver_phone') || ''; } catch(e) {}
+
+       if (isLive() && storedPhone) {
+         var digits = storedPhone.replace(/\D/g, '');
+         fetch(API_BASE + '/loads/by-driver?phone=' + encodeURIComponent(digits))
+           .then(function(r) { return r.ok ? r.json() : []; })
+           .then(function(loads) {
+             if (!Array.isArray(loads) || loads.length === 0) {
+               if (noLoadScreen) noLoadScreen.style.display = 'flex';
+               document.getElementById('load-card').style.display = 'none';
+               return;
+             }
+             // Pick the most relevant load: In Transit > Accepted > Assigned
+             var priority = {'In Transit': 0, 'Accepted': 1, 'Assigned': 2};
+             loads.sort(function(a, b) {
+               return (priority[a.status] || 9) - (priority[b.status] || 9);
+             });
+             var best = loads[0];
+             // Save token so future opens work via restorePWATokenEarly
+             try { localStorage.setItem('cmp_pwa_token',  best.trackingToken || ''); } catch(e) {}
+             try { localStorage.setItem('cmp_pwa_loadid', best.id || ''); } catch(e) {}
+             // Redirect so TOKEN/LOAD_ID are set in URL and all code works normally
+             var newURL = window.location.pathname
+               + '?token='  + encodeURIComponent(best.trackingToken || '')
+               + '&loadId=' + encodeURIComponent(best.id || '');
+             window.location.replace(newURL);
+           })
+           .catch(function() {
+             if (noLoadScreen) noLoadScreen.style.display = 'flex';
+             document.getElementById('load-card').style.display = 'none';
+           });
+         return; // wait for fetch to complete
+       }
+
+       // No phone stored — show the no-load screen
        if (isStandalone && noLoadScreen) {
-         // Hide everything except the no-load screen
-         document.getElementById('load-card').style.display    = 'none';
-         document.getElementById('pwa-banner').style.display   = 'none';
+         document.getElementById('load-card').style.display  = 'none';
+         document.getElementById('pwa-banner').style.display = 'none';
+         var deliveredAt = localStorage.getItem('cmp_pwa_delivered_at');
          if (deliveredAt) {
            var d = new Date(deliveredAt);
            noLoadScreen.querySelector('#no-load-msg').textContent =
@@ -845,7 +891,6 @@
          noLoadScreen.style.display = 'flex';
          return;
        }
-       // Regular browser — show the standard error
        showError("Invalid tracking link — no token found.");
        document.getElementById("btn-start").disabled = true;
        return;
@@ -984,6 +1029,10 @@
 
    function populateLoad(data) {
      loadData = data;
+     // Save driver phone so the PWA can look up the load when opened with no token
+     if (data.assignedDriverPhone) {
+       try { localStorage.setItem('cmp_driver_phone', data.assignedDriverPhone); } catch(e) {}
+     }
      document.getElementById("load-number").textContent   = data.loadNumber || "—";
      document.getElementById("load-desc").textContent     = data.description || "";
      document.getElementById("pickup-addr").textContent   = data.pickupAddress || "—";
@@ -1553,6 +1602,53 @@
       if (!isLive() || offlineQueue.length === 0) return;
      var queue = offlineQueue.slice(); offlineQueue = [];
      queue.forEach(function(payload) { sendLocationPayload(payload); });
+   }
+
+   // ── Phone-based load lookup (used from no-load screen) ───────────────────
+   function lookupByPhone() {
+     var input = document.getElementById('lookup-phone');
+     var errEl = document.getElementById('lookup-error');
+     var btn   = document.getElementById('btn-lookup');
+     var phone = (input ? input.value : '').replace(/\D/g, '');
+     errEl.style.display = 'none';
+     if (!phone || phone.length < 7) {
+       errEl.textContent = 'Please enter a valid phone number.';
+       errEl.style.display = 'block';
+       return;
+     }
+     if (!isLive()) {
+       errEl.textContent = 'No connection — check your internet and try again.';
+       errEl.style.display = 'block';
+       return;
+     }
+     btn.disabled = true;
+     btn.textContent = 'Searching…';
+     fetch(API_BASE + '/loads/by-driver?phone=' + encodeURIComponent(phone))
+       .then(function(r) { return r.ok ? r.json() : []; })
+       .then(function(loads) {
+         btn.disabled = false; btn.textContent = 'Find My Load';
+         if (!Array.isArray(loads) || loads.length === 0) {
+           errEl.textContent = 'No active load found for that number. Contact your dispatcher.';
+           errEl.style.display = 'block';
+           return;
+         }
+         var priority = {'In Transit': 0, 'Accepted': 1, 'Assigned': 2};
+         loads.sort(function(a, b) { return (priority[a.status]||9) - (priority[b.status]||9); });
+         var best = loads[0];
+         // Save phone + token for future opens
+         try { localStorage.setItem('cmp_driver_phone', best.assignedDriverPhone || ('+' + phone)); } catch(e) {}
+         try { localStorage.setItem('cmp_pwa_token',  best.trackingToken || ''); } catch(e) {}
+         try { localStorage.setItem('cmp_pwa_loadid', best.id || ''); } catch(e) {}
+         // Navigate to the load
+         window.location.replace(window.location.pathname
+           + '?token='  + encodeURIComponent(best.trackingToken || '')
+           + '&loadId=' + encodeURIComponent(best.id || ''));
+       })
+       .catch(function() {
+         btn.disabled = false; btn.textContent = 'Find My Load';
+         errEl.textContent = 'Could not reach server. Check your connection.';
+         errEl.style.display = 'block';
+       });
    }
 
    // ── Log helpers ───────────────────────────────────────────────────────────
