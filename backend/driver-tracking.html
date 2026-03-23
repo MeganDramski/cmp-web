@@ -1337,6 +1337,7 @@
          localStorage.removeItem('cmp_pwa_loadid');
          localStorage.removeItem('cmp_pwa_delivered_at');
          localStorage.setItem('cmp_pwa_delivered_at', new Date().toISOString());
+         localStorage.setItem('cmp_pwa_installed', '1'); // already installed — never ask again
        } catch(e) {}
      }
 
@@ -1959,6 +1960,15 @@
      if (localStorage.getItem('cmp_pwa_installed') ||
          localStorage.getItem('cmp_pwa_banner_dismissed') ||
          localStorage.getItem('cmp_ios_tip_dismissed')) return;
+
+     // If the driver has previously used the home screen app, the token would
+     // have been saved by the PWA context — treat as already installed.
+     // This catches the case where localStorage was cleared between sessions
+     // but the app is still on the home screen.
+     if (localStorage.getItem('cmp_pwa_token') || localStorage.getItem('cmp_pwa_loadid')) {
+       try { localStorage.setItem('cmp_pwa_installed', '1'); } catch(e) {}
+       return;
+     }
 
      var ua        = navigator.userAgent;
      var isIOS     = /iphone|ipad|ipod/i.test(ua);
