@@ -12,17 +12,14 @@ Globals:
     MemorySize: 256
     Environment:
       Variables:
-        USERS_TABLE:      !Ref UsersTable
-        LOADS_TABLE:      !Ref LoadsTable
-        LOCATIONS_TABLE:  !Ref LocationsTable
-        COMPANIES_TABLE:  !Ref CompaniesTable
-        JWT_SECRET:         !Ref JwtSecret
-        STRIPE_SECRET:      !Ref StripeSecret
-        STRIPE_WEBHOOK_SECRET: !Ref StripeWebhookSecret
-        SES_FROM_EMAIL:     !Ref SesFromEmail
-        AMPLIFY_BASE_URL:    !Ref AmplifyBaseUrl
-        TRACKING_BASE_URL:   !Ref TrackingBaseUrl
-        APPROVAL_ADMINS:     !Ref ApprovalAdmins
+        USERS_TABLE:     !Ref UsersTable
+        LOADS_TABLE:     !Ref LoadsTable
+        LOCATIONS_TABLE: !Ref LocationsTable
+        JWT_SECRET:        !Ref JwtSecret
+        SES_FROM_EMAIL:    !Ref SesFromEmail
+        AMPLIFY_BASE_URL:   !Ref AmplifyBaseUrl
+        TRACKING_BASE_URL:  !Ref TrackingBaseUrl
+        APPROVAL_ADMINS:    !Ref ApprovalAdmins
   HttpApi:
     CorsConfiguration:
       AllowOrigins:
@@ -30,12 +27,10 @@ Globals:
       AllowHeaders:
         - Content-Type
         - Authorization
-        - Stripe-Signature
       AllowMethods:
         - GET
         - POST
         - PATCH
-        - PUT
         - DELETE
         - OPTIONS
 
@@ -45,18 +40,6 @@ Parameters:
     NoEcho: true
     Default: ""
     Description: JWT signing secret. Pass via --parameter-overrides JwtSecret=<value>
-
-  StripeSecret:
-    Type: String
-    NoEcho: true
-    Default: ""
-    Description: Stripe secret key (sk_live_... or sk_test_...)
-
-  StripeWebhookSecret:
-    Type: String
-    NoEcho: true
-    Default: ""
-    Description: Stripe webhook signing secret (whsec_...)
 
   SesFromEmail:
     Type: String
@@ -102,20 +85,7 @@ Parameters:
 # ─────────────────────────────────────────────────────────────────
 Resources:
 
-  # Companies table  (PK = tenantId)
-  CompaniesTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: cmp-companies
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: tenantId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: tenantId
-          KeyType: HASH
-
-  # Users table  (PK = email) + TenantIndex GSI
+  # Users table  (PK = email)
   UsersTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -124,20 +94,11 @@ Resources:
       AttributeDefinitions:
         - AttributeName: email
           AttributeType: S
-        - AttributeName: tenantId
-          AttributeType: S
       KeySchema:
         - AttributeName: email
           KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: TenantIndex
-          KeySchema:
-            - AttributeName: tenantId
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
 
-  # Loads table  (PK = id) + TrackingTokenIndex + TenantIndex GSIs
+  # Loads table  (PK = id)
   LoadsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -148,8 +109,6 @@ Resources:
           AttributeType: S
         - AttributeName: trackingToken
           AttributeType: S
-        - AttributeName: tenantId
-          AttributeType: S
       KeySchema:
         - AttributeName: id
           KeyType: HASH
@@ -157,12 +116,6 @@ Resources:
         - IndexName: TrackingTokenIndex
           KeySchema:
             - AttributeName: trackingToken
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-        - IndexName: TenantIndex
-          KeySchema:
-            - AttributeName: tenantId
               KeyType: HASH
           Projection:
             ProjectionType: ALL
@@ -185,7 +138,7 @@ Resources:
           KeyType: RANGE
 
 # ─────────────────────────────────────────────────────────────────
-# Shared IAM Role
+# Shared IAM Role for all Lambdas
 # ─────────────────────────────────────────────────────────────────
   LambdaRole:
     Type: AWS::IAM::Role
@@ -215,12 +168,9 @@ Resources:
                   - dynamodb:Scan
                 Resource:
                   - !GetAtt UsersTable.Arn
-                  - !Sub "${UsersTable.Arn}/index/*"
                   - !GetAtt LoadsTable.Arn
                   - !Sub "${LoadsTable.Arn}/index/*"
                   - !GetAtt LocationsTable.Arn
-                  - !GetAtt CompaniesTable.Arn
-                  - !Sub "${CompaniesTable.Arn}/index/*"
         - PolicyName: SESAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -235,52 +185,7 @@ Resources:
 # Lambda Functions
 # ─────────────────────────────────────────────────────────────────
 
-  # POST /companies/register
-  RegisterCompanyFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: cmp-register-company
-      CodeUri: src/
-      Handler: handlers/registerCompany.handler
-      Role: !GetAtt LambdaRole.Arn
-      Events:
-        Api:
-          Type: HttpApi
-          Properties:
-            Path: /companies/register
-            Method: POST
-
-  # POST /billing/checkout  (create Stripe checkout session)
-  CreateCheckoutSessionFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: cmp-create-checkout-session
-      CodeUri: src/
-      Handler: handlers/createCheckoutSession.handler
-      Role: !GetAtt LambdaRole.Arn
-      Events:
-        Api:
-          Type: HttpApi
-          Properties:
-            Path: /billing/checkout
-            Method: POST
-
-  # POST /stripe/webhook  (Stripe event handler — raw body required)
-  StripeWebhookFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: cmp-stripe-webhook
-      CodeUri: src/
-      Handler: handlers/stripeWebhook.handler
-      Role: !GetAtt LambdaRole.Arn
-      Events:
-        Api:
-          Type: HttpApi
-          Properties:
-            Path: /stripe/webhook
-            Method: POST
-
-  # POST /users/register  (driver self-register under a tenant)
+  # POST /users/register
   RegisterFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -295,7 +200,7 @@ Resources:
             Path: /users/register
             Method: POST
 
-  # GET /users/approve
+  # GET /users/approve?token= (admin clicks Approve/Deny in email)
   ApproveUserFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -325,7 +230,7 @@ Resources:
             Path: /users/login
             Method: POST
 
-  # GET /loads
+  # GET /loads  (dispatcher – all loads)
   GetLoadsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -340,7 +245,22 @@ Resources:
             Path: /loads
             Method: GET
 
-  # POST /loads
+  # GET /loads/by-driver?phone=&name=&email=  (PUBLIC – no auth, driver app uses this)
+  GetLoadsByDriverFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-get-loads-by-driver
+      CodeUri: src/
+      Handler: handlers/getLoadsByDriver.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /loads/by-driver
+            Method: GET
+
+  # POST /loads  (dispatcher – create load)
   CreateLoadFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -370,7 +290,6 @@ Resources:
             Path: /loads/{id}/status
             Method: PATCH
 
-  # PUT /loads/{id}
   UpdateLoadFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -384,7 +303,6 @@ Resources:
           Properties:
             Path: /loads/{id}
             Method: PUT
-
   # DELETE /loads/{id}
   DeleteLoadFunction:
     Type: AWS::Serverless::Function
@@ -400,7 +318,7 @@ Resources:
             Path: /loads/{id}
             Method: DELETE
 
-  # POST /loads/{id}/accept
+  # POST /loads/{id}/accept  (driver accepts an assigned load)
   AcceptLoadFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -430,7 +348,7 @@ Resources:
             Path: /loads/{id}/assign
             Method: PATCH
 
-  # GET /users
+  # GET /users  (dispatcher – list drivers/dispatchers)
   GetUsersFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -445,7 +363,7 @@ Resources:
             Path: /users
             Method: GET
 
-  # POST /locations
+  # POST /locations  (driver – push GPS fix)
   PostLocationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -460,7 +378,7 @@ Resources:
             Path: /locations
             Method: POST
 
-  # GET /loads/{id}/location
+  # GET /loads/{id}/location  (latest location for a load)
   GetLocationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -475,7 +393,7 @@ Resources:
             Path: /loads/{id}/location
             Method: GET
 
-  # GET /track/{token}
+  # GET /track/{token}  (public – customer tracking, no auth)
   TrackByTokenFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -490,7 +408,7 @@ Resources:
             Path: /track/{token}
             Method: GET
 
-  # POST /loads/{id}/send-driver-link
+  # POST /loads/{id}/send-driver-link  (dispatcher – SMS driver with browser tracking link)
   SendDriverLinkFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -505,7 +423,7 @@ Resources:
             Path: /loads/{id}/send-driver-link
             Method: POST
 
-  # POST /track/{token}/start
+  # POST /track/{token}/start  (public – driver taps Start Tracking in browser)
   StartTrackingFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -520,7 +438,7 @@ Resources:
             Path: /track/{token}/start
             Method: POST
 
-  # POST /track/{token}/location
+  # POST /track/{token}/location  (public – driver browser posts GPS, no auth needed)
   PostLocationPublicFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -535,7 +453,7 @@ Resources:
             Path: /track/{token}/location
             Method: POST
 
-  # PATCH /track/{token}/status
+  # PATCH /track/{token}/status  (public – driver updates load status, no auth needed)
   UpdateStatusByTokenFunction:
     Type: AWS::Serverless::Function
     Properties:

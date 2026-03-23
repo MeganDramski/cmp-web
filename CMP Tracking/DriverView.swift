@@ -472,31 +472,53 @@ struct DriverView: View {
     // MARK: - Actions
 
     /// Finds the load assigned to the currently logged-in driver.
-    /// Reads from iCloud KV (LoadStore) immediately — the source of truth for
-    /// loads created in the iOS dispatcher app.  Also fires a background server
-    /// fetch to merge any loads created via the web dispatcher.
+    /// 1. Reads LoadStore (iCloud KV) immediately — fast path for iOS-app-created loads.
+    /// 2. Calls the PUBLIC /loads/by-driver endpoint (no JWT needed) to fetch loads
+    ///    created via the web dispatcher, then merges and re-matches.
     private func fetchAssignedLoad() {
         guard let driver = appState.currentUser else { return }
         isLoadingLoad = true
 
-        // 1. Nudge iCloud to push any pending remote changes
+        // Nudge iCloud to push any pending remote changes
         NSUbiquitousKeyValueStore.default.synchronize()
 
-        // 2. Match immediately from local / iCloud store — this is the fast path
-        //    and works even when the server is unreachable or the driver has no JWT.
+        // Show whatever is in the local store right away
         matchLoadForDriver(driver)
 
-        // 3. Fire a background server fetch to pick up loads created via the
-        //    web dispatcher portal.  If it succeeds, merge & re-match.
-        //    Ignore any errors — the local store result already shown to driver.
-        network.fetchLoads { serverLoads, _ in
-            if let serverLoads = serverLoads, !serverLoads.isEmpty {
+        // Build the public by-driver URL — no JWT required
+        let phone = driver.phone.filter { $0.isNumber }
+        let name  = driver.name
+            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let email = driver.email
+            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let base  = AWSConfig.baseURL.trimmingCharacters(in: .init(charactersIn: "/"))
+        var query = "phone=\(phone)"
+        if !name.isEmpty  { query += "&name=\(name)" }
+        if !email.isEmpty { query += "&email=\(email)" }
+
+        guard !base.contains("REPLACE_WITH"),
+              let url = URL(string: "\(base)/loads/by-driver?\(query)") else {
+            self.isLoadingLoad = false
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod  = "GET"
+        request.timeoutInterval = 12
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                defer { self.isLoadingLoad = false }
+                guard let data = data, error == nil,
+                      (response as? HTTPURLResponse)?.statusCode == 200 else { return }
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                guard let serverLoads = try? decoder.decode([Load].self, from: data),
+                      !serverLoads.isEmpty else { return }
                 for load in serverLoads { LoadStore.shared.upsert(load) }
-                // Re-match in case the server returned a newly-assigned load
                 self.matchLoadForDriver(driver)
             }
-            self.isLoadingLoad = false
-        }
+        }.resume()
     }
 
     /// Async wrapper used by pull-to-refresh (.refreshable).
