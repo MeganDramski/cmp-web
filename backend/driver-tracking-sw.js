@@ -1,12 +1,12 @@
 /**
- * CMP Logistics — Driver Tracking Service Worker  (v7)
+ * Routelo — Driver Tracking Service Worker  (v10)
  *
  * v7 changes: fixed duplicate setInterval block, replaced ts-based dedup
  * with wall-clock check so stationary drivers get heartbeats every 20s,
  * postLastKnownLocation now includes loadId for faster Lambda lookup.
  */
 
-const CACHE_NAME   = 'cmp-driver-v9';
+const CACHE_NAME   = 'routelo-driver-v10';
 const ASSETS_CACHE = [
   'driver-tracking.html',
   'config.js',
