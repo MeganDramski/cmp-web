@@ -385,6 +385,7 @@
 				CODE_SIGN_ENTITLEMENTS = "CMP Tracking/CMP_Tracking.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KALP7ZTQ6G;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "CMP Tracking tracks your location in the background so deliveries are monitored continuously.";

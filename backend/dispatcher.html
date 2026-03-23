@@ -1474,10 +1474,10 @@ function sendLink(id){
     +'DELIVERY: '+(load.deliveryAddress||'--')+'\n'
     +(pickupStr?'DATE: '+pickupStr+'\n':'')
     +(load.notes?'NOTES: '+load.notes+'\n':'')
-    +'\n👉 Tap to open in the Routelo app:\n'
-    +appURL
-    +'\n\n🌐 No app? Use this link instead:\n'
-    +dURL;
+    +'\n👉 Tap to accept & start tracking:\n'
+    +dURL
+    +'\n\n📱 Have the Routelo app? Open directly:\n'
+    +appURL;
 
   var smsLink=(dp?'sms:+'+dp.replace(/^\+/,''):'sms:')+('?body='+encodeURIComponent(msgText));
   var emailLink='mailto:'+(load.assignedDriverEmail||'')
