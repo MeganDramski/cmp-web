@@ -25,6 +25,7 @@
 			<string>com.cmpfreight.tracking</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>routelo</string>
 				<string>cmptracking</string>
 			</array>
 		</dict>

@@ -44,6 +44,7 @@ struct CMP_TrackingApp: App {
     @StateObject private var authManager = AuthManager()
     @StateObject private var notifDelegate = AppNotificationDelegate()
     @State private var trackingToken: String? = nil
+    @State private var driverLink: DriverDeepLink? = nil
 
     // SwiftData container — tries on-disk, self-heals on schema mismatch.
     // Accounts are ALSO persisted in the Keychain so they survive any reset.
@@ -81,7 +82,10 @@ struct CMP_TrackingApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if let token = trackingToken {
+                if let link = driverLink {
+                    // Driver tapped SMS link — skip all auth, go straight to tracking
+                    DriverLinkView(link: link)
+                } else if let token = trackingToken {
                     CustomerTrackingView(trackingToken: token)
                 } else {
                     ContentView()
@@ -109,6 +113,17 @@ struct CMP_TrackingApp: App {
     }
 
     private func handleDeepLink(_ url: URL) {
+        // routelo://driver?token=xxx&loadId=yyy  — driver SMS link, no auth needed
+        if url.scheme == "routelo", url.host == "driver" {
+            let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            let token  = comps?.queryItems?.first(where: { $0.name == "token"  })?.value ?? ""
+            let loadId = comps?.queryItems?.first(where: { $0.name == "loadId" })?.value ?? ""
+            if !token.isEmpty || !loadId.isEmpty {
+                driverLink = DriverDeepLink(token: token, loadId: loadId)
+                return
+            }
+        }
+        // Legacy cmptracking://track/{token} — customer tracking
         let components = url.pathComponents
         if let trackIndex = components.firstIndex(of: "track"),
            trackIndex + 1 < components.count {

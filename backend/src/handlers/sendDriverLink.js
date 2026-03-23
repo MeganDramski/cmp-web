@@ -11,18 +11,23 @@ const LOADS_TABLE = process.env.LOADS_TABLE;
 const FROM_EMAIL  = process.env.SES_FROM_EMAIL;
 const AMPLIFY_URL = process.env.AMPLIFY_BASE_URL || "";
 
-function buildLink(event, token, id, load) {
+function buildLinks(event, token, id) {
   const base = AMPLIFY_URL || (function() {
     const d = event.requestContext && event.requestContext.domainName;
     const s = event.requestContext && event.requestContext.stage;
     return d ? ("https://" + d + (s && s !== "$default" ? "/" + s : "")) : "";
   })();
 
-  // Keep the link short — just token + loadId.
-  // The driver-tracking page fetches load details live from the API.
-  return base
+  const webLink = base
     + "/driver-tracking.html?token=" + encodeURIComponent(token)
     + "&loadId=" + encodeURIComponent(id);
+
+  // Deep link opens the native Routelo app directly — no sign-in needed.
+  // Falls back to web link for drivers who haven't installed the app.
+  const appLink = "routelo://driver?token=" + encodeURIComponent(token)
+    + "&loadId=" + encodeURIComponent(id);
+
+  return { webLink, appLink };
 }
 
 async function sendDriverEmail(driverEmail, driverName, load, link) {
@@ -31,12 +36,12 @@ async function sendDriverEmail(driverEmail, driverName, load, link) {
     Source: FROM_EMAIL,
     Destination: { ToAddresses: [driverEmail] },
     Message: {
-      Subject: { Data: "Routelo – Load " + load.loadNumber + " assigned to you" },
+      Subject: { Data: "CMP Logistics – Load " + load.loadNumber + " assigned to you" },
       Body: {
         Html: {
           Data:
             "<p>Hi <strong>" + (driverName || "Driver") + "</strong>,</p>" +
-            "<p>You have a new load assigned by Routelo.</p>" +
+            "<p>You have a new load assigned by CMP Logistics.</p>" +
             "<table style='font-family:sans-serif;font-size:14px;'>" +
             "<tr><td><strong>Load #:</strong></td><td>" + load.loadNumber + "</td></tr>" +
             "<tr><td><strong>Pickup:</strong></td><td>" + load.pickupAddress + "</td></tr>" +
@@ -71,8 +76,9 @@ exports.handler = async (event) => {
     if (!res.Item) return respond(404, { error: "Load not found" });
     const load = unmarshall(res.Item);
 
-    // 2. Build tracking link
-    const link = buildLink(event, load.trackingToken, load.id, load);
+    // 2. Build tracking links
+    const { webLink, appLink } = buildLinks(event, load.trackingToken, load.id);
+    const link = webLink; // web fallback used in emails
 
     // ── PING-ONLY path ──────────────────────────────────────────────────────
     // Dispatcher tapped "Ping Driver" — just send a short "please reopen" SMS
@@ -85,7 +91,7 @@ exports.handler = async (event) => {
             Source: FROM_EMAIL,
             Destination: { ToAddresses: [load.assignedDriverEmail] },
             Message: {
-              Subject: { Data: "Action needed – Routelo Load " + load.loadNumber },
+              Subject: { Data: "Action needed – CMP Logistics Load " + load.loadNumber },
               Body: {
                 Html: {
                   Data:
@@ -155,7 +161,7 @@ exports.handler = async (event) => {
                   "<p>Hello <strong>" + load.customerName + "</strong>,</p>" +
                   "<p>Your shipment <strong>" + load.loadNumber + "</strong> has been assigned a driver. " +
                   "You will receive a live tracking link once the driver starts the trip.</p>" +
-                  "<p style='color:#888;font-size:12px;'>- Routelo</p>",
+                  "<p style='color:#888;font-size:12px;'>- CMP Logistics</p>",
               },
             },
           },
