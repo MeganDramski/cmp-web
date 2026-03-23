@@ -1808,7 +1808,8 @@ function saveLoad(){
   var de=document.getElementById('al-de').value.trim();
   var cn=document.getElementById('al-cn').value.trim();
   var ce=document.getElementById('al-ce').value.trim();
-  if(!pu||!de||!cn){var e=document.getElementById('merr');e.textContent='Pickup address, delivery address and customer name are required.';e.style.display='block';return;}
+  var isEditCheck=!!editingLoadId;
+  if(!pu||!de||(!cn&&!isEditCheck)){var e=document.getElementById('merr');e.textContent='Pickup address, delivery address and customer name are required.';e.style.display='block';return;}
 
   // Resolve driver from picker or manual fields
   var dId=null,dName=null,dEmail=null,dPhone=null;
@@ -1820,10 +1821,17 @@ function saveLoad(){
   } else {
     dName=document.getElementById('al-dn').value.trim()||null;
     dPhone=phoneFieldVal;
-    if(dName)dId='D'+Math.floor(Math.random()*900+100);
+    if(dName){
+      // On edit, preserve the existing driver ID rather than generating a new random one
+      var existingForDriver=null;
+      if(isEditCheck){for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){existingForDriver=loads[i];break;}}}
+      dId=(existingForDriver&&existingForDriver.assignedDriverId&&!existingForDriver.assignedDriverId.includes('@'))
+        ? existingForDriver.assignedDriverId
+        : 'D'+Math.floor(Math.random()*900+100);
+    }
   }
 
-  var isEdit=!!editingLoadId;
+  var isEdit=isEditCheck;
   var existing=null;
   if(isEdit){for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){existing=loads[i];break;}}}
 
@@ -1838,7 +1846,7 @@ function saveLoad(){
     status: isEdit ? (existing?existing.status:'Pending') : (dId?'Assigned':'Pending'),
     assignedDriverId:dId,assignedDriverName:dName,assignedDriverEmail:dEmail,assignedDriverPhone:dPhone,
     trackingToken: isEdit && existing ? existing.trackingToken : uid(),
-    customerName:cn,customerEmail:ce,
+    customerName:cn||(isEdit&&existing?existing.customerName||'':''),customerEmail:ce,
     customerPhone:document.getElementById('al-cp').value.trim(),
     dispatcherEmail:session&&session.user?session.user.email:null,
     notifyCustomer:document.getElementById('al-nfy').checked,
