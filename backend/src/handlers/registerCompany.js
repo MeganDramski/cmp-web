@@ -113,15 +113,15 @@ exports.handler = async (event) => {
           Source: SES_FROM,
           Destination: { ToAddresses: [email] },
           Message: {
-            Subject: { Data: `Welcome to CMP Logistics, ${companyName.trim()}!` },
+            Subject: { Data: `Welcome to Routelo, ${companyName.trim()}!` },
             Body: {
               Html: {
                 Data: `
                   <h2>Welcome aboard, ${adminName.trim()}!</h2>
-                  <p>Your company <strong>${companyName.trim()}</strong> has been set up on CMP Logistics.</p>
+                  <p>Your company <strong>${companyName.trim()}</strong> has been set up on Routelo.</p>
                   <p>You have a <strong>14-day free trial</strong>. After that, a subscription is required to continue.</p>
                   <p>Log in at your dispatcher portal to get started.</p>
-                  <p>— The CMP Logistics Team</p>
+                  <p>— The Routelo Team</p>
                 `,
               },
             },

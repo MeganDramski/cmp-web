@@ -80,7 +80,7 @@ exports.handler = async (event) => {
                     <p>Accepted at: ${acceptedTime}</p>
                     <p>The driver is ready and will begin tracking at pickup time.</p>
                     <br/>
-                    <p style="color:#888;font-size:12px;">CMP Tracking · Automated Notification</p>
+                    <p style="color:#888;font-size:12px;">Routelo · Automated Notification</p>
                   `,
                 },
               },

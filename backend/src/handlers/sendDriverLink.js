@@ -31,12 +31,12 @@ async function sendDriverEmail(driverEmail, driverName, load, link) {
     Source: FROM_EMAIL,
     Destination: { ToAddresses: [driverEmail] },
     Message: {
-      Subject: { Data: "CMP Logistics – Load " + load.loadNumber + " assigned to you" },
+      Subject: { Data: "Routelo – Load " + load.loadNumber + " assigned to you" },
       Body: {
         Html: {
           Data:
             "<p>Hi <strong>" + (driverName || "Driver") + "</strong>,</p>" +
-            "<p>You have a new load assigned by CMP Logistics.</p>" +
+            "<p>You have a new load assigned by Routelo.</p>" +
             "<table style='font-family:sans-serif;font-size:14px;'>" +
             "<tr><td><strong>Load #:</strong></td><td>" + load.loadNumber + "</td></tr>" +
             "<tr><td><strong>Pickup:</strong></td><td>" + load.pickupAddress + "</td></tr>" +
@@ -85,7 +85,7 @@ exports.handler = async (event) => {
             Source: FROM_EMAIL,
             Destination: { ToAddresses: [load.assignedDriverEmail] },
             Message: {
-              Subject: { Data: "Action needed – CMP Logistics Load " + load.loadNumber },
+              Subject: { Data: "Action needed – Routelo Load " + load.loadNumber },
               Body: {
                 Html: {
                   Data:
@@ -155,7 +155,7 @@ exports.handler = async (event) => {
                   "<p>Hello <strong>" + load.customerName + "</strong>,</p>" +
                   "<p>Your shipment <strong>" + load.loadNumber + "</strong> has been assigned a driver. " +
                   "You will receive a live tracking link once the driver starts the trip.</p>" +
-                  "<p style='color:#888;font-size:12px;'>- CMP Logistics</p>",
+                  "<p style='color:#888;font-size:12px;'>- Routelo</p>",
               },
             },
           },

@@ -101,7 +101,7 @@ exports.handler = async (event) => {
     const denyUrl      = API_BASE + "/users/approve?token=" + denyToken;
     const portalUrl    = AMPLIFY_BASE || "https://main.d1j00v80wf0na9.amplifyapp.com";
 
-    const textBody = "New sign-up request for CMP Logistics Tracking Portal.\n\n"
+    const textBody = "New sign-up request for Routelo Tracking Portal.\n\n"
       + "Name:  " + item.name + "\n"
       + "Email: " + trimmedEmail + "\n"
       + "Phone: " + (item.phone || "-") + "\n"
@@ -114,7 +114,7 @@ exports.handler = async (event) => {
     const htmlBody = "<div style='font-family:sans-serif;max-width:520px;background:#0f0f1a;color:#fff;border-radius:16px;overflow:hidden'>"
       + "<div style='background:#1c1c2e;padding:28px 32px;border-bottom:1px solid #2c2c3e'>"
       + "<h2 style='margin:0;font-size:20px'>New Sign-Up Request</h2>"
-      + "<p style='margin:4px 0 0;color:#8e8ea0;font-size:13px'>CMP Logistics Tracking Portal</p>"
+      + "<p style='margin:4px 0 0;color:#8e8ea0;font-size:13px'>Routelo Tracking Portal</p>"
       + "</div><div style='padding:28px 32px'>"
       + "<p><strong>Name:</strong> " + item.name + "</p>"
       + "<p><strong>Email:</strong> " + trimmedEmail + "</p>"

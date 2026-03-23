@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>CMP Logistics - Dispatcher Portal</title>
+<title>Routelo - Dispatcher Portal</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -206,8 +206,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <div id="auth-screen">
   <div class="acard">
     <div class="alogo">
-      <div style="font-size:28px;font-weight:700;color:#fff;letter-spacing:-0.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin-bottom:8px">CMP Logistics</div>
-      <div style="font-size:11px;color:#8e8ea0;margin-bottom:4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:0.3px">Powered by <span style="font-weight:600;color:#AFA9EC">Parcelo</span></div>
+      <!-- Routelo Logo -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:13px;margin-bottom:10px">
+        <!-- GPS Signal Ring Icon -->
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Outer ring -->
+          <circle cx="24" cy="24" r="22" stroke="#7F77DD" stroke-width="1.6" opacity="0.25"/>
+          <!-- Mid ring -->
+          <circle cx="24" cy="24" r="16.7" stroke="#7F77DD" stroke-width="1.6" opacity="0.45"/>
+          <!-- Inner ring -->
+          <circle cx="24" cy="24" r="11.4" stroke="#7F77DD" stroke-width="2" opacity="0.7"/>
+          <!-- Center dot -->
+          <circle cx="24" cy="24" r="5.3" fill="#534AB7"/>
+          <!-- White inner dot -->
+          <circle cx="24" cy="24" r="2.2" fill="white"/>
+        </svg>
+        <!-- Wordmark -->
+        <div style="text-align:left">
+          <div style="font-size:26px;font-weight:600;color:#fff;letter-spacing:-0.5px;line-height:1.1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">Routelo</div>
+          <div style="font-size:9px;font-weight:400;color:#8e8ea0;letter-spacing:2.2px;text-transform:uppercase;margin-top:2px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">LIVE TRACKING</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#8e8ea0;margin-bottom:4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:0.3px">Powered by <span style="font-weight:600;color:#AFA9EC">OTTIO</span></div>
       <p id="auth-subtitle" style="margin:0">Dispatcher Portal</p>
     </div>
     <div class="atabs">
@@ -255,7 +275,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <div id="app-screen">
   <nav class="nav">
     <div class="brand" style="display:flex;align-items:center;gap:8px">
-      <span id="nav-company">CMP Logistics</span><span id="nav-platform-tag" style="display:none;font-size:10px;font-weight:500;color:var(--muted);margin-left:6px;padding:2px 7px;background:rgba(255,255,255,.06);border-radius:20px;border:1px solid var(--border)">via CMP Logistics</span>
+      <span id="nav-company">Routelo</span><span id="nav-platform-tag" style="display:none;font-size:10px;font-weight:500;color:var(--muted);margin-left:6px;padding:2px 7px;background:rgba(255,255,255,.06);border-radius:20px;border:1px solid var(--border)">via Routelo</span>
     </div>
     <div class="spacer"></div>
     <span id="nav-plan-badge" style="display:none;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:rgba(255,149,0,.15);color:#FF9500;border:1px solid rgba(255,149,0,.3);cursor:pointer" title="Upgrade plan" onclick="upgradePlan()"></span>
@@ -583,7 +603,7 @@ function enterApp(){
     document.getElementById('nav-platform-tag').style.display = '';
     // Also update auth screen subtitle so it shows the company on next load
     var sub = document.getElementById('auth-subtitle');
-    if(sub) sub.textContent = u.companyName + ' · CMP Logistics';
+    if(sub) sub.textContent = u.companyName + ' · Routelo';
   }
 
   // Show plan badge
@@ -1445,7 +1465,7 @@ function sendLink(id){
            + '&loadId=' + encodeURIComponent(load.id||'');
 
   var pickupStr=load.pickupDate?new Date(load.pickupDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
-  var companyName = (session && session.user && session.user.companyName) ? session.user.companyName : 'CMP Logistics';
+  var companyName = (session && session.user && session.user.companyName) ? session.user.companyName : 'Routelo';
 
   var msgText='Hi '+(load.assignedDriverName||'Driver')+',\n\n'
     +'You have a new load from '+companyName+'.\n\n'
