@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Parcelo - Dispatcher Portal</title>
+<title>CMP Logistics - Dispatcher Portal</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -19,7 +19,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 #app-screen.on{display:flex}
 
 /* AUTH */
-.acard{width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:32px 28px}
+.acard{width:100%;max-width:380px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px 24px}
 .alogo{text-align:center;margin-bottom:24px}
 .alogo .ico{width:68px;height:68px;background:rgba(0,122,255,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 10px}
 .alogo h1{font-size:21px;font-weight:700}
@@ -206,9 +206,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <div id="auth-screen">
   <div class="acard">
     <div class="alogo">
-      <div class="ico">🚛</div>
-      <h1>Parcelo</h1>
-      <p>Powered by OTTIO · Dispatcher Portal</p>
+      <!-- CMP Logistics logo -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:14px">
+        <div style="width:42px;height:42px;background:linear-gradient(135deg,#533AB7,#AFA9EC);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;flex-shrink:0">C</div>
+        <div style="text-align:left;line-height:1">
+          <div style="font-size:24px;font-weight:600;color:#fff;letter-spacing:-0.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">CMP Logistics</div>
+          <div style="font-size:9px;font-weight:400;color:#8e8ea0;letter-spacing:2.5px;text-transform:uppercase;margin-top:3px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">FREIGHT MANAGEMENT</div>
+        </div>
+      </div>
+      <p id="auth-subtitle" style="margin:0">Dispatcher Portal</p>
     </div>
     <div class="atabs">
       <button class="atab on" id="tab-in">Sign In</button>
@@ -254,7 +260,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <!-- APP -->
 <div id="app-screen">
   <nav class="nav">
-    <div class="brand">🚛 <span id="nav-company">Parcelo</span></div>
+    <div class="brand" style="display:flex;align-items:center;gap:8px">
+      <span id="nav-company">CMP Logistics</span><span id="nav-platform-tag" style="display:none;font-size:10px;font-weight:500;color:var(--muted);margin-left:6px;padding:2px 7px;background:rgba(255,255,255,.06);border-radius:20px;border:1px solid var(--border)">via CMP Logistics</span>
+    </div>
     <div class="spacer"></div>
     <span id="nav-plan-badge" style="display:none;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:rgba(255,149,0,.15);color:#FF9500;border:1px solid rgba(255,149,0,.3);cursor:pointer" title="Upgrade plan" onclick="upgradePlan()"></span>
     <div class="uchip"><span>👤</span><strong id="nav-name">Dispatcher</strong></div>
@@ -577,6 +585,10 @@ function enterApp(){
   // Show company name in nav brand
   if(u.companyName){
     document.getElementById('nav-company').textContent = u.companyName;
+    document.getElementById('nav-platform-tag').style.display = '';
+    // Also update auth screen subtitle so it shows the company on next load
+    var sub = document.getElementById('auth-subtitle');
+    if(sub) sub.textContent = u.companyName + ' · CMP Logistics';
   }
 
   // Show plan badge
@@ -1047,7 +1059,9 @@ function renderDetail(){
         +'<div class="map-stat"><div class="map-stat-val" id="dms-lat">—</div><div class="map-stat-lbl">Latitude</div></div>'
         +'<div class="map-stat"><div class="map-stat-val" id="dms-lng">—</div><div class="map-stat-lbl">Longitude</div></div>'
         +'</div>'
-        +'<div class="stale-warn" id="disp-stale-warn"><span class="stale-icon">⚠️</span><span id="disp-stale-msg">No location update received — signal may be lost.</span></div>'
+        +'<div class="stale-warn" id="disp-stale-warn"><span class="stale-icon">⚠️</span><span id="disp-stale-msg">No location update received — signal may be lost.</span>'
+        +'<button class="btn btn-sm" id="btn-ping-driver" style="margin-left:auto;background:#FF9500;color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;" onclick="pingDriver()">📲 Ping Driver</button>'
+        +'</div>'
         +'</div>'
       : ''
     )
@@ -1149,13 +1163,27 @@ function _selLoadChanged(freshArray){
 }
 
 var _dispMap=null, _dispMarker=null, _dispTrail=null, _dispTrailPts=[], _dispPollTimer=null, _dispStaleTimer=null, _lastLocTimestamp=null;
+var _lastGpsTimestamp=null; // actual timestamp of driver's last GPS fix
 // Track which load the dispatcher map is currently showing.
 var _dispMapLoadId=null;
+
+// Update the "Last update" stat — shows "Just now" / "30s ago" etc.
+// Called on every successful poll AND by the stale timer between polls.
+function updateLastSeenLabel(){
+  var el=document.getElementById('dms-updated');
+  if(!el||!_lastGpsTimestamp)return;
+  var d=new Date(_lastGpsTimestamp);
+  var h=d.getHours(),m=d.getMinutes(),s=d.getSeconds();
+  var ampm=h>=12?'PM':'AM';
+  h=h%12||12;
+  var timeStr=h+':'+(m<10?'0':'')+m+':'+(s<10?'0':'')+s+' '+ampm;
+  el.textContent=timeStr;
+}
 
 function stopDispatcherMap(){
   if(_dispPollTimer){clearInterval(_dispPollTimer);_dispPollTimer=null;}
   if(_dispStaleTimer){clearInterval(_dispStaleTimer);_dispStaleTimer=null;}
-  _dispMap=null; _dispMarker=null; _dispTrail=null; _dispTrailPts=[]; _lastLocTimestamp=null;
+  _dispMap=null; _dispMarker=null; _dispTrail=null; _dispTrailPts=[]; _lastLocTimestamp=null; _lastGpsTimestamp=null;
   _dispMapLoadId=null;
 }
 
@@ -1173,10 +1201,10 @@ function startDispatcherMap(load){
   _lastLocTimestamp=Date.now();
   // Immediate first fetch
   pollDispatcherMap(load.trackingToken);
-  // Then every 15 seconds
-  _dispPollTimer=setInterval(function(){pollDispatcherMap(load.trackingToken);},15000);
-  // Check for stale signal every 30 seconds (starts after first poll has run)
-  _dispStaleTimer=setInterval(function(){checkStaleSignal();},30000);
+  // Then every 5 seconds for smooth live tracking
+  _dispPollTimer=setInterval(function(){pollDispatcherMap(load.trackingToken);},5000);
+  // Refresh stale warning + "X ago" label every 5 s so it stays in sync with the poll
+  _dispStaleTimer=setInterval(function(){checkStaleSignal();updateLastSeenLabel();},5000);
 }
 
 function checkStaleSignal(){
@@ -1184,11 +1212,13 @@ function checkStaleSignal(){
   var msg=document.getElementById('disp-stale-msg');
   if(!warn)return;
   if(!_lastLocTimestamp){warn.classList.remove('on');return;}
-  var age=Date.now()-_lastLocTimestamp; // ms since last live poll update
-  var STALE_MS=5*60*1000; // 5 minutes of no new data from the live poll
+  var age=Date.now()-_lastLocTimestamp;
+  var STALE_MS=2*60*1000; // show warning after 2 minutes of no update
   if(age>=STALE_MS){
     var mins=Math.floor(age/60000);
-    if(msg) msg.textContent='No location update for '+mins+' min — driver signal may be lost.';
+    var secs=Math.floor((age%60000)/1000);
+    var timeStr = mins>0 ? mins+' min'+(mins>1?'s':'')+' ago' : secs+'s ago';
+    if(msg) msg.textContent='⚠️ Last ping '+timeStr+' — driver may have closed the app. Tap Ping Driver to alert them.';
     warn.classList.add('on');
   } else {
     warn.classList.remove('on');
@@ -1258,24 +1288,32 @@ function snapToRoads(history, callback){
 }
 
 function pollDispatcherMap(token){
-  fetch(API+'/track/'+token)
-    .then(function(r){return r.ok?r.json():null;})
+  var pollStart = Date.now();
+  fetch(API+'/track/'+token+'?live=1')
+    .then(function(r){
+      if(!r.ok){ console.warn('pollDispatcherMap HTTP '+r.status); return null; }
+      return r.json();
+    })
     .then(function(data){
-      if(!data)return;
+      if(!data){ console.warn('pollDispatcherMap: no data returned'); return; }
       var el=document.getElementById('disp-map-inner');
       if(!el)return;
 
-      // Filter history to current 24-hour window
-      var recentHistory=filterRecentLocations(data.locationHistory);
+      // Sort all history ascending so newest is last. No 24-hr cutoff —
+      // we want every point from the current trip regardless of age.
+      var history = Array.isArray(data.locationHistory) ? data.locationHistory.slice() : [];
+      history.sort(function(a,b){
+        return new Date(a.timestamp||0).getTime() - new Date(b.timestamp||0).getTime();
+      });
 
-      // Use the most recent point from history as position,
-      // always fall back to lastLocation (no age check — show last known position)
-      var loc=recentHistory.length
-        ? recentHistory[recentHistory.length-1]
+      // Best position: newest history point, then lastLocation on the load.
+      // Never bail just because history is empty — lastLocation is always fresh.
+      var loc = history.length
+        ? history[history.length-1]
         : (data.lastLocation || null);
 
-      if(!loc){
-        // No fresh location yet — driver hasn't started or data is stale
+      if(!loc || loc.latitude==null || loc.longitude==null){
+        console.warn('pollDispatcherMap: no usable location yet');
         return;
       }
 
@@ -1294,18 +1332,17 @@ function pollDispatcherMap(token){
         _dispMap.panTo([lat,lng]);
       }
 
-      // Trail: snap to roads using OSRM match API (free, no key needed)
-      if(recentHistory.length>=2){
-        snapToRoads(recentHistory, function(roadPts){
+      // Trail
+      if(history.length>=2){
+        snapToRoads(history, function(roadPts){
           if(roadPts && roadPts.length>=2){
             _dispTrail.setLatLngs(roadPts);
           } else {
-            // Fallback to straight line if OSRM fails
-            _dispTrail.setLatLngs(recentHistory.map(function(p){return[p.latitude,p.longitude];}));
+            _dispTrail.setLatLngs(history.map(function(p){return[p.latitude,p.longitude];}));
           }
         });
       } else {
-        _dispTrail.setLatLngs([]);
+        if(_dispTrail) _dispTrail.setLatLngs([]);
       }
 
       // Show stats bar
@@ -1315,13 +1352,51 @@ function pollDispatcherMap(token){
         document.getElementById('dms-speed').textContent=loc.speed!=null?Math.round(loc.speed):'0';
         document.getElementById('dms-lat').textContent=lat.toFixed(5);
         document.getElementById('dms-lng').textContent=lng.toFixed(5);
-        document.getElementById('dms-updated').textContent=loc.timestamp?new Date(loc.timestamp).toLocaleTimeString():'—';
-        // Update stale clock to NOW (time of this successful poll), not the stored GPS timestamp
-        _lastLocTimestamp=Date.now();
+        // Use server receive time for staleness check — driver phone clock may drift.
+        // Show the GPS timestamp in the label but base "X ago" on when we got the data.
+        var receiveTime = Date.now();
+        _lastGpsTimestamp = receiveTime;  // "ago" counts from when dispatcher received it
+        _lastLocTimestamp = receiveTime;
+        updateLastSeenLabel();
         checkStaleSignal();
       }
     })
-    .catch(function(){/* silently ignore network errors */});
+    .catch(function(err){ console.error('pollDispatcherMap fetch error:', err); });
+}
+
+/* ── PING DRIVER ─────────────────────────────────────────────────────────── */
+// Re-sends the driver tracking link (email + SMS) so driver gets a push
+// notification that brings them back to the tracking page.
+function pingDriver(){
+  var load=loads.find(function(l){return l.id===selectedLoadId;});
+  if(!load){toast('No load selected');return;}
+  if(!load.assignedDriverPhone && !load.assignedDriverEmail){
+    toast('No driver phone or email on file — edit the load to add contact info.');
+    return;
+  }
+  var btn=document.getElementById('btn-ping-driver');
+  if(btn){btn.disabled=true;btn.textContent='Sending…';}
+
+  fetch(API+'/loads/'+load.id+'/send-driver-link',{
+    method:'POST',
+    headers:ah(),
+    body:JSON.stringify({
+      dispatcherEmail: currentUser&&currentUser.email ? currentUser.email : (load.createdBy||''),
+      pingOnly: true,   // tells Lambda to use a short "reopen app" message
+    }),
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if(d.success||d.driverLink){
+      toast('📲 Driver has been pinged — they will receive a link to reopen the app.');
+    } else {
+      toast('Could not ping driver: '+(d.error||'unknown error'));
+    }
+  })
+  .catch(function(e){toast('Ping failed: '+e.message);})
+  .finally(function(){
+    if(btn){btn.disabled=false;btn.textContent='📲 Ping Driver';}
+  });
 }
 
 /* ASSIGN DRIVER */
@@ -1403,56 +1478,76 @@ function sendLink(id){
            + (encoded ? '&d=' + encodeURIComponent(encoded) : '');
 
   var pickupStr=load.pickupDate?new Date(load.pickupDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+  var companyName = (session && session.user && session.user.companyName) ? session.user.companyName : 'CMP Logistics';
 
   var msgText='Hi '+(load.assignedDriverName||'Driver')+',\n\n'
-    +'You have a new load assigned by Parcelo (powered by OTTIO).\n\n'
+    +'You have a new load from '+companyName+'.\n\n'
     +'LOAD #: '+(load.loadNumber||'--')+'\n'
     +'PICKUP: '+(load.pickupAddress||'--')+'\n'
     +'DELIVERY: '+(load.deliveryAddress||'--')+'\n'
     +(pickupStr?'DATE: '+pickupStr+'\n':'')
     +(load.notes?'NOTES: '+load.notes+'\n':'')
-    +'\nOpen this link to see your full load details and START TRACKING:\n'
+    +'\n👉 Tap this link to accept and track your load:\n'
     +dURL
-    +'\n\nNo app needed - works in any browser.';
+    +'\n\nTip: After opening, tap "Add to Home Screen" for the best experience — works like an app, no App Store needed.';
 
   var smsLink=(dp?'sms:+'+dp.replace(/^\+/,''):'sms:')+('?body='+encodeURIComponent(msgText));
   var emailLink='mailto:'+(load.assignedDriverEmail||'')
-               +'?subject='+encodeURIComponent('CMP Load #'+(load.loadNumber||''))
+               +'?subject='+encodeURIComponent('New Load #'+(load.loadNumber||'')+' — '+companyName)
                +'&body='+encodeURIComponent(msgText);
-  var waLink=dp?'https://wa.me/'+dp.replace(/^\+/,'')+'?text='+encodeURIComponent(msgText):'';
+  var waLink=dp?'https://wa.me/'+dp.replace(/[^0-9]/g,'')+'?text='+encodeURIComponent(msgText):'';
 
   var modalBody=document.getElementById('send-modal-body');
   modalBody.innerHTML=''
-    +'<div style="background:rgba(0,122,255,.1);border:2px solid var(--blue);border-radius:13px;padding:14px;margin-bottom:14px">'
-    +'<div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Driver Tracking Link</div>'
-    +'<div style="background:var(--bg);border-radius:9px;padding:10px;font-family:monospace;font-size:11px;color:var(--text);word-break:break-all;margin-bottom:10px;line-height:1.5">'+esc(dURL)+'</div>'
-    +'<button class="btn btn-p btn-full" id="sm-copy-link" style="font-size:14px;padding:11px">📋 Copy Link</button>'
-    +'</div>'
+    // ── Primary: SMS tracking link ───────────────────────────────────────
+    +'<div style="background:rgba(0,122,255,.10);border:2px solid rgba(0,122,255,.4);border-radius:13px;padding:14px;margin-bottom:12px">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">📲 Send Load Link to Driver</div>'
+    +'<div style="font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.5">'
+    +'Driver taps the link → accepts the load → taps <strong style="color:var(--text)">"Add to Home Screen"</strong> → gets an app icon on their phone. <strong style="color:var(--text)">No App Store. No account. Works on iPhone &amp; Android.</strong></div>'
     +(dp
-      ?'<button id="sm-send-sms" style="width:100%;margin-bottom:10px;background:#34C759;color:#fff;font-size:17px;font-weight:700;padding:16px;border:none;border-radius:13px;cursor:pointer">📱 Open SMS App – Send to '+esc(dp)+'</button>'
-      :'<div style="background:var(--s2);border-radius:9px;padding:12px 14px;font-size:13px;color:var(--muted);margin-bottom:10px;text-align:center">⚠️ No phone number on file.<br>Add driver phone in the Assigned Driver section.</div>'
+      ?'<button id="sm-send-sms" style="width:100%;margin-bottom:8px;background:var(--blue);color:#fff;font-size:15px;font-weight:700;padding:13px;border:none;border-radius:11px;cursor:pointer">📱 Text Link to '+esc(dp)+'</button>'
+      :'<div style="background:var(--s2);border-radius:9px;padding:10px 12px;font-size:13px;color:var(--muted);margin-bottom:8px">⚠️ No phone number on file. Add driver phone to enable SMS.</div>'
     )
-    +'<a class="btn btn-full" href="'+esc(emailLink)+'" style="margin-bottom:10px;display:flex;align-items:center;justify-content:center;font-size:15px;padding:13px;text-decoration:none">✉️ Send via Email</a>'
-    +'<p style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px">Driver opens link, sees load details, taps Start Tracking, you get notified by email.</p>';
+    +(waLink?'<button id="sm-send-wa" style="width:100%;margin-bottom:8px;background:#25D366;color:#fff;font-size:15px;font-weight:600;padding:12px;border:none;border-radius:11px;cursor:pointer">💬 Send via WhatsApp</button>':'')
+    +'<a class="btn btn-full" href="'+esc(emailLink)+'" style="margin-bottom:8px;display:flex;align-items:center;justify-content:center;font-size:14px;padding:12px;text-decoration:none">✉️ Send via Email</a>'
+    +'<button class="btn btn-full" id="sm-copy-link" style="font-size:14px;padding:11px">📋 Copy Link</button>'
+    +'</div>'
+    // ── Link preview ────────────────────────────────────────────────────
+    +'<div style="background:var(--s2);border-radius:10px;padding:10px 12px;font-family:monospace;font-size:11px;color:var(--muted);word-break:break-all;line-height:1.5;margin-bottom:12px">'+esc(dURL)+'</div>'
+    // ── How it works tip ────────────────────────────────────────────────
+    +'<div style="background:rgba(255,255,255,.04);border-radius:10px;padding:12px 14px">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">How it works</div>'
+    +'<div style="font-size:12px;color:var(--muted);line-height:1.7">'
+    +'1️⃣ Driver taps SMS link → opens in browser<br>'
+    +'2️⃣ Taps <strong style="color:var(--text)">Accept Load</strong><br>'
+    +'3️⃣ Prompted to <strong style="color:var(--text)">Add to Home Screen</strong> (one tap on Android, 2 taps on iPhone)<br>'
+    +'4️⃣ Opens the 🚛 icon → taps <strong style="color:var(--text)">Start Tracking</strong><br>'
+    +'5️⃣ GPS streams live to your dispatcher map — works in background'
+    +'</div></div>';
 
   document.getElementById('send-modal-ov').classList.add('on');
+
+  if(dp){
+    document.getElementById('sm-send-sms').addEventListener('click',function(){
+      window.open(smsLink,'_blank');
+      this.textContent='✅ SMS Opened';
+      var self=this; setTimeout(function(){ self.textContent='📱 Text Link to '+dp; },4000);
+    });
+  }
+
+  if(waLink){
+    document.getElementById('sm-send-wa').addEventListener('click',function(){
+      window.open(waLink,'_blank');
+      this.textContent='✅ WhatsApp Opened';
+      var self=this; setTimeout(function(){ self.textContent='💬 Send via WhatsApp'; },4000);
+    });
+  }
 
   document.getElementById('sm-copy-link').addEventListener('click',function(){
     copyText(dURL);
     this.textContent='✅ Copied!';
     var self=this; setTimeout(function(){self.textContent='📋 Copy Link';},2500);
   });
-
-  if(dp){
-    document.getElementById('sm-send-sms').addEventListener('click',function(){
-      // Open native SMS app pre-filled — free, works on any phone, no backend needed
-      window.open(smsLink, '_blank');
-      this.textContent='✅ SMS App Opened';
-      this.style.background='#1a7a35';
-      var self=this;
-      setTimeout(function(){ self.textContent='📱 Send SMS to '+dp; self.style.background='#34C759'; },4000);
-    });
-  }
 
 }
 
@@ -1776,21 +1871,19 @@ function saveLoad(){
     fetch(API+'/loads/'+editingLoadId,{method:'PUT',headers:ah(),body:JSON.stringify(load)})
       .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
       .then(function(res){
+        if(!res.ok) throw new Error(res.d&&res.d.error ? res.d.error : 'Save failed (HTTP '+res.d.status+')');
         // Always prefer the local `load` we just built — it has the correct
-        // updatedAt and all edited fields.  Only adopt res.d if it is newer
-        // (e.g. the server added extra fields), but fall back to local in
-        // every other case to avoid DynamoDB eventual-consistency reverting edits.
-        var apiTs  = (res.ok && res.d && res.d.updatedAt) ? new Date(res.d.updatedAt).getTime() : 0;
+        // updatedAt and all edited fields.  Only adopt res.d if it is newer.
+        var apiTs  = (res.d && res.d.updatedAt) ? new Date(res.d.updatedAt).getTime() : 0;
         var localTs = new Date(load.updatedAt).getTime();
-        var updated = (res.ok && apiTs >= localTs) ? res.d : load;
+        var updated = (apiTs >= localTs) ? res.d : load;
         for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){loads[i]=updated;break;}}
         renderList();closeModal();selLoad(updated.id);toast('✅ Load updated');
       })
       .catch(function(e){
-        // If API doesn't support PUT yet, update locally and show warning
-        for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){loads[i]=load;break;}}
-        renderList();closeModal();selLoad(load.id);
-        toast('✅ Updated locally (API update pending)');
+        var err=document.getElementById('merr');
+        err.textContent='⚠️ ' + (e.message || 'Failed to save. Please try again.');
+        err.style.display='block';
       })
       .finally(function(){btn.disabled=false;btn.textContent='Save Changes';});
   } else {
@@ -1849,3 +1942,4 @@ function makeSamples(){
 
 </body>
 </html>
+i
