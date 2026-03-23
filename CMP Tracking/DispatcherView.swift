@@ -78,7 +78,9 @@ struct ActiveLoadsTab: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     HStack(spacing: 10) {
-                        ParceloLogoD(showWordmark: false, size: 32)
+                        Text("CMP Logistics")
+                            .font(.headline)
+                            .fontWeight(.semibold)
                         Button(action: { authManager.signOut(); appState.logout() }) {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
                         }

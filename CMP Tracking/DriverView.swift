@@ -91,7 +91,9 @@ struct DriverView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    ParceloLogoD(showWordmark: false, size: 32)
+                    Text("CMP Logistics")
+                        .font(.headline)
+                        .fontWeight(.semibold)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 16) {
