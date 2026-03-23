@@ -1080,8 +1080,9 @@
      } else if (data.status === "Accepted") {
        badge.className   = "status-badge accepted";
        badge.textContent = "✅ Accepted";
-       document.getElementById("gps-card").style.display  = "block";
-       document.getElementById("btn-start").style.display = "flex";
+       document.getElementById("accept-card").style.display = "none";
+       document.getElementById("gps-card").style.display    = "block";
+       document.getElementById("btn-start").style.display   = "flex";
      } else {
        badge.textContent = "⏳ " + (data.status || "Pending");
        document.getElementById("gps-card").style.display   = "none";
@@ -1200,10 +1201,10 @@
        doAcceptUI();
      }
 
-     // Safety net: if API call hangs, complete locally after 8 s
+     // Safety net: if API call hangs, complete locally after 3 s
      _acceptTimeout = setTimeout(function() {
        if (!_accepted) { _accepted = true; doAcceptUI(); }
-     }, 8000);
+     }, 3000);
 
      if (isLive() && TOKEN) {
        fetch(API_BASE + '/track/' + TOKEN + '/status', {
