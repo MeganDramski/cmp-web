@@ -1,17 +1,15 @@
 // src/handlers/stripeWebhook.js
 // POST /stripe/webhook
-// Handles Stripe events — updates company plan & subscription status.
-// NOTE: API Gateway must forward the raw body (no JSON parsing) for
-//       signature verification to work. The HttpApi passes the raw body
-//       as a base64-encoded string when isBase64Encoded=true.
+// Handles Stripe events — updates company plan & subscription status in USERS_TABLE.
+// NOTE: API Gateway must forward the raw body for signature verification.
 
 const stripe = require("stripe")(process.env.STRIPE_SECRET);
-const { DynamoDBClient, UpdateItemCommand, QueryCommand } = require("@aws-sdk/client-dynamodb");
-const { marshall } = require("@aws-sdk/util-dynamodb");
+const { DynamoDBClient, UpdateItemCommand, ScanCommand } = require("@aws-sdk/client-dynamodb");
+const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 
-const db                  = new DynamoDBClient({});
-const COMPANIES_TABLE     = process.env.COMPANIES_TABLE;
-const WEBHOOK_SECRET      = process.env.STRIPE_WEBHOOK_SECRET;
+const db             = new DynamoDBClient({});
+const USERS_TABLE    = process.env.USERS_TABLE;
+const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
 function respond(statusCode, body) {
   return {
@@ -21,24 +19,45 @@ function respond(statusCode, body) {
   };
 }
 
-async function updateCompany(tenantId, attrs) {
+// Find the admin user for a company by tenantId, then update their record
+async function updateCompanyByTenantId(tenantId, attrs) {
   if (!tenantId) return;
-  const expParts  = [];
-  const exprNames = {};
-  const exprVals  = {};
-  Object.entries(attrs).forEach(([k, v]) => {
-    expParts.push(`#${k} = :${k}`);
-    exprNames[`#${k}`] = k;
-    exprVals[`:${k}`]  = v;
-  });
-  if (!expParts.length) return;
-  await db.send(new UpdateItemCommand({
-    TableName: COMPANIES_TABLE,
-    Key: marshall({ tenantId }),
-    UpdateExpression: "SET " + expParts.join(", "),
-    ExpressionAttributeNames:  exprNames,
-    ExpressionAttributeValues: marshall(exprVals),
+
+  // Find the admin/dispatcher for this tenant
+  const scan = await db.send(new ScanCommand({
+    TableName: USERS_TABLE,
+    FilterExpression: "tenantId = :tid AND #r = :role",
+    ExpressionAttributeNames: { "#r": "role" },
+    ExpressionAttributeValues: { ":tid": { S: tenantId }, ":role": { S: "dispatcher" } },
   }));
+
+  const users = (scan.Items || []).map(unmarshall);
+  if (!users.length) {
+    console.warn("stripeWebhook: no dispatcher found for tenantId:", tenantId);
+    return;
+  }
+
+  // Update all dispatcher users in this tenant (usually just 1 admin)
+  for (const user of users) {
+    const expParts  = [];
+    const exprNames = {};
+    const exprVals  = {};
+    Object.entries(attrs).forEach(([k, v]) => {
+      if (v === null || v === undefined) return; // skip nulls
+      expParts.push(`#${k} = :${k}`);
+      exprNames[`#${k}`] = k;
+      exprVals[`:${k}`]  = v;
+    });
+    if (!expParts.length) continue;
+
+    await db.send(new UpdateItemCommand({
+      TableName: USERS_TABLE,
+      Key: marshall({ email: user.email }),
+      UpdateExpression: "SET " + expParts.join(", "),
+      ExpressionAttributeNames:  exprNames,
+      ExpressionAttributeValues: marshall(exprVals),
+    }));
+  }
 }
 
 exports.handler = async (event) => {
@@ -65,15 +84,14 @@ exports.handler = async (event) => {
 
       // ── Checkout completed → subscription created ─────────────────────
       case "checkout.session.completed": {
-        const tenantId = meta.tenantId || obj.metadata?.tenantId;
+        const tenantId = meta.tenantId;
         const plan     = meta.plan || "pro";
         if (tenantId) {
-          await updateCompany(tenantId, {
+          await updateCompanyByTenantId(tenantId, {
             plan,
-            status:                "active",
-            stripeSubscriptionId:  obj.subscription,
-            stripeCustomerId:      obj.customer,
-            updatedAt:             new Date().toISOString(),
+            stripeSubscriptionId: obj.subscription,
+            stripeCustomerId:     obj.customer,
+            updatedAt:            new Date().toISOString(),
           });
         }
         break;
@@ -84,9 +102,8 @@ exports.handler = async (event) => {
         const tenantId = obj.metadata?.tenantId;
         if (tenantId) {
           const isActive = ["active", "trialing"].includes(obj.status);
-          await updateCompany(tenantId, {
-            plan:      obj.metadata?.plan || "pro",
-            status:    isActive ? "active" : "past_due",
+          await updateCompanyByTenantId(tenantId, {
+            plan:      isActive ? (obj.metadata?.plan || "pro") : "inactive",
             updatedAt: new Date().toISOString(),
           });
         }
@@ -97,11 +114,9 @@ exports.handler = async (event) => {
       case "customer.subscription.deleted": {
         const tenantId = obj.metadata?.tenantId;
         if (tenantId) {
-          await updateCompany(tenantId, {
-            plan:                 "free",
-            status:               "cancelled",
-            stripeSubscriptionId: null,
-            updatedAt:            new Date().toISOString(),
+          await updateCompanyByTenantId(tenantId, {
+            plan:      "inactive",
+            updatedAt: new Date().toISOString(),
           });
         }
         break;
@@ -109,14 +124,11 @@ exports.handler = async (event) => {
 
       // ── Payment failed ────────────────────────────────────────────────
       case "invoice.payment_failed": {
-        const customerId = obj.customer;
-        // Look up tenant by stripeCustomerId via a scan (infrequent event)
-        // In production you'd add a GSI on stripeCustomerId
         const tenantId = obj.subscription_details?.metadata?.tenantId
                       || obj.metadata?.tenantId;
         if (tenantId) {
-          await updateCompany(tenantId, {
-            status:    "past_due",
+          await updateCompanyByTenantId(tenantId, {
+            plan:      "past_due",
             updatedAt: new Date().toISOString(),
           });
         }
@@ -124,7 +136,6 @@ exports.handler = async (event) => {
       }
 
       default:
-        // Unhandled event type — acknowledge but do nothing
         break;
     }
   } catch (err) {

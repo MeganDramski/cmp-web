@@ -13,16 +13,17 @@ exports.handler = async (event) => {
     const loadId = event.pathParameters && event.pathParameters.id;
     if (!loadId) return respond(400, { error: "Load ID is required." });
 
-    // Verify the load belongs to this tenant before updating
+    // Tenant isolation: verify the load belongs to this company before updating
     if (user.tenantId) {
       const existing = await db.send(new GetItemCommand({
         TableName: TABLE,
         Key: marshall({ id: loadId }),
       }));
-      if (!existing.Item) return respond(404, { error: "Load not found." });
-      const existingLoad = unmarshall(existing.Item);
-      if (existingLoad.tenantId && existingLoad.tenantId !== user.tenantId) {
-        return respond(403, { error: "Access denied." });
+      if (existing.Item) {
+        const existingLoad = unmarshall(existing.Item);
+        if (existingLoad.tenantId && existingLoad.tenantId !== user.tenantId) {
+          return respond(403, { error: "You do not have permission to update this load." });
+        }
       }
     }
 

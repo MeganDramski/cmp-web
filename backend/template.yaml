@@ -80,6 +80,29 @@ Parameters:
     Default: ""
     Description: "(unused – Twilio removed)"
 
+  # Stripe billing parameters
+  StripeSecret:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Stripe secret key (sk_live_... or sk_test_...)
+
+  StripePricePro:
+    Type: String
+    Default: ""
+    Description: Stripe Price ID for the Pro plan (price_...)
+
+  StripePriceEnterprise:
+    Type: String
+    Default: ""
+    Description: Stripe Price ID for the Enterprise plan (price_...)
+
+  StripeWebhookSecret:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Stripe webhook signing secret (whsec_...)
+
 # ─────────────────────────────────────────────────────────────────
 # DynamoDB Tables
 # ─────────────────────────────────────────────────────────────────
@@ -213,6 +236,45 @@ Resources:
           Type: HttpApi
           Properties:
             Path: /companies/register
+            Method: POST
+
+  # POST /billing/checkout  (create Stripe Checkout session)
+  CreateCheckoutSessionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-create-checkout-session
+      CodeUri: src/
+      Handler: handlers/createCheckoutSession.handler
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          STRIPE_SECRET:         !Ref StripeSecret
+          STRIPE_PRICE_PRO:      !Ref StripePricePro
+          STRIPE_PRICE_ENTERPRISE: !Ref StripePriceEnterprise
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /billing/checkout
+            Method: POST
+
+  # POST /stripe/webhook  (Stripe billing event handler)
+  StripeWebhookFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cmp-stripe-webhook
+      CodeUri: src/
+      Handler: handlers/stripeWebhook.handler
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          STRIPE_SECRET:         !Ref StripeSecret
+          STRIPE_WEBHOOK_SECRET: !Ref StripeWebhookSecret
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /stripe/webhook
             Method: POST
 
   # GET /users/approve?token= (admin clicks Approve/Deny in email)

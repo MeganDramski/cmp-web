@@ -255,7 +255,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
       <div class="fg"><label>Work Email</label><input type="email" id="co-email" placeholder="jane@acmefreight.com"/></div>
       <div class="fg"><label>Password (min 8 chars)</label><input type="password" id="co-pw" placeholder="Strong password"/></div>
       <button type="button" class="btn btn-p btn-full" id="btn-co">Create Company &amp; Sign In</button>
-      <p class="anote" style="margin-top:10px">Includes a 14-day free trial. No credit card required to start.</p>
+      <div style="margin-top:14px;background:rgba(0,122,255,.08);border:1px solid rgba(0,122,255,.25);border-radius:12px;padding:12px 14px;text-align:center">
+        <div style="font-size:13px;font-weight:700;color:var(--blue);margin-bottom:4px">💳 Subscription Required</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.5">After signing up, activate your plan via Stripe.<br>No load limits. Cancel any time.</div>
+        <button type="button" onclick="document.getElementById('btn-co').click()" style="display:none"></button>
+      </div>
     </div>
     <!-- Shown after a successful request submission -->
     <div class="aform" id="form-pending" style="text-align:center;padding:8px 0">
@@ -520,14 +524,14 @@ function doCreateCompany(){
     var accs=JSON.parse(localStorage.getItem('cmp_accounts')||'[]');
     for(var i=0;i<accs.length;i++){if(accs[i].email===email){btn.disabled=false;btn.textContent='Create Company & Sign In';return aerr('An account with that email already exists.');}}
     var tenantId='local-'+Date.now();
-    var newUser={name:name,email:email,role:'dispatcher',tenantId:tenantId,companyName:company,plan:'trial',passwordHash:sha256(pass),status:'active'};
+    var newUser={name:name,email:email,role:'dispatcher',tenantId:tenantId,companyName:company,plan:'inactive',passwordHash:sha256(pass),status:'active'};
     accs.push(newUser);
     localStorage.setItem('cmp_accounts',JSON.stringify(accs));
-    session={token:'local',user:{name:name,email:email,role:'dispatcher',tenantId:tenantId,companyName:company,plan:'trial'}};
+    session={token:'local',user:{name:name,email:email,role:'dispatcher',tenantId:tenantId,companyName:company,plan:'inactive'}};
     localStorage.setItem('cmp_session',JSON.stringify(session));
     btn.disabled=false;btn.textContent='Create Company & Sign In';
     enterApp();
-    toast('🎉 Welcome, '+company+'! Your 14-day trial has started.');
+    toast('🎉 Welcome, '+company+'! Activate your subscription to start dispatching.');
     return;
   }
 
@@ -539,7 +543,7 @@ function doCreateCompany(){
       session={token:res.d.token,user:res.d.user};
       localStorage.setItem('cmp_session',JSON.stringify(session));
       enterApp();
-      toast('🎉 Welcome, '+company+'! Your 14-day trial has started.');
+      toast('🎉 Welcome, '+company+'! Activate your subscription to start dispatching.');
     })
     .catch(function(e){aerr(e.message&&e.message!=='Failed to fetch'?e.message:'Cannot reach the server. Try again later.');})
     .finally(function(){btn.disabled=false;btn.textContent='Create Company & Sign In';});
@@ -608,15 +612,18 @@ function enterApp(){
 
   // Show plan badge
   var planBadge = document.getElementById('nav-plan-badge');
-  if(u.plan === 'trial'){
-    planBadge.textContent = '⏳ Trial';
+  if(u.plan === 'trial' || u.plan === 'inactive' || !u.plan){
+    planBadge.textContent = '💳 Subscribe';
     planBadge.style.display = '';
-    planBadge.title = 'Free trial active — click to upgrade';
+    planBadge.style.background = 'rgba(0,122,255,.15)';
+    planBadge.style.color = 'var(--blue)';
+    planBadge.style.borderColor = 'rgba(0,122,255,.3)';
+    planBadge.title = 'Activate your subscription to unlock all features';
   } else if(u.plan === 'free'){
     planBadge.textContent = '⬆️ Upgrade';
     planBadge.style.display = '';
     planBadge.title = 'Click to upgrade to Pro';
-  } else if(u.plan === 'pro'){
+  } else if(u.plan === 'pro' || u.plan === 'active'){
     planBadge.textContent = '⭐ Pro';
     planBadge.style.background = 'rgba(52,199,89,.15)';
     planBadge.style.color = '#34C759';
@@ -640,7 +647,7 @@ function enterApp(){
   // Handle billing query params (return from Stripe)
   var params = new URLSearchParams(window.location.search);
   if(params.get('billing')==='success'){
-    toast('✅ Subscription activated! Thank you.');
+    toast('✅ Subscription activated! Welcome to Routelo Pro.');
     window.history.replaceState({}, '', window.location.pathname);
   } else if(params.get('billing')==='cancelled'){
     toast('Checkout cancelled — you have not been charged.');
@@ -676,7 +683,7 @@ function upgradePlan(){
     })
     .catch(function(e){
       toast('❌ '+e.message);
-      if(btn) btn.textContent = u.plan==='trial'?'⏳ Trial':'⬆️ Upgrade';
+      if(btn) btn.textContent = (u.plan==='pro'||u.plan==='active') ? '⭐ Pro' : '💳 Subscribe';
     });
 }
 

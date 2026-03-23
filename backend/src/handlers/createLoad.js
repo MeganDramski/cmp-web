@@ -26,6 +26,7 @@ exports.handler = async (event) => {
 
     const load = {
       id:                  body.id            || crypto.randomUUID(),
+      tenantId:            user.tenantId      || null,   // multi-tenant isolation
       loadNumber:          body.loadNumber,
       description:         body.description,
       weight:              body.weight         || 0,
@@ -43,9 +44,8 @@ exports.handler = async (event) => {
       customerEmail:       body.customerEmail,
       customerPhone:       body.customerPhone,
       notes:               body.notes          || "",
-      dispatcherEmail:     body.dispatcherEmail || user.email,
+      dispatcherEmail:     body.dispatcherEmail || user.email,  // always store so startTracking can email them
       notifyCustomer:      body.notifyCustomer  || false,
-      tenantId:            user.tenantId        || null,   // ← tenant scoping
       createdAt:           new Date().toISOString(),
       createdBy:           user.email,
     };

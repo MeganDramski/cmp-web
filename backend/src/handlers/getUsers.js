@@ -1,10 +1,10 @@
 // src/handlers/getUsers.js
 // GET /users?role=driver   (or ?role=dispatcher, or no role for all)
 // Requires: Authorization: Bearer <token>  (dispatcher only)
-// Returns only users belonging to the caller's tenant.
+// Only returns users belonging to the caller's company (tenantId).
 
-const { DynamoDBClient, QueryCommand, ScanCommand } = require("@aws-sdk/client-dynamodb");
-const { unmarshall, marshall } = require("@aws-sdk/util-dynamodb");
+const { DynamoDBClient, ScanCommand } = require("@aws-sdk/client-dynamodb");
+const { unmarshall } = require("@aws-sdk/util-dynamodb");
 const { verifyToken, respond } = require("../utils/auth");
 
 const db = new DynamoDBClient({});
@@ -18,30 +18,27 @@ exports.handler = async (event) => {
     }
 
     const role = event.queryStringParameters?.role || null;
+    const tenantId = user.tenantId;
 
-    let users;
-
-    if (user.tenantId) {
-      // Multi-tenant — query by TenantIndex GSI
-      const result = await db.send(new QueryCommand({
-        TableName: TABLE,
-        IndexName: "TenantIndex",
-        KeyConditionExpression: "tenantId = :tid",
-        ExpressionAttributeValues: marshall({ ":tid": user.tenantId }),
-      }));
-      users = (result.Items || []).map(unmarshall);
-    } else {
-      // Legacy single-tenant — full scan
-      const result = await db.send(new ScanCommand({ TableName: TABLE }));
-      users = (result.Items || []).map(unmarshall);
+    // Filter by tenantId to enforce company isolation
+    let scanParams = { TableName: TABLE };
+    if (tenantId) {
+      scanParams.FilterExpression = "tenantId = :tid";
+      scanParams.ExpressionAttributeValues = { ":tid": { S: tenantId } };
     }
 
+    const result = await db.send(new ScanCommand(scanParams));
+    let users = (result.Items || []).map(unmarshall);
+
+    // Filter by role if requested
     if (role) {
       users = users.filter((u) => u.role === role);
     }
 
     // Strip password hashes before returning
     users = users.map(({ passwordHash, ...safe }) => safe);
+
+    // Sort by name
     users.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
     return respond(200, users);

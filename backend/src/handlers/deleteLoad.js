@@ -24,12 +24,10 @@ exports.handler = async (event) => {
       return respond(404, { error: "Load not found." });
     }
 
-    // Tenant isolation check
-    if (user.tenantId) {
-      const existingLoad = unmarshall(existing.Item);
-      if (existingLoad.tenantId && existingLoad.tenantId !== user.tenantId) {
-        return respond(403, { error: "Access denied." });
-      }
+    // Tenant isolation: only allow deleting loads belonging to this company
+    const load = unmarshall(existing.Item);
+    if (user.tenantId && load.tenantId && load.tenantId !== user.tenantId) {
+      return respond(403, { error: "You do not have permission to delete this load." });
     }
 
     await db.send(new DeleteItemCommand({

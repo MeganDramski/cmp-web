@@ -60,8 +60,7 @@ exports.handler = async (event) => {
       tenantId,
       companyName:  companyName.trim(),
       adminEmail:   email,
-      plan:         "trial",
-      trialEndsAt:  new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+      plan:         "inactive",   // no access until subscription is active
       createdAt:    now,
     };
 
@@ -72,7 +71,7 @@ exports.handler = async (event) => {
       role:         "dispatcher",   // admin dispatchers use the dispatcher role
       tenantId,
       companyName:  companyName.trim(),
-      plan:         "trial",
+      plan:         "inactive",
       passwordHash: sha256(password),
       status:       "active",       // no approval needed — they created the company
       createdAt:    now,
@@ -91,7 +90,7 @@ exports.handler = async (event) => {
         name:        adminName.trim(),
         tenantId,
         companyName: companyName.trim(),
-        plan:        "trial",
+        plan:        "inactive",
       },
       JWT_SECRET,
       { expiresIn: "30d" }
@@ -108,9 +107,9 @@ exports.handler = async (event) => {
             Body: {
               Html: {
                 Data: `
-                  <h2>Welcome aboard, ${adminName.trim()}!</h2>
+                  <h2>Welcome to Routelo, ${adminName.trim()}!</h2>
                   <p>Your company <strong>${companyName.trim()}</strong> has been set up on Routelo.</p>
-                  <p>You have a <strong>14-day free trial</strong>. After that, a subscription is required to continue.</p>
+                  <p>To start dispatching loads, please activate your subscription from the dashboard.</p>
                   <p>Log in at your dispatcher portal to get started.</p>
                   <p>— The Routelo Team</p>
                 `,

@@ -17,7 +17,7 @@ const VALID_STATUSES = ["Pending", "Assigned", "Accepted", "In Transit", "Delive
 
 exports.handler = async (event) => {
   try {
-    verifyToken(event);
+    const user = verifyToken(event);
 
     const loadId = event.pathParameters?.id;
     if (!loadId) return respond(400, { error: "Load ID is required." });
@@ -25,6 +25,20 @@ exports.handler = async (event) => {
     const body = JSON.parse(event.body || "{}");
     if (!VALID_STATUSES.includes(body.status)) {
       return respond(400, { error: `status must be one of: ${VALID_STATUSES.join(", ")}` });
+    }
+
+    // Tenant isolation: check load ownership before update (skip for public token-based calls)
+    if (user.tenantId) {
+      const check = await db.send(new GetItemCommand({
+        TableName: TABLE,
+        Key: marshall({ id: loadId }),
+      }));
+      if (check.Item) {
+        const existingLoad = unmarshall(check.Item);
+        if (existingLoad.tenantId && existingLoad.tenantId !== user.tenantId) {
+          return respond(403, { error: "You do not have permission to update this load." });
+        }
+      }
     }
 
     const now = new Date().toISOString();
@@ -78,7 +92,7 @@ exports.handler = async (event) => {
       <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Delivery</td><td style="padding:8px 0;">${load.deliveryAddress}</td></tr>
       <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Delivered At</td><td style="padding:8px 0;font-weight:600;color:#34C759;">${deliveredTime}</td></tr>
     </table>
-    <p style="font-size:12px;color:#aaa;margin-top:20px;text-align:center;">\u2013 Routelo Tracking</p>
+    <p style="font-size:12px;color:#aaa;margin-top:20px;text-align:center;">\u2013 CMP Logistics Tracking</p>
   </div>
 </div></body></html>`,
                     },
@@ -111,7 +125,7 @@ exports.handler = async (event) => {
       <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Delivered At</td><td style="padding:8px 0;font-weight:600;color:#34C759;">${deliveredTime}</td></tr>
       <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Delivery Address</td><td style="padding:8px 0;">${load.deliveryAddress}</td></tr>
     </table>
-    <p style="font-size:12px;color:#aaa;margin-top:20px;text-align:center;">Thank you for choosing Routelo \u2013</p>
+    <p style="font-size:12px;color:#aaa;margin-top:20px;text-align:center;">Thank you for choosing CMP Logistics \u2013</p>
   </div>
 </div></body></html>`,
                     },

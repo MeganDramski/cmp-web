@@ -49,6 +49,7 @@ exports.handler = async (event) => {
     }
 
     // Issue JWT — expires in 30 days
+    // Include tenantId and companyName so backend handlers can enforce tenant isolation
     const token = jwt.sign(
       {
         email:       user.email,
@@ -56,7 +57,7 @@ exports.handler = async (event) => {
         name:        user.name,
         tenantId:    user.tenantId    || null,
         companyName: user.companyName || null,
-        plan:        user.plan        || "free",
+        plan:        user.plan        || null,
       },
       JWT_SECRET,
       { expiresIn: "30d" }
