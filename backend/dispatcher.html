@@ -749,7 +749,20 @@ function startBackgroundPoll(){
 function bgPollLoads(){
   if(isLive()){
     fetch(API+'/loads', {headers:ah()})
-      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(r){
+        if(r.status===401){
+          return r.json().then(function(d){
+            if(d && d.code==='STALE_TOKEN'){
+              session=null; localStorage.removeItem('cmp_session');
+              clearInterval(_bgPollTimer); _bgPollTimer=null;
+              showAuth();
+              aerr('Your session has expired. Please sign in again.');
+            }
+            return null;
+          });
+        }
+        return r.ok ? r.json() : null;
+      })
       .then(function(fresh){
         if(!Array.isArray(fresh)) return;
         fresh = filterDeleted(fresh);
@@ -881,7 +894,22 @@ function loadData(){
     renderList(); btn.textContent='🔄'; btn.disabled=false; return;
   }
   fetch(API+'/loads',{headers:ah()})
-    .then(function(r){if(r.status===401){showAuth();throw new Error('unauth');}return r.json();})
+    .then(function(r){
+      if(r.status===401){
+        return r.json().then(function(d){
+          if(d && d.code==='STALE_TOKEN'){
+            // Session is stale (missing tenantId) — force re-login
+            session=null; localStorage.removeItem('cmp_session');
+            showAuth();
+            aerr('Your session has expired. Please sign in again to continue.');
+          } else {
+            showAuth();
+          }
+          throw new Error('unauth');
+        });
+      }
+      return r.json();
+    })
     .then(function(d){
       loads=filterDeleted(Array.isArray(d)?d:[]);
       // Seed known statuses so background poll baseline is correct

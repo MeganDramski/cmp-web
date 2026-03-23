@@ -15,12 +15,18 @@ exports.handler = async (event) => {
     const user = verifyToken(event);
     const tenantId = user.tenantId;
 
-    // If the user has a tenantId, filter loads to their company only
-    let scanParams = { TableName: TABLE };
-    if (tenantId) {
-      scanParams.FilterExpression = "tenantId = :tid";
-      scanParams.ExpressionAttributeValues = { ":tid": { S: tenantId } };
+    // Require tenantId — if missing the JWT is stale (issued before multi-tenant).
+    // The client will receive 401 and re-login to get a fresh token with tenantId.
+    if (!tenantId) {
+      return respond(401, { error: "Session expired. Please sign out and sign back in.", code: "STALE_TOKEN" });
     }
+
+    // Filter loads to this company only
+    const scanParams = {
+      TableName: TABLE,
+      FilterExpression: "tenantId = :tid",
+      ExpressionAttributeValues: { ":tid": { S: tenantId } },
+    };
 
     const result = await db.send(new ScanCommand(scanParams));
     const loads = (result.Items || []).map(unmarshall);

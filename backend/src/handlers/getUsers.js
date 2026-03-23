@@ -17,15 +17,21 @@ exports.handler = async (event) => {
       return respond(403, { error: "Only dispatchers can list users." });
     }
 
-    const role = event.queryStringParameters?.role || null;
     const tenantId = user.tenantId;
 
-    // Filter by tenantId to enforce company isolation
-    let scanParams = { TableName: TABLE };
-    if (tenantId) {
-      scanParams.FilterExpression = "tenantId = :tid";
-      scanParams.ExpressionAttributeValues = { ":tid": { S: tenantId } };
+    // Require tenantId — stale JWT issued before multi-tenant support
+    if (!tenantId) {
+      return respond(401, { error: "Session expired. Please sign out and sign back in.", code: "STALE_TOKEN" });
     }
+
+    const role = event.queryStringParameters?.role || null;
+
+    // Filter by tenantId to enforce company isolation
+    const scanParams = {
+      TableName: TABLE,
+      FilterExpression: "tenantId = :tid",
+      ExpressionAttributeValues: { ":tid": { S: tenantId } },
+    };
 
     const result = await db.send(new ScanCommand(scanParams));
     let users = (result.Items || []).map(unmarshall);
