@@ -18,41 +18,11 @@ function buildLink(event, token, id, load) {
     return d ? ("https://" + d + (s && s !== "$default" ? "/" + s : "")) : "";
   })();
 
-  // Embed full load payload as ?d= so the driver page renders without an API call.
-  // Unicode-safe btoa: encodeURIComponent → unescape → btoa (mirrors dispatcher frontend).
-  let encoded = "";
-  try {
-    const payload = {
-      id:                  load.id,
-      loadNumber:          load.loadNumber          || "",
-      description:         load.description         || "",
-      pickupAddress:       load.pickupAddress       || "",
-      deliveryAddress:     load.deliveryAddress     || "",
-      pickupDate:          load.pickupDate          || "",
-      deliveryDate:        load.deliveryDate        || "",
-      weight:              load.weight              || 0,
-      customerName:        load.customerName        || "",
-      customerEmail:       load.customerEmail       || "",
-      dispatcherEmail:     load.dispatcherEmail     || load.createdBy || "",
-      notifyCustomer:      load.notifyCustomer      || false,
-      notes:               load.notes               || "",
-      assignedDriverName:  load.assignedDriverName  || "",
-      assignedDriverEmail: load.assignedDriverEmail || "",
-      assignedDriverPhone: load.assignedDriverPhone || "",
-      // Always surface as Assigned so the driver sees Accept button
-      status:              (load.status === "Pending" || !load.status) ? "Assigned" : load.status,
-      trackingToken:       token,
-    };
-    encoded = Buffer.from(unescape(encodeURIComponent(JSON.stringify(payload))), "binary")
-                    .toString("base64");
-  } catch (e) {
-    console.warn("buildLink encode error:", e.message);
-  }
-
+  // Keep the link short — just token + loadId.
+  // The driver-tracking page fetches load details live from the API.
   return base
     + "/driver-tracking.html?token=" + encodeURIComponent(token)
-    + "&loadId=" + encodeURIComponent(id)
-    + (encoded ? "&d=" + encodeURIComponent(encoded) : "");
+    + "&loadId=" + encodeURIComponent(id);
 }
 
 async function sendDriverEmail(driverEmail, driverName, load, link) {

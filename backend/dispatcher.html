@@ -996,18 +996,7 @@ function renderDetail(){
   document.getElementById('dph').style.display='none';
   var el=document.getElementById('dc'); el.style.display='block';
   var base=isLive()?API:window.location.origin;
-  var loadPayload = {
-    id:load.id, loadNumber:load.loadNumber, description:load.description,
-    pickupAddress:load.pickupAddress, deliveryAddress:load.deliveryAddress,
-    pickupDate:load.pickupDate, deliveryDate:load.deliveryDate,
-    weight:load.weight, customerName:load.customerName,
-    customerEmail:load.customerEmail, dispatcherEmail:load.dispatcherEmail,
-    notifyCustomer:load.notifyCustomer, notes:load.notes,
-    assignedDriverName:load.assignedDriverName,
-    status: (load.status === 'Pending' || !load.status) ? 'Assigned' : load.status,
-    trackingToken:load.trackingToken
-  };
-  var dURL=base+'/driver-tracking.html?token='+esc(load.trackingToken)+'&loadId='+esc(load.id)+'&d='+encodeURIComponent(b64enc(JSON.stringify(loadPayload)));
+  var dURL=base+'/driver-tracking.html?token='+esc(load.trackingToken)+'&loadId='+esc(load.id);
   var cURL=base+'/track-shipment.html?token='+esc(load.trackingToken);
   var sopts=['Pending','Assigned','Accepted','In Transit','Delivered','Cancelled'].map(function(s){return '<option value="'+s+'"'+(s===load.status?' selected':'')+'>'+s+'</option>';}).join('');
 
@@ -1452,25 +1441,8 @@ function sendLink(id){
   var base=window.location.origin;
 
   // Safely encode load data into URL (unicode-safe btoa)
-  var payload={
-    id:load.id||'',loadNumber:load.loadNumber||'',description:load.description||'',
-    pickupAddress:load.pickupAddress||'',deliveryAddress:load.deliveryAddress||'',
-    pickupDate:load.pickupDate||'',deliveryDate:load.deliveryDate||'',
-    weight:load.weight||0,customerName:load.customerName||'',
-    customerEmail:load.customerEmail||'',dispatcherEmail:load.dispatcherEmail||'',
-    notifyCustomer:load.notifyCustomer||false,notes:load.notes||'',
-    assignedDriverName:load.assignedDriverName||'',
-    assignedDriverEmail:load.assignedDriverEmail||'',
-    assignedDriverPhone:load.assignedDriverPhone||'',
-    status: (load.status === 'Pending' || !load.status) ? 'Assigned' : load.status,
-    trackingToken:load.trackingToken||''
-  };
-  var encoded='';
-  try{ encoded=btoa(unescape(encodeURIComponent(JSON.stringify(payload)))); }catch(e){ encoded=''; }
-
   var dURL = base + '/driver-tracking.html?token=' + encodeURIComponent(load.trackingToken||'')
-           + '&loadId=' + encodeURIComponent(load.id||'')
-           + (encoded ? '&d=' + encodeURIComponent(encoded) : '');
+           + '&loadId=' + encodeURIComponent(load.id||'');
 
   var pickupStr=load.pickupDate?new Date(load.pickupDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
   var companyName = (session && session.user && session.user.companyName) ? session.user.companyName : 'CMP Logistics';
