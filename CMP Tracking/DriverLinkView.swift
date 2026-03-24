@@ -4,6 +4,7 @@
 
 import SwiftUI
 import CoreLocation
+import MapKit
 
 // MARK: - Model
 
@@ -65,6 +66,7 @@ struct DriverLinkView: View {
 
                         } else if let load = vm.load {
                             loadCard(load)
+                            mapCard
                             trackingCard(load)
                         }
                     }
@@ -133,6 +135,92 @@ struct DriverLinkView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Map Card
+
+    @ViewBuilder
+    private var mapCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "map.fill")
+                    .foregroundColor(.blue)
+                Text("Map")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white)
+                Spacer()
+                if vm.isTracking {
+                    HStack(spacing: 5) {
+                        Circle().fill(Color.green).frame(width: 7, height: 7)
+                        Text("Live")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                    }
+                }
+            }
+            .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 10)
+
+            ZStack(alignment: .bottomTrailing) {
+                Group {
+                    if vm.isTracking || vm.lastLocation != nil {
+                        LiveMapView(
+                            region: vm.mapRegion,
+                            userLocation: vm.lastLocation?.coordinate,
+                            trail: vm.routeTrail
+                        )
+                    } else if vm.pickupPin != nil || vm.deliveryPin != nil {
+                        RouteMapView(pickupCoord: vm.pickupPin, deliveryCoord: vm.deliveryPin)
+                    } else {
+                        LiveMapView(
+                            region: MKCoordinateRegion(
+                                center: CLLocationCoordinate2D(latitude: 39.5, longitude: -98.35),
+                                span: MKCoordinateSpan(latitudeDelta: 30, longitudeDelta: 30)
+                            ),
+                            userLocation: nil,
+                            trail: []
+                        )
+                        .overlay(
+                            VStack(spacing: 6) {
+                                Image(systemName: "location.slash.fill")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(.secondary)
+                                Text("Waiting for GPS…")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        )
+                    }
+                }
+                .frame(height: 220)
+                .cornerRadius(12)
+                .padding(.horizontal, 12)
+
+                // Re-center button
+                if vm.lastLocation != nil {
+                    Button {
+                        if let loc = vm.lastLocation {
+                            vm.mapRegion = MKCoordinateRegion(
+                                center: loc.coordinate,
+                                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                            )
+                        }
+                    } label: {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 14))
+                            .padding(10)
+                            .background(Color(red: 0.145, green: 0.145, blue: 0.220))
+                            .foregroundColor(.blue)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
+                            .shadow(color: .black.opacity(0.4), radius: 4)
+                    }
+                    .padding(.trailing, 20).padding(.bottom, 10)
+                }
+            }
+            .padding(.bottom, 12)
+        }
+        .background(Color.white.opacity(0.05))
+        .cornerRadius(16)
     }
 
     // MARK: - Tracking Card
@@ -265,6 +353,15 @@ class DriverLinkVM: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var lastSpeed: Double?
     @Published var locationStatus: CLAuthorizationStatus = .notDetermined
 
+    // Map state
+    @Published var routeTrail: [CLLocationCoordinate2D] = []
+    @Published var mapRegion = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 39.5, longitude: -98.35),
+        span: MKCoordinateSpan(latitudeDelta: 30, longitudeDelta: 30)
+    )
+    @Published var pickupPin: CLLocationCoordinate2D? = nil
+    @Published var deliveryPin: CLLocationCoordinate2D? = nil
+
     private let clm = CLLocationManager()
     private var token = ""
     private var loadId = ""
@@ -332,6 +429,19 @@ class DriverLinkVM: NSObject, ObservableObject, CLLocationManagerDelegate {
                 )
                 // Request Always location permission on load
                 self?.clm.requestAlwaysAuthorization()
+                // Geocode pickup + delivery for map pins
+                if let pickup = json["pickupAddress"] as? String, !pickup.isEmpty {
+                    CLGeocoder().geocodeAddressString(pickup) { [weak self] p, _ in
+                        DispatchQueue.main.async { self?.pickupPin = p?.first?.location?.coordinate }
+                    }
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    if let delivery = json["deliveryAddress"] as? String, !delivery.isEmpty {
+                        CLGeocoder().geocodeAddressString(delivery) { [weak self] p, _ in
+                            DispatchQueue.main.async { self?.deliveryPin = p?.first?.location?.coordinate }
+                        }
+                    }
+                }
             }
         }.resume()
     }
@@ -362,6 +472,7 @@ class DriverLinkVM: NSObject, ObservableObject, CLLocationManagerDelegate {
     private func beginGPS() {
         isAccepting = false
         isTracking  = true
+        routeTrail  = []   // fresh trail for each trip
         clm.startUpdatingLocation()
         // Also call startTracking endpoint so dispatcher sees In Transit
         let base = AWSConfig.baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -402,6 +513,21 @@ class DriverLinkVM: NSObject, ObservableObject, CLLocationManagerDelegate {
         Task { @MainActor in
             self.lastLocation = loc
             self.lastSpeed    = loc.speed > 0 ? loc.speed * 2.23694 : nil // m/s → mph
+
+            // Always update map region to follow driver
+            self.mapRegion = MKCoordinateRegion(
+                center: loc.coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+            )
+
+            // Append to route trail while tracking
+            if self.isTracking {
+                let coord = loc.coordinate
+                if self.routeTrail.last.map({ $0.latitude != coord.latitude || $0.longitude != coord.longitude }) ?? true {
+                    self.routeTrail.append(coord)
+                }
+            }
+
             guard self.isTracking else { return }
             let now = Date()
             guard now.timeIntervalSince(self.lastSentTime) >= self.updateInterval else { return }
