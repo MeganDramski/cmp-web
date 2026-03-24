@@ -69,12 +69,12 @@ exports.handler = async (event) => {
   const user = unmarshall(existing.Item);
 
   if (action === "approve") {
-    // Write to cmp-users with status=approved
+    // Write to cmp-users with status=active (so they can log in)
     await db.send(new PutItemCommand({
       TableName: TABLE,
       Item: marshall({
         ...user,
-        status:     "approved",
+        status:     "active",
         approvedAt: new Date().toISOString(),
       }),
     }));
@@ -87,26 +87,27 @@ exports.handler = async (event) => {
   }));
 
   // Email the applicant
+  const company = user.companyName || "Routelo";
   try {
     if (action === "approve") {
       await ses.send(new SendEmailCommand({
         Source: SES_FROM,
         Destination: { ToAddresses: [email] },
         Message: {
-          Subject: { Data: "✅ Your Routelo account has been approved!" },
+          Subject: { Data: `✅ Your ${company} account has been approved!` },
           Body: {
-            Text: { Data: `Hi ${user.name},\n\nYour account request for the Routelo Tracking Portal has been approved.\n\nYou can now sign in at:\n${AMPLIFY_BASE}\n\nWelcome aboard!\n— Routelo` },
+            Text: { Data: `Hi ${user.name},\n\nYour account request for ${company} on Routelo has been approved.\n\nYou can now sign in at:\n${AMPLIFY_BASE}\n\nWelcome aboard!\n— ${company} via Routelo` },
             Html: { Data: `
 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;background:#0f0f1a;color:#fff;border-radius:16px;overflow:hidden">
   <div style="background:#1c1c2e;padding:28px 32px;border-bottom:1px solid #2c2c3e">
     <div style="font-size:28px;margin-bottom:6px">🚛</div>
     <h2 style="margin:0;font-size:20px;color:#34C759">Account Approved!</h2>
-    <p style="margin:4px 0 0;color:#8e8ea0;font-size:13px">Routelo Tracking Portal</p>
+    <p style="margin:4px 0 0;color:#8e8ea0;font-size:13px">${company} · Routelo</p>
   </div>
   <div style="padding:28px 32px">
-    <p style="font-size:15px;margin-bottom:20px">Hi <strong>${user.name}</strong>,<br><br>Your account has been approved. You can now sign in to the Routelo Dispatcher Portal.</p>
+    <p style="font-size:15px;margin-bottom:20px">Hi <strong>${user.name}</strong>,<br><br>Your account request for <strong>${company}</strong> has been approved. You can now sign in to the dispatcher portal.</p>
     <a href="${AMPLIFY_BASE}" style="display:block;padding:14px 20px;background:#007AFF;color:#fff;text-decoration:none;border-radius:12px;font-size:15px;font-weight:700;text-align:center">Sign In Now →</a>
-    <p style="margin-top:16px;font-size:12px;color:#8e8ea0;text-align:center">Welcome to Routelo!</p>
+    <p style="margin-top:16px;font-size:12px;color:#8e8ea0;text-align:center">Welcome to ${company}!</p>
   </div>
 </div>`.trim() },
           },
@@ -117,19 +118,19 @@ exports.handler = async (event) => {
         Source: SES_FROM,
         Destination: { ToAddresses: [email] },
         Message: {
-          Subject: { Data: "Your Routelo account request" },
+          Subject: { Data: `Your ${company} account request` },
           Body: {
-            Text: { Data: `Hi ${user.name},\n\nUnfortunately your request for access to the Routelo Tracking Portal has not been approved at this time.\n\nIf you believe this is a mistake, please contact dispatch@cmplogistics.ca.\n\n— Routelo` },
+            Text: { Data: `Hi ${user.name},\n\nUnfortunately your request for access to ${company} on Routelo has not been approved at this time.\n\nIf you believe this is a mistake, please contact your company admin.\n\n— ${company} via Routelo` },
             Html: { Data: `
 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;background:#0f0f1a;color:#fff;border-radius:16px;overflow:hidden">
   <div style="background:#1c1c2e;padding:28px 32px;border-bottom:1px solid #2c2c3e">
     <div style="font-size:28px;margin-bottom:6px">🚛</div>
     <h2 style="margin:0;font-size:20px">Account Request Update</h2>
-    <p style="margin:4px 0 0;color:#8e8ea0;font-size:13px">Routelo Tracking Portal</p>
+    <p style="margin:4px 0 0;color:#8e8ea0;font-size:13px">${company} · Routelo</p>
   </div>
   <div style="padding:28px 32px">
-    <p style="font-size:15px;margin-bottom:16px">Hi <strong>${user.name}</strong>,<br><br>Your request for access to the Routelo Dispatcher Portal has not been approved at this time.</p>
-    <p style="font-size:13px;color:#8e8ea0">If you believe this is a mistake, please contact <a href="mailto:dispatch@cmplogistics.ca" style="color:#007AFF">dispatch@cmplogistics.ca</a>.</p>
+    <p style="font-size:15px;margin-bottom:16px">Hi <strong>${user.name}</strong>,<br><br>Your request for access to <strong>${company}</strong> has not been approved at this time.</p>
+    <p style="font-size:13px;color:#8e8ea0">If you believe this is a mistake, please contact your company admin.</p>
   </div>
 </div>`.trim() },
           },
@@ -183,7 +184,7 @@ a{color:#007AFF}
     <div class="icon">${icon}</div>
     <h1>${title}</h1>
     <p>${body}</p>
-    <a class="btn" href="https://main.d1j00v80wf0na9.amplifyapp.com">Go to Portal</a>
+    <a class="btn" href="${AMPLIFY_BASE}">Go to Portal</a>
   </div>
 </body>
 </html>`,
