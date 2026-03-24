@@ -44,8 +44,10 @@
      --green:   #34C759;
      --orange:  #FF9500;
      --red:     #FF3B30;
+     --purple:  #af52de;
      --bg:      #0f0f1a;
      --card:    #1c1c2e;
+     --card2:   #252538;
      --border:  #2c2c3e;
      --text:    #ffffff;
      --muted:   #8e8ea0;
@@ -59,233 +61,247 @@
      display: flex;
      flex-direction: column;
      align-items: center;
-     padding: 24px 16px 40px;
+     padding: 16px 16px 60px;
    }
 
-   .logo {
-     font-size: 13px;
-     font-weight: 700;
-     letter-spacing: 2px;
-     text-transform: uppercase;
-     color: var(--muted);
-     margin-bottom: 24px;
-   }
-
-   .card {
-     width: 100%;
-     max-width: 400px;
+   /* ── Tracking Status Card (top, prominent) ── */
+   .status-card {
+     width: 100%; max-width: 420px;
      background: var(--card);
      border: 1px solid var(--border);
-     border-radius: 20px;
-     padding: 24px;
-     margin-bottom: 16px;
-   }
-
-   .card-title {
-     font-size: 11px;
-     font-weight: 600;
-     letter-spacing: 1px;
-     text-transform: uppercase;
-     color: var(--muted);
+     border-radius: 16px;
+     padding: 18px 20px;
      margin-bottom: 14px;
-   }
-
-   .load-number {
-     font-size: 28px;
-     font-weight: 700;
-     margin-bottom: 4px;
-   }
-
-   .load-desc {
-     color: var(--muted);
-     font-size: 14px;
-     margin-bottom: 16px;
-   }
-
-   .route-row {
      display: flex;
-     align-items: flex-start;
-     gap: 12px;
-     margin-bottom: 10px;
+     align-items: center;
+     gap: 16px;
    }
-
-   .route-dot {
-     width: 10px;
-     height: 10px;
+   .status-card.tracking {
+     background: rgba(52,199,89,0.10);
+     border-color: rgba(52,199,89,0.45);
+   }
+   .status-dot-wrap {
+     position: relative;
+     width: 50px; height: 50px;
+     flex-shrink: 0;
+     display: flex; align-items: center; justify-content: center;
+   }
+   .status-pulse {
+     position: absolute;
+     width: 46px; height: 46px;
      border-radius: 50%;
-     margin-top: 4px;
+     border: 8px solid rgba(52,199,89,0.3);
+     animation: pulse 1.3s ease-in-out infinite;
+   }
+   .status-dot {
+     width: 22px; height: 22px;
+     border-radius: 50%;
+     background: var(--muted);
      flex-shrink: 0;
    }
-
-   .route-dot.pickup   { background: var(--blue); }
-   .route-dot.delivery { background: var(--green); }
-
-   .route-label {
-     font-size: 11px;
+   .status-dot.active { background: var(--green); }
+   @keyframes pulse {
+     0%,100% { transform: scale(1);   opacity: 0.7; }
+     50%      { transform: scale(1.35); opacity: 0.2; }
+   }
+   .status-text-title {
+     font-size: 19px; font-weight: 700;
      color: var(--muted);
-     text-transform: uppercase;
-     letter-spacing: 0.5px;
+   }
+   .status-text-title.active { color: var(--green); }
+   .status-text-sub {
+     font-size: 14px; color: var(--muted);
+     margin-top: 3px;
    }
 
-   .route-address { font-size: 14px; line-height: 1.4; }
+   /* ── Card base ── */
+   .card {
+     width: 100%; max-width: 420px;
+     background: var(--card);
+     border: 1px solid var(--border);
+     border-radius: 16px;
+     margin-bottom: 14px;
+     overflow: hidden;
+   }
 
-   /* Status badge */
+   /* ── Card header row ── */
+   .card-header {
+     display: flex; align-items: center;
+     padding: 16px 18px 14px;
+     gap: 10px;
+   }
+   .card-header-icon {
+     font-size: 22px; line-height: 1;
+   }
+   .card-header-title {
+     font-size: 17px; font-weight: 700;
+     color: var(--text);
+   }
+   .card-divider {
+     height: 1px; background: var(--border);
+     margin: 0 18px;
+   }
+
+   /* ── Load number + badge row ── */
+   .load-header {
+     display: flex; align-items: center;
+     justify-content: space-between;
+     padding: 16px 18px 14px;
+     gap: 10px;
+   }
+   .load-number-row {
+     display: flex; align-items: center; gap: 10px;
+   }
+   .load-number-icon { font-size: 22px; }
+   .load-number-text {
+     font-size: 20px; font-weight: 800;
+     color: var(--text);
+   }
+
+   /* ── Status badge ── */
    .status-badge {
-     display: inline-flex;
-     align-items: center;
-     gap: 6px;
-     padding: 4px 12px;
+     display: inline-flex; align-items: center; gap: 6px;
+     padding: 5px 13px;
      border-radius: 20px;
-     font-size: 13px;
-     font-weight: 600;
-     margin-top: 14px;
+     font-size: 13px; font-weight: 600;
+     white-space: nowrap;
    }
    .status-badge.pending   { background: rgba(142,142,160,0.15); color: var(--muted); }
-   .status-badge.accepted  { background: rgba(175,82,222,0.15);  color: #af52de; }
-   .status-badge.active    { background: rgba(52,199,89,0.15);   color: var(--green); }
-   .status-badge.stopped   { background: rgba(255,59,48,0.15);   color: var(--red); }
+   .status-badge.assigned  { background: rgba(0,122,255,0.15);   color: var(--blue); }
+   .status-badge.accepted  { background: rgba(175,82,222,0.15);  color: var(--purple); }
+   .status-badge.active    { background: rgba(255,149,0,0.15);   color: var(--orange); }
+   .status-badge.delivered { background: rgba(52,199,89,0.15);   color: var(--green); }
+   .status-badge.cancelled { background: rgba(255,59,48,0.15);   color: var(--red); }
 
-   /* Accept Load card */
-   .accept-card {
-     width: 100%;
-     max-width: 400px;
-     background: rgba(175,82,222,0.08);
-     border: 1px solid rgba(175,82,222,0.3);
-     border-radius: 20px;
-     padding: 20px 24px;
-     margin-bottom: 16px;
+   /* ── Info rows (PICKUP / DELIVERY / WEIGHT etc) ── */
+   .info-rows { padding: 6px 0 10px; }
+   .info-row {
+     display: flex; align-items: flex-start;
+     gap: 14px;
+     padding: 10px 18px;
    }
-   .accept-card-header {
-     display: flex;
-     align-items: center;
-     gap: 12px;
-     margin-bottom: 16px;
+   .info-row-icon {
+     font-size: 15px; color: var(--muted);
+     width: 20px; flex-shrink: 0;
+     padding-top: 1px;
    }
-   .accept-icon {
-     font-size: 28px;
-     line-height: 1;
-   }
-   .accept-card-title {
-     font-size: 16px;
-     font-weight: 700;
-   }
-   .accept-card-sub {
-     font-size: 13px;
+   .info-row-body { flex: 1; }
+   .info-row-label {
+     font-size: 10px; font-weight: 700;
      color: var(--muted);
-     margin-top: 2px;
+     letter-spacing: 0.6px;
+     text-transform: uppercase;
+     margin-bottom: 3px;
    }
-   .btn-accept {
-     background: #af52de;
-     color: #fff;
+   .info-row-value {
+     font-size: 15px; color: var(--text);
+     line-height: 1.4;
    }
 
-   /* GPS card */
-   .gps-grid {
-     display: grid;
-     grid-template-columns: 1fr 1fr;
-     gap: 12px;
+   /* ── Accept card (purple banner at bottom of load card) ── */
+   .accept-section {
+     border-top: 1px solid var(--border);
+     padding: 14px 18px 18px;
    }
-   .gps-item { }
-   .gps-val {
-     font-size: 20px;
-     font-weight: 600;
+   .accept-from {
+     display: flex; align-items: center; gap: 6px;
+     font-size: 12px; color: var(--purple);
+     font-weight: 500; margin-bottom: 10px;
+   }
+
+   /* ── GPS / Location card ── */
+   .loc-body {
+     padding: 14px 18px 18px;
+     display: flex; align-items: flex-start;
+     justify-content: space-between;
+   }
+   .loc-coords { }
+   .coord-row {
+     display: flex; align-items: baseline; gap: 8px;
+     margin-bottom: 8px;
+   }
+   .coord-label { font-size: 13px; color: var(--muted); min-width: 30px; }
+   .coord-val {
+     font-size: 22px; font-weight: 600;
      font-variant-numeric: tabular-nums;
+     color: var(--text);
    }
-   .gps-unit {
-     font-size: 11px;
-     color: var(--muted);
-     margin-top: 2px;
+   .loc-right {
+     text-align: right;
+   }
+   .loc-speed {
+     font-size: 20px; font-weight: 600;
+     color: var(--text);
+   }
+   .loc-speed-unit { font-size: 13px; color: var(--muted); }
+   .loc-accuracy {
+     font-size: 12px; color: var(--muted);
+     margin-top: 4px;
+   }
+   .loc-last-sent {
+     font-size: 12px; color: var(--muted);
+     padding: 0 18px 14px;
    }
 
-   /* Map */
+   /* ── Map card ── */
    #map {
-     width: 100%;
-     height: 260px;
-     border-radius: 14px;
-     margin-bottom: 14px;
+     width: calc(100% - 24px);
+     height: 230px;
+     border-radius: 12px;
+     margin: 0 12px 12px;
      overflow: hidden;
      background: #1a1a2e;
    }
-   .map-coords {
-     display: flex;
-     gap: 12px;
-     font-size: 12px;
-     color: var(--muted);
-     margin-bottom: 6px;
-   }
-   .map-coords span { font-variant-numeric: tabular-nums; }
 
-   /* Map */
-   #map {
-     width: 100%;
-     height: 260px;
-     border-radius: 14px;
-     margin-bottom: 14px;
-     overflow: hidden;
-     background: #1a1a2e;
-   }
-   .map-coords {
-     display: flex;
-     gap: 12px;
-     font-size: 12px;
-     color: var(--muted);
-     margin-bottom: 6px;
-   }
-   .map-coords span { font-variant-numeric: tabular-nums; }
-
-   /* Accuracy bar */
-   .accuracy-row {
-     display: flex;
-     align-items: center;
-     gap: 8px;
-     margin-top: 14px;
-   }
-   .accuracy-dot {
-     width: 8px; height: 8px;
-     border-radius: 50%;
-     flex-shrink: 0;
-   }
-   .accuracy-dot.good   { background: var(--green); }
-   .accuracy-dot.medium { background: var(--orange); }
-   .accuracy-dot.poor   { background: var(--red); }
-   .accuracy-text { font-size: 12px; color: var(--muted); }
-
-   /* Big button */
+   /* ── Big buttons ── */
    .btn {
-     width: 100%;
-     max-width: 400px;
-     padding: 20px;
-     border: none;
-     border-radius: 16px;
-     font-size: 18px;
-     font-weight: 700;
+     width: 100%; max-width: 420px;
+     padding: 18px;
+     border: none; border-radius: 14px;
+     font-size: 18px; font-weight: 700;
      cursor: pointer;
      transition: opacity 0.2s, transform 0.1s;
-     display: flex;
-     align-items: center;
-     justify-content: center;
-     gap: 10px;
+     display: flex; align-items: center;
+     justify-content: center; gap: 10px;
      margin-bottom: 12px;
      -webkit-tap-highlight-color: transparent;
    }
-   .btn:active { transform: scale(0.97); opacity: 0.85; }
+   .btn:active  { transform: scale(0.97); opacity: 0.85; }
    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-   .btn-start { background: var(--green); color: #fff; }
-   .btn-stop  { background: var(--red);   color: #fff; }
+   .btn-accept  { background: var(--purple); color: #fff; width: 100%; border-radius: 12px; padding: 14px; font-size: 16px; font-weight: 700; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; -webkit-tap-highlight-color: transparent; }
+   .btn-accept:active { opacity: 0.85; }
+   .btn-start   { background: var(--green);  color: #fff; }
+   .btn-stop    { background: var(--orange); color: #fff; }
+   .btn-deliver { background: var(--green);  color: #fff; }
    .btn-loading { background: var(--orange); color: #fff; }
 
-   /* Update log */
+   /* ── Update log ── */
+   .log-body { padding: 4px 18px 14px; }
    .log-item {
-     font-size: 12px;
-     color: var(--muted);
-     padding: 6px 0;
+     font-size: 12px; color: var(--muted);
+     padding: 7px 0;
      border-bottom: 1px solid var(--border);
-     display: flex;
-     gap: 8px;
+     display: flex; gap: 8px;
    }
    .log-item:last-child { border-bottom: none; }
    .log-time { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+
+   /* ── Accept Load legacy outer card (replaced but keep for safety) ── */
+   .accept-card {
+     width: 100%; max-width: 420px;
+     background: rgba(175,82,222,0.08);
+     border: 1px solid rgba(175,82,222,0.3);
+     border-radius: 16px;
+     padding: 18px 20px;
+     margin-bottom: 14px;
+   }
+   .accept-card-header {
+     display: flex; align-items: center;
+     gap: 12px; margin-bottom: 14px;
+   }
+   .accept-icon { font-size: 26px; line-height: 1; }
+   .accept-card-title { font-size: 16px; font-weight: 700; }
+   .accept-card-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
 
    /* Error banner */
    /* Error banner */
@@ -483,8 +499,8 @@
  <!-- Connection status bar -->
  <div id="conn-bar"></div>
 
- <!-- Company name header -->
- <div style="text-align:center;margin-bottom:20px;display:flex;align-items:center;justify-content:center;gap:10px">
+ <!-- Header logo -->
+ <div style="text-align:center;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:10px">
    <svg width="36" height="36" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
      <circle cx="24" cy="24" r="22" stroke="#7F77DD" stroke-width="1.6" opacity="0.25"/>
      <circle cx="24" cy="24" r="16.7" stroke="#7F77DD" stroke-width="1.6" opacity="0.45"/>
@@ -493,21 +509,20 @@
      <circle cx="24" cy="24" r="2.2" fill="white"/>
    </svg>
    <div style="text-align:left">
-     <div style="font-size:19px;font-weight:600;color:#fff;letter-spacing:-0.3px;line-height:1.1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">Routelo</div>
-     <div style="font-size:8px;color:#8e8ea0;letter-spacing:2px;text-transform:uppercase;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">LIVE TRACKING</div>
+     <div style="font-size:19px;font-weight:600;color:#fff;letter-spacing:-0.3px;line-height:1.1">Routelo</div>
+     <div style="font-size:8px;color:#8e8ea0;letter-spacing:2px;text-transform:uppercase">LIVE TRACKING</div>
    </div>
  </div>
 
  <div id="error-banner"   class="error-banner"></div>
  <div id="success-banner" class="success-banner"></div>
 
- <!-- ── PWA Install Modal ─────────────────────────────────────────────────── -->
+ <!-- ── PWA Install Modal ──────────────────────────────────────────────── -->
  <div id="pwa-modal-overlay">
    <div id="pwa-modal-box">
      <div id="pwa-modal-icon">
        <svg width="54" height="48" viewBox="0 0 62 55" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto 4px">
-         <circle cx="16" cy="16" r="16" fill="#378ADD"/>
-         <circle cx="16" cy="16" r="6" fill="white"/>
+         <circle cx="16" cy="16" r="16" fill="#378ADD"/><circle cx="16" cy="16" r="6" fill="white"/>
          <path d="M7 30 L25 30 L21.5 40.5 L16 47 L10.5 40.5 Z" fill="#378ADD"/>
          <rect x="35" y="14" width="5" height="3.5" rx="1.75" fill="#378ADD"/>
          <rect x="42" y="14" width="5" height="3.5" rx="1.75" fill="#378ADD"/>
@@ -517,112 +532,162 @@
      </div>
      <div id="pwa-modal-title">Add App to Phone</div>
      <div id="pwa-modal-sub">Keeps GPS running in the background — no App Store needed.</div>
-     <div id="pwa-modal-body"><!-- filled by JS --></div>
+     <div id="pwa-modal-body"></div>
      <button id="pwa-android-btn" style="display:none" onclick="triggerAndroidInstall()">📲 Add to Home Screen</button>
      <button id="pwa-modal-dismiss" onclick="dismissPWABanner()">Not now — show my load ›</button>
    </div>
  </div>
- <!-- Animated arrow pointing DOWN at Safari share button (iOS only) -->
- <div id="pwa-arrow">
-   <div id="pwa-arrow-inner">👇 Tap this button below ↓</div>
- </div>
- <!-- keep old ids so legacy JS refs don't crash -->
+ <div id="pwa-arrow"><div id="pwa-arrow-inner">👇 Tap this button below ↓</div></div>
  <div id="pwa-banner" style="display:none"></div>
  <div id="ios-tip-banner" style="display:none"></div>
 
- <!-- ── Load Info Card ──────────────────────────────────────────────────── -->
+ <!-- ── Tracking Status Card ──────────────────────────────────────────── -->
+ <div class="status-card" id="tracking-status-card">
+   <div class="status-dot-wrap">
+     <div class="status-pulse" id="status-pulse" style="display:none"></div>
+     <div class="status-dot" id="status-dot"></div>
+   </div>
+   <div>
+     <div class="status-text-title" id="status-title">Tracking Stopped</div>
+     <div class="status-text-sub"   id="status-sub"></div>
+   </div>
+ </div>
+
+ <!-- ── Load Info Card ────────────────────────────────────────────────── -->
  <div class="card" id="load-card">
-   <p class="card-title">Your Load</p>
-   <div id="load-number" class="load-number">Your Load</div>
-   <div id="load-desc"   class="load-desc">Loading details…</div>
-
-   <div class="route-row">
-     <div class="route-dot pickup"></div>
-     <div>
-       <div class="route-label">Pickup</div>
-       <div id="pickup-addr" class="route-address">—</div>
+   <div class="load-header">
+     <div class="load-number-row">
+       <span class="load-number-icon">📦</span>
+       <span class="load-number-text" id="load-number">Loading…</span>
+     </div>
+     <span id="status-badge" class="status-badge pending">⏳ Pending</span>
+   </div>
+   <div class="card-divider"></div>
+   <div class="info-rows">
+     <div class="info-row">
+       <div class="info-row-icon">⬆️</div>
+       <div class="info-row-body">
+         <div class="info-row-label">Pickup</div>
+         <div class="info-row-value" id="pickup-addr">—</div>
+         <div style="font-size:12px;color:var(--muted);margin-top:2px" id="pickup-date"></div>
+       </div>
+     </div>
+     <div class="info-row">
+       <div class="info-row-icon">⬇️</div>
+       <div class="info-row-body">
+         <div class="info-row-label">Delivery</div>
+         <div class="info-row-value" id="delivery-addr">—</div>
+         <div style="font-size:12px;color:var(--muted);margin-top:2px" id="delivery-date"></div>
+       </div>
+     </div>
+     <div class="info-row" id="row-weight" style="display:none">
+       <div class="info-row-icon">⚖️</div>
+       <div class="info-row-body">
+         <div class="info-row-label">Weight</div>
+         <div class="info-row-value" id="load-weight"></div>
+       </div>
+     </div>
+     <div class="info-row" id="row-customer" style="display:none">
+       <div class="info-row-icon">👤</div>
+       <div class="info-row-body">
+         <div class="info-row-label">Customer</div>
+         <div class="info-row-value" id="load-customer"></div>
+       </div>
+     </div>
+     <div class="info-row" id="row-notes" style="display:none">
+       <div class="info-row-icon">📋</div>
+       <div class="info-row-body">
+         <div class="info-row-label">Notes</div>
+         <div class="info-row-value" id="load-notes"></div>
+       </div>
      </div>
    </div>
-   <div class="route-row">
-     <div class="route-dot delivery"></div>
-     <div>
-       <div class="route-label">Delivery</div>
-       <div id="delivery-addr" class="route-address">—</div>
-     </div>
-   </div>
-
-   <div id="status-badge" class="status-badge pending">⏳ Pending</div>
- </div>
-
- <!-- ── Accept Load Card (shown when status = Assigned) ──────────────────── -->
- <div class="accept-card" id="accept-card" style="display:none;">
-   <div class="accept-card-header">
-     <div class="accept-icon">🔔</div>
-     <div>
-       <div class="accept-card-title">New Load Assigned</div>
-       <div class="accept-card-sub" id="accept-pickup-time">Pickup: —</div>
-     </div>
-   </div>
-   <button id="btn-accept" class="btn btn-accept" onclick="acceptLoad()">✅ Accept Load</button>
- </div>
-
- <!-- ── GPS / Map Card ──────────────────────────────────────────────────── -->
- <div class="card" id="gps-card" style="display:none;">
-   <p class="card-title">Live Location</p>
-   <div id="map"></div>
-   <div class="map-coords">
-     <span id="gps-lat">Lat —</span>
-     <span id="gps-lng">Lng —</span>
-     <span id="gps-speed"></span>
-   </div>
-   <div class="accuracy-row">
-     <div class="accuracy-dot" id="acc-dot"></div>
-     <div class="accuracy-text" id="acc-text">Waiting for GPS…</div>
+   <!-- Accept section (shown when Assigned) -->
+   <div class="accept-section" id="accept-card" style="display:none">
+     <div style="font-size:12px;color:var(--purple);margin-bottom:6px;display:flex;align-items:center;gap:6px" id="accept-from-label" style="display:none">🔔 <span id="accept-from-text"></span></div>
+     <div style="font-size:12px;color:var(--muted);margin-bottom:10px" id="accept-pickup-time"></div>
+     <button id="btn-accept" class="btn-accept" onclick="acceptLoad()">✅ Accept Load</button>
    </div>
  </div>
 
- <!-- ── Delivered success screen ───────────────────────────────────────── -->
- <div id="delivered-screen">
-   <div class="check-circle">✅</div>
+ <!-- ── Delivered screen ────────────────────────────────────────────────── -->
+ <div id="delivered-screen" style="display:none;flex-direction:column;align-items:center;text-align:center;gap:16px;padding:40px 0;width:100%;max-width:420px">
+   <div style="width:80px;height:80px;background:rgba(52,199,89,0.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:40px">✅</div>
    <h2 style="font-size:22px;">Trip Complete!</h2>
-   <p style="color:var(--muted);font-size:14px;text-align:center;line-height:1.6;">
+   <p style="color:var(--muted);font-size:14px;line-height:1.6;max-width:300px">
      Tracking has stopped. The dispatcher has been notified.<br><br>
      <strong style="color:var(--text);">This load is done.</strong><br>
-     When your next load is assigned, you'll get a new SMS link from dispatch — just tap it to load up again. 🚛
+     When your next load is assigned, you'll get a new SMS link from dispatch. 🚛
    </p>
  </div>
 
- <!-- ── No active load screen (shown when PWA icon opened with no assignment) ── -->
- <div id="no-load-screen" style="display:none;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:32px 24px;">
+ <!-- ── No active load screen ────────────────────────────────────────────── -->
+ <div id="no-load-screen" style="display:none;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:32px 24px;width:100%;max-width:420px">
    <div style="font-size:64px;margin-bottom:20px;">🚛</div>
    <h2 style="font-size:22px;font-weight:700;margin-bottom:8px;">No Active Load</h2>
-   <p id="no-load-msg" style="color:var(--muted);font-size:14px;line-height:1.6;max-width:300px;margin-bottom:24px;">
-     You have no load assigned right now.
-   </p>
-   <!-- Phone lookup — lets driver find their load by entering their cell number -->
+   <p id="no-load-msg" style="color:var(--muted);font-size:14px;line-height:1.6;max-width:300px;margin-bottom:24px;">You have no load assigned right now.</p>
    <div id="phone-lookup" style="width:100%;max-width:320px;margin-bottom:20px;">
      <p style="color:var(--muted);font-size:13px;margin-bottom:10px;">Have a load assigned? Enter your phone number to find it:</p>
      <input id="lookup-phone" type="tel" placeholder="e.g. +1 347 559 9151"
        style="width:100%;padding:14px 16px;background:#1c1c2e;border:1px solid #2c2c3e;border-radius:12px;color:#fff;font-size:16px;margin-bottom:10px;box-sizing:border-box;"
        onkeydown="if(event.key==='Enter')lookupByPhone()"/>
      <button onclick="lookupByPhone()" id="btn-lookup"
-       style="width:100%;padding:14px;background:#007AFF;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;">
-       Find My Load
-     </button>
+       style="width:100%;padding:14px;background:#007AFF;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;">Find My Load</button>
      <p id="lookup-error" style="color:#FF3B30;font-size:13px;margin-top:8px;display:none;"></p>
    </div>
  </div>
 
  <!-- ── Action Buttons ──────────────────────────────────────────────────── -->
  <button id="btn-start"   class="btn btn-start"   onclick="startTracking()" style="display:none;">🚛 Start Tracking</button>
- <button id="btn-stop"    class="btn btn-stop"    onclick="stopTracking()"   style="display:none;">⏸ Pause Tracking</button>
- <button id="btn-deliver" class="btn"             onclick="markDelivered()"  style="display:none;background:#34C759;color:#fff;">✅ Mark as Delivered</button>
+ <button id="btn-stop"    class="btn btn-stop"     onclick="stopTracking()"  style="display:none;">⏸ Stop Tracking</button>
+ <button id="btn-deliver" class="btn btn-deliver"  onclick="markDelivered()" style="display:none;">✅ Mark as Delivered</button>
+
+ <!-- ── Current Location Card ─────────────────────────────────────────────── -->
+ <div class="card" id="gps-card" style="display:none;">
+   <div class="card-header">
+     <span style="font-size:20px">📍</span>
+     <span class="card-header-title">Current Location</span>
+   </div>
+   <div class="card-divider"></div>
+   <div class="loc-body">
+     <div class="loc-coords">
+       <div class="coord-row">
+         <span class="coord-label">Lat:</span>
+         <span class="coord-val" id="gps-lat">—</span>
+       </div>
+       <div class="coord-row">
+         <span class="coord-label">Lng:</span>
+         <span class="coord-val" id="gps-lng">—</span>
+       </div>
+     </div>
+     <div class="loc-right">
+       <div class="loc-speed"><span id="gps-speed">0</span> <span class="loc-speed-unit">mph</span></div>
+       <div class="loc-accuracy" id="acc-text">—</div>
+     </div>
+   </div>
+   <div class="loc-last-sent" id="last-sent-label" style="display:none"></div>
+ </div>
+
+ <!-- ── Live Map Card ─────────────────────────────────────────────────────── -->
+ <div class="card" id="map-card" style="display:none;">
+   <div class="card-header">
+     <span style="font-size:20px">🗺️</span>
+     <span class="card-header-title">Live Map</span>
+   </div>
+   <div id="map"></div>
+ </div>
 
  <!-- ── Update Log ──────────────────────────────────────────────────────── -->
  <div class="card" id="log-card" style="display:none;">
-   <p class="card-title">Activity</p>
-   <div id="log-list"></div>
+   <div class="card-header">
+     <span style="font-size:20px">📡</span>
+     <span class="card-header-title">Activity</span>
+   </div>
+   <div class="card-divider"></div>
+   <div class="log-body"><div id="log-list"></div></div>
  </div>
+
+ <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:4px;display:none" id="gps-note">GPS updates every 10 seconds • Works with screen locked</p>
 
  <!-- Injects window.CMP_API_BASE – replaced with the real API Gateway URL at build time -->
  <script src="config.js"></script>
@@ -1019,14 +1084,52 @@
 
    function populateLoad(data) {
      loadData = data;
-     // Save driver phone so the PWA can look up the load when opened with no token
      if (data.assignedDriverPhone) {
        try { localStorage.setItem('cmp_driver_phone', data.assignedDriverPhone); } catch(e) {}
      }
-     document.getElementById("load-number").textContent   = data.loadNumber || "—";
-     document.getElementById("load-desc").textContent     = data.description || "";
-     document.getElementById("pickup-addr").textContent   = data.pickupAddress || "—";
+
+     // ── Load number ──
+     document.getElementById("load-number").textContent = data.loadNumber || "—";
+
+     // ── Pickup / delivery addresses + dates ──
+     document.getElementById("pickup-addr").textContent   = data.pickupAddress   || "—";
      document.getElementById("delivery-addr").textContent = data.deliveryAddress || "—";
+     if (data.pickupDate) {
+       document.getElementById("pickup-date").textContent =
+         new Date(data.pickupDate).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+     }
+     if (data.deliveryDate) {
+       document.getElementById("delivery-date").textContent =
+         new Date(data.deliveryDate).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+     }
+
+     // ── Weight ──
+     if (data.weight) {
+       document.getElementById("load-weight").textContent = Number(data.weight).toLocaleString() + " lbs";
+       document.getElementById("row-weight").style.display = "flex";
+     }
+
+     // ── Customer ──
+     if (data.customerName) {
+       document.getElementById("load-customer").textContent = data.customerName;
+       document.getElementById("row-customer").style.display = "flex";
+     }
+
+     // ── Notes ──
+     if (data.notes) {
+       document.getElementById("load-notes").textContent = data.notes;
+       document.getElementById("row-notes").style.display = "flex";
+     }
+
+     // ── Dispatcher from label in accept section ──
+     if (data.dispatcherEmail) {
+       var fromLabel = document.getElementById("accept-from-label");
+       var fromText  = document.getElementById("accept-from-text");
+       if (fromLabel && fromText) {
+         fromText.textContent = "From " + data.dispatcherEmail;
+         fromLabel.style.display = "flex";
+       }
+     }
 
      if (data.pickupDate && (data.status === 'Assigned' || data.status === 'Accepted')) {
        schedulePickupReminders(data.pickupDate);
@@ -1036,25 +1139,8 @@
          'Load ' + (data.loadNumber || '') + ' — pickup at ' + (data.pickupAddress || ''));
      }
 
-     var extras = "";
-     if (data.weight)       extras += '<div style="font-size:13px;color:var(--muted);margin-top:6px">⚖️ ' + Number(data.weight).toLocaleString() + ' lbs</div>';
-     if (data.pickupDate)   extras += '<div style="font-size:13px;color:var(--muted);margin-top:4px">📅 Pickup: ' + new Date(data.pickupDate).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"}) + '</div>';
-     if (data.deliveryDate) extras += '<div style="font-size:13px;color:var(--muted);margin-top:4px">📅 Delivery by: ' + new Date(data.deliveryDate).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"}) + '</div>';
-     if (data.customerName) extras += '<div style="font-size:13px;color:var(--muted);margin-top:4px">🏢 Customer: ' + data.customerName + '</div>';
-     if (data.notes)        extras += '<div style="font-size:13px;color:var(--muted);margin-top:4px;padding:8px;background:rgba(255,255,255,.04);border-radius:8px">📝 ' + data.notes + '</div>';
-     // Always replace (never append) so re-calling populateLoad doesn't duplicate extras
-     var existingExtras = document.getElementById("load-card-extras");
-     if (existingExtras) {
-       existingExtras.innerHTML = extras;
-     } else if (extras) {
-       var extraDiv = document.createElement("div");
-       extraDiv.id = "load-card-extras";
-       extraDiv.style.marginTop = "10px";
-       extraDiv.innerHTML = extras;
-       document.getElementById("load-card").appendChild(extraDiv);
-     }
-
      var badge = document.getElementById("status-badge");
+
      if (data.status === "In Transit") {
        badge.className   = "status-badge active";
        badge.textContent = "🚛 In Transit";
@@ -1062,33 +1148,40 @@
        document.getElementById("btn-stop").style.display    = "flex";
        document.getElementById("btn-deliver").style.display = "flex";
        document.getElementById("gps-card").style.display    = "block";
+       document.getElementById("map-card").style.display    = "block";
        document.getElementById("log-card").style.display    = "block";
+       document.getElementById("gps-note").style.display    = "block";
+       setTrackingStatusCard(true, "Tracking Active");
        isTracking = true;
        loadTrailHistory();
        startNoSleep();
-       // ── Auto-resume GPS immediately — don't require a tap ─────────────────
-       // Whether this is a fresh open or a reload after a crash/lock, just
-       // restart GPS right away so the dispatcher gets location immediately.
        startGPS(false);
      } else if (data.status === "Delivered") {
-       badge.className   = "status-badge stopped";
+       badge.className   = "status-badge delivered";
        badge.textContent = "✅ Delivered";
-       document.getElementById("btn-start").style.display = "none";
-       document.getElementById("gps-card").style.display  = "none";
+       document.getElementById("btn-start").style.display   = "none";
+       document.getElementById("gps-card").style.display    = "none";
+       document.getElementById("map-card").style.display    = "none";
        document.getElementById("delivered-screen").style.display = "flex";
+       setTrackingStatusCard(false, "Tracking Stopped");
        saveTrackingState(false);
      } else if (data.status === "Accepted") {
        badge.className   = "status-badge accepted";
        badge.textContent = "✅ Accepted";
        document.getElementById("accept-card").style.display = "none";
        document.getElementById("gps-card").style.display    = "block";
+       document.getElementById("map-card").style.display    = "block";
        document.getElementById("btn-start").style.display   = "flex";
+       setTrackingStatusCard(false, "Ready to Track");
      } else {
-       badge.textContent = "⏳ " + (data.status || "Pending");
-       document.getElementById("gps-card").style.display   = "none";
-       document.getElementById("btn-start").style.display  = "none";
-       var acceptCard = document.getElementById("accept-card");
-       acceptCard.style.display = "block";
+       // Assigned / Pending
+       badge.className   = "status-badge assigned";
+       badge.textContent = "👤 Assigned";
+       document.getElementById("gps-card").style.display    = "none";
+       document.getElementById("map-card").style.display    = "none";
+       document.getElementById("btn-start").style.display   = "none";
+       document.getElementById("accept-card").style.display = "block";
+       setTrackingStatusCard(false, "Tracking Stopped");
        if (data.pickupDate) {
          document.getElementById("accept-pickup-time").textContent =
            "Pickup: " + new Date(data.pickupDate).toLocaleDateString("en-US", {
@@ -1097,6 +1190,27 @@
            });
        }
      }
+   }
+
+   function setTrackingStatusCard(active, title, sub) {
+     var card  = document.getElementById("tracking-status-card");
+     var dot   = document.getElementById("status-dot");
+     var pulse = document.getElementById("status-pulse");
+     var titleEl = document.getElementById("status-title");
+     var subEl   = document.getElementById("status-sub");
+     if (active) {
+       card.classList.add("tracking");
+       dot.classList.add("active");
+       pulse.style.display = "block";
+       titleEl.classList.add("active");
+     } else {
+       card.classList.remove("tracking");
+       dot.classList.remove("active");
+       pulse.style.display = "none";
+       titleEl.classList.remove("active");
+     }
+     titleEl.textContent = title || (active ? "Tracking Active" : "Tracking Stopped");
+     if (subEl && sub) subEl.textContent = sub;
    }
 
    // ── Start Tracking ────────────────────────────────────────────────────────
@@ -1137,7 +1251,11 @@
          btn.style.display = 'none';
          document.getElementById('btn-stop').style.display    = 'flex';
          document.getElementById('btn-deliver').style.display = 'flex';
+         document.getElementById('gps-card').style.display    = 'block';
+         document.getElementById('map-card').style.display    = 'block';
          document.getElementById('log-card').style.display    = 'block';
+         document.getElementById('gps-note').style.display    = 'block';
+         setTrackingStatusCard(true, 'Tracking Active');
          showSuccess('✅ Tracking started! Dispatcher has been notified.');
          addLog('🚛 Tracking started');
          driverNotify('🚛 Tracking Started', 'Your location is now being shared. Drive safe!');
@@ -1313,22 +1431,21 @@
        updateLocalStatus("Delivered");
        document.getElementById("btn-stop").style.display    = "none";
        document.getElementById("btn-deliver").style.display = "none";
-       document.getElementById("status-badge").className    = "status-badge stopped";
+       document.getElementById("gps-card").style.display    = "none";
+       document.getElementById("map-card").style.display    = "none";
+       document.getElementById("status-badge").className    = "status-badge delivered";
        document.getElementById("status-badge").textContent  = "✅ Delivered";
        document.getElementById("delivered-screen").style.display = "flex";
+       setTrackingStatusCard(false, "Tracking Stopped");
        addLog("✅ Marked as Delivered");
        driverNotify('📦 Delivery Complete!',
          'Load ' + (loadData ? loadData.loadNumber : '') + ' marked as delivered. Great work!');
-       // Clear the saved PWA token so the home screen icon shows
-       // "waiting for next load" instead of this completed load.
-       // When dispatcher assigns the next load the new SMS link will
-       // re-activate the icon automatically.
        try {
          localStorage.removeItem('cmp_pwa_token');
          localStorage.removeItem('cmp_pwa_loadid');
          localStorage.removeItem('cmp_pwa_delivered_at');
          localStorage.setItem('cmp_pwa_delivered_at', new Date().toISOString());
-         localStorage.setItem('cmp_pwa_installed', '1'); // already installed — never ask again
+         localStorage.setItem('cmp_pwa_installed', '1');
        } catch(e) {}
      }
 
@@ -1365,8 +1482,9 @@
      document.getElementById("btn-start").style.display   = "flex";
      document.getElementById("status-badge").className    = "status-badge pending";
      document.getElementById("status-badge").textContent  = "⏸ Paused";
+     setTrackingStatusCard(false, "Tracking Stopped");
      resetStartButton();
-     addLog("⏸ Tracking paused");
+     addLog("⏸ Tracking stopped");
    }
 
    // ── GPS Helpers ───────────────────────────────────────────────────────────
@@ -1515,16 +1633,25 @@
 
    function updateGPSDisplay(pos) {
      var c = pos.coords;
-     document.getElementById("gps-lat").textContent  = "Lat " + c.latitude.toFixed(5);
-     document.getElementById("gps-lng").textContent  = "Lng " + c.longitude.toFixed(5);
-     var spd = c.speed != null ? (c.speed * 2.237).toFixed(1) + " mph" : "";
-     document.getElementById("gps-speed").textContent = spd;
+     document.getElementById("gps-lat").textContent = c.latitude.toFixed(5);
+     document.getElementById("gps-lng").textContent = c.longitude.toFixed(5);
+     var spdMph = c.speed != null ? Math.round(c.speed * 2.237) : 0;
+     document.getElementById("gps-speed").textContent = spdMph;
      var acc  = c.accuracy;
-     var dot  = document.getElementById("acc-dot");
      var text = document.getElementById("acc-text");
-     if (acc <= 20)       { dot.className = "accuracy-dot good";   text.textContent = "±" + Math.round(acc) + "m — Good signal"; }
-     else if (acc <= 100) { dot.className = "accuracy-dot medium"; text.textContent = "±" + Math.round(acc) + "m — Fair signal"; }
-     else                 { dot.className = "accuracy-dot poor";   text.textContent = "±" + Math.round(acc) + "m — Poor signal"; }
+     text.textContent = "±" + Math.round(acc) + "m";
+
+     // Update tracking status card subtitle with last sent time
+     var now = new Date();
+     var timeStr = now.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"});
+     var subEl = document.getElementById("status-sub");
+     if (subEl) subEl.textContent = "Sent at " + timeStr;
+     setTrackingStatusCard(true, "Tracking Active", "Sent at " + timeStr);
+
+     // Last sent label in location card
+     var lastSent = document.getElementById("last-sent-label");
+     if (lastSent) { lastSent.textContent = "Last sent at " + timeStr; lastSent.style.display = "block"; }
+
      updateMap(c.latitude, c.longitude, c.accuracy);
    }
 
