@@ -12,21 +12,13 @@
 import SwiftUI
 import MapKit
 
-// MARK: - Road-Snapping MKMapView Wrapper
+// MARK: - Tracking MKMapView Wrapper
 
-/// UIViewRepresentable wrapping MKMapView with OSRM /match road-snapping.
-/// Mirrors the same approach used in the web pages (driver-tracking.html /
-/// track-shipment.html) so both platforms behave identically.
-///
-/// Strategy:
-///   1. Raw GPS trail is drawn immediately as an MKPolyline (no visual gap).
-///   2. A 2-second debounced URLSession call to the free OSRM /match API
-///      returns road-snapped GeoJSON geometry.
-///   3. The raw overlay is replaced with the snapped one.
-///   4. If OSRM fails (no network, timeout, no match) the raw line stays.
+/// UIViewRepresentable wrapping MKMapView.
+/// Shows truck annotation and optional destination pin only — no trail line.
 struct RoadSnappingMapView: UIViewRepresentable {
     let annotations: [TrackAnnotation]
-    let rawTrail: [CLLocationCoordinate2D]
+    let rawTrail: [CLLocationCoordinate2D]   // kept for API compatibility, not drawn
     var destinationCoordinate: CLLocationCoordinate2D?
     @Binding var region: MKCoordinateRegion
 
@@ -44,8 +36,6 @@ struct RoadSnappingMapView: UIViewRepresentable {
     }
 
     func updateUIView(_ mv: MKMapView, context: Context) {
-        let coordinator = context.coordinator
-
         // ── Sync region only when SwiftUI explicitly moves it ────────────
         let c = mv.region.center
         let d = region.center
@@ -61,115 +51,12 @@ struct RoadSnappingMapView: UIViewRepresentable {
         if let dest = destinationCoordinate {
             mv.addAnnotation(DestinationPin(coordinate: dest))
         }
-
-        // ── Update raw trail overlay immediately ─────────────────────────
-        guard rawTrail.count >= 2 else { return }
-
-        // Replace raw overlay with latest points so there's never a gap
-        if let existing = coordinator.rawOverlay { mv.removeOverlay(existing) }
-        var coords = rawTrail
-        let rawPolyline = MKPolyline(coordinates: &coords, count: coords.count)
-        coordinator.rawOverlay = rawPolyline
-        mv.addOverlay(rawPolyline, level: .aboveRoads)
-
-        // ── Schedule debounced OSRM snap (3 s after last GPS update) ─────
-        coordinator.debounceTimer?.invalidate()
-        coordinator.debounceTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
-            coordinator.snapToRoads(rawTrail, mapView: mv)
-        }
+        // No trail/polyline drawn — truck icon only
     }
 
     // MARK: - Coordinator
 
     class Coordinator: NSObject, MKMapViewDelegate {
-        var rawOverlay: MKPolyline?        // straight GPS trail (shown while snap is pending)
-        var snappedOverlay: MKPolyline?    // road-snapped result from OSRM
-        var debounceTimer: Timer?
-        var currentTask: URLSessionDataTask?
-
-        // MARK: OSRM map-match snap
-        // Uses /match/v1 (GPS trace → road) instead of /route/v1 (A→B routing).
-        // /match is specifically designed to snap a recorded GPS track onto roads.
-        func snapToRoads(_ trail: [CLLocationCoordinate2D], mapView mv: MKMapView) {
-            guard trail.count >= 2 else { return }
-
-            // Sample down to ≤100 waypoints — more points = better accuracy on curves
-            // but OSRM match caps at 100 per request.
-            var pts = trail
-            if pts.count > 100 {
-                let step = Double(pts.count - 1) / 99.0
-                var sampled: [CLLocationCoordinate2D] = []
-                for i in 0..<99 { sampled.append(pts[Int((Double(i) * step).rounded())]) }
-                sampled.append(pts[pts.count - 1])
-                pts = sampled
-            }
-
-            let coordStr   = pts.map { "\($0.longitude),\($0.latitude)" }.joined(separator: ";")
-            // radiuses: tell OSRM how far (meters) each GPS point may be from the road.
-            // 25m is a good default for automotive GPS accuracy.
-            let radiusStr  = Array(repeating: "25", count: pts.count).joined(separator: ";")
-            // Synthetic timestamps spaced 5s apart so OSRM can infer speed per segment
-            let timestamps = (0..<pts.count).map { "\($0 * 5)" }.joined(separator: ";")
-
-            let urlStr = "https://router.project-osrm.org/match/v1/driving/\(coordStr)"
-                       + "?overview=full&geometries=geojson&steps=false"
-                       + "&radiuses=\(radiusStr)"
-                       + "&timestamps=\(timestamps)"
-                       + "&tidy=true"   // remove impossible jumps / GPS noise
-            guard let url = URL(string: urlStr) else { return }
-
-            currentTask?.cancel()
-            var request = URLRequest(url: url)
-            request.timeoutInterval = 15
-            currentTask = URLSession.shared.dataTask(with: request) { data, _, _ in
-                guard let data = data,
-                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      (json["code"] as? String) == "Ok",
-                      let matchings = json["matchings"] as? [[String: Any]]
-                else {
-                    // OSRM match failed — raw trail remains visible
-                    return
-                }
-
-                // Collect all road-snapped coordinates from every matching segment
-                var roadCoords: [CLLocationCoordinate2D] = []
-                for match in matchings {
-                    guard let geometry  = match["geometry"] as? [String: Any],
-                          let coordsArr = geometry["coordinates"] as? [[Double]]
-                    else { continue }
-                    for c in coordsArr {
-                        guard c.count >= 2 else { continue }
-                        roadCoords.append(CLLocationCoordinate2D(latitude: c[1], longitude: c[0]))
-                    }
-                }
-                guard roadCoords.count >= 2 else { return }
-
-                DispatchQueue.main.async {
-                    if let raw = self.rawOverlay    { mv.removeOverlay(raw) }
-                    if let old = self.snappedOverlay { mv.removeOverlay(old) }
-                    var snapped = roadCoords
-                    let snappedPolyline = MKPolyline(coordinates: &snapped, count: snapped.count)
-                    self.snappedOverlay = snappedPolyline
-                    self.rawOverlay = nil
-                    mv.addOverlay(snappedPolyline, level: .aboveRoads)
-                }
-            }
-            currentTask?.resume()
-        }
-
-        // MARK: MKMapViewDelegate
-        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
-            guard let polyline = overlay as? MKPolyline else {
-                return MKOverlayRenderer(overlay: overlay)
-            }
-            let r = MKPolylineRenderer(polyline: polyline)
-            r.strokeColor = UIColor.systemBlue
-            r.lineWidth   = 5
-            r.lineJoin    = .round
-            r.lineCap     = .round
-            r.alpha       = 0.85
-            return r
-        }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
             if let pin = annotation as? TrackPin {
@@ -302,7 +189,7 @@ struct TrackingMapView: View {
     @StateObject private var network = NetworkManager.shared
     @State private var mapRegion: MKCoordinateRegion
     @State private var annotations: [TrackAnnotation] = []
-    @State private var rawTrail: [CLLocationCoordinate2D] = []   // raw GPS points fed to RoadSnappingMapView
+    @State private var rawTrail: [CLLocationCoordinate2D] = []   // kept for API compat, not drawn
     @State private var pollingTimer: Timer?
     @State private var lastUpdate: LocationUpdate?
     @State private var isArrived = false
@@ -318,7 +205,7 @@ struct TrackingMapView: View {
         ))
         _annotations = State(initialValue: [TrackAnnotation(location: initialLocation)])
         _lastUpdate = State(initialValue: initialLocation)
-        _rawTrail = State(initialValue: [initialLocation.coordinate])
+        _rawTrail = State(initialValue: [])   // no seed — trail not drawn
     }
 
     var body: some View {
@@ -911,8 +798,7 @@ struct CustomerTrackingView: View {
                             center: loc.coordinate,
                             span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
                         )
-                        // Seed trail with current location; more points arrive via WebSocket
-                        self.rawTrail = [loc.coordinate]
+                        // No seed in rawTrail — trail not drawn
                     }
                     // Geocode delivery address → destination pin
                     let geocoder = CLGeocoder()
