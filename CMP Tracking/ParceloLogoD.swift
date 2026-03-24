@@ -52,7 +52,7 @@ struct ParceloWordmarkD: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: size * 0.025) {
-            Text("CMP Logistics")
+            Text("Routelo")
                 .font(.system(size: size * 0.26, weight: .semibold, design: .default))
                 .foregroundColor(.primary)
                 .kerning(-0.5)

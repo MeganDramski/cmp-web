@@ -78,7 +78,9 @@ struct ActiveLoadsTab: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     HStack(spacing: 10) {
-                        ParceloLogoD(showWordmark: false, size: 32)
+                        Text("Routelo")
+                            .font(.headline)
+                            .fontWeight(.semibold)
                         Button(action: { authManager.signOut(); appState.logout() }) {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
                         }
@@ -782,7 +784,7 @@ struct LoadDetailView: View {
 
     private func openSMSFallback(driverPhone: String) {
         let link = load.webTrackingURL
-        let msg = "CMP Logistics – Load \(load.loadNumber)\nPickup: \(load.pickupAddress)\nDelivery: \(load.deliveryAddress)\n\nTap here to start tracking:\n\(link)"
+        let msg = "Routelo – Load \(load.loadNumber)\nPickup: \(load.pickupAddress)\nDelivery: \(load.deliveryAddress)\n\nTap here to start tracking:\n\(link)"
         let encoded = msg.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let smsTarget = driverPhone.filter { $0.isNumber || $0 == "+" }
         let urlStr = smsTarget.isEmpty ? "sms:?body=\(encoded)" : "sms:\(smsTarget)?body=\(encoded)"

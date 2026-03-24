@@ -104,7 +104,7 @@ exports.handler = async (event) => {
     </table>
     ${mapsLink ? `<a href="${mapsLink}" style="display:block;margin:20px 0 12px;background:#34C759;color:#fff;text-align:center;padding:13px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;">\uD83D\uDCCD View Current Location</a>` : ""}
     <a href="${trackURL}" style="display:block;margin:${mapsLink ? "0" : "20px 0 12px"};background:#f0f7ff;color:#007AFF;text-align:center;padding:13px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;border:1px solid #cce0ff;">\uD83D\uDDFA Open Live Tracking Page</a>
-    <p style="font-size:12px;color:#aaa;margin-top:20px;text-align:center;">\u2013 CMP Logistics Tracking</p>
+    <p style="font-size:12px;color:#aaa;margin-top:20px;text-align:center;">\u2013 Routelo Tracking</p>
   </div>
 </div></body></html>`,
               },
@@ -146,7 +146,7 @@ exports.handler = async (event) => {
       <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Est. Delivery</td><td style="padding:8px 0;">${load.deliveryDate || "TBD"}</td></tr>
     </table>
     <a href="${trackURL}" style="display:block;background:#007AFF;color:#fff;text-align:center;padding:14px;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;">\uD83D\uDCCD Track My Shipment Live</a>
-    <p style="font-size:12px;color:#aaa;margin-top:20px;text-align:center;">\u2013 CMP Logistics</p>
+    <p style="font-size:12px;color:#aaa;margin-top:20px;text-align:center;">\u2013 Routelo</p>
   </div>
 </div></body></html>`,
               },

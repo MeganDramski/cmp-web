@@ -93,20 +93,20 @@ exports.handler = async (event) => {
         Source: SES_FROM,
         Destination: { ToAddresses: [email] },
         Message: {
-          Subject: { Data: "✅ Your CMP Logistics account has been approved!" },
+          Subject: { Data: "✅ Your Routelo account has been approved!" },
           Body: {
-            Text: { Data: `Hi ${user.name},\n\nYour account request for the CMP Logistics Tracking Portal has been approved.\n\nYou can now sign in at:\n${AMPLIFY_BASE}\n\nWelcome aboard!\n— CMP Logistics` },
+            Text: { Data: `Hi ${user.name},\n\nYour account request for the Routelo Tracking Portal has been approved.\n\nYou can now sign in at:\n${AMPLIFY_BASE}\n\nWelcome aboard!\n— Routelo` },
             Html: { Data: `
 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;background:#0f0f1a;color:#fff;border-radius:16px;overflow:hidden">
   <div style="background:#1c1c2e;padding:28px 32px;border-bottom:1px solid #2c2c3e">
     <div style="font-size:28px;margin-bottom:6px">🚛</div>
     <h2 style="margin:0;font-size:20px;color:#34C759">Account Approved!</h2>
-    <p style="margin:4px 0 0;color:#8e8ea0;font-size:13px">CMP Logistics Tracking Portal</p>
+    <p style="margin:4px 0 0;color:#8e8ea0;font-size:13px">Routelo Tracking Portal</p>
   </div>
   <div style="padding:28px 32px">
-    <p style="font-size:15px;margin-bottom:20px">Hi <strong>${user.name}</strong>,<br><br>Your account has been approved. You can now sign in to the CMP Logistics Dispatcher Portal.</p>
+    <p style="font-size:15px;margin-bottom:20px">Hi <strong>${user.name}</strong>,<br><br>Your account has been approved. You can now sign in to the Routelo Dispatcher Portal.</p>
     <a href="${AMPLIFY_BASE}" style="display:block;padding:14px 20px;background:#007AFF;color:#fff;text-decoration:none;border-radius:12px;font-size:15px;font-weight:700;text-align:center">Sign In Now →</a>
-    <p style="margin-top:16px;font-size:12px;color:#8e8ea0;text-align:center">Welcome to CMP Logistics!</p>
+    <p style="margin-top:16px;font-size:12px;color:#8e8ea0;text-align:center">Welcome to Routelo!</p>
   </div>
 </div>`.trim() },
           },
@@ -117,18 +117,18 @@ exports.handler = async (event) => {
         Source: SES_FROM,
         Destination: { ToAddresses: [email] },
         Message: {
-          Subject: { Data: "Your CMP Logistics account request" },
+          Subject: { Data: "Your Routelo account request" },
           Body: {
-            Text: { Data: `Hi ${user.name},\n\nUnfortunately your request for access to the CMP Logistics Tracking Portal has not been approved at this time.\n\nIf you believe this is a mistake, please contact dispatch@cmplogistics.ca.\n\n— CMP Logistics` },
+            Text: { Data: `Hi ${user.name},\n\nUnfortunately your request for access to the Routelo Tracking Portal has not been approved at this time.\n\nIf you believe this is a mistake, please contact dispatch@cmplogistics.ca.\n\n— Routelo` },
             Html: { Data: `
 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;background:#0f0f1a;color:#fff;border-radius:16px;overflow:hidden">
   <div style="background:#1c1c2e;padding:28px 32px;border-bottom:1px solid #2c2c3e">
     <div style="font-size:28px;margin-bottom:6px">🚛</div>
     <h2 style="margin:0;font-size:20px">Account Request Update</h2>
-    <p style="margin:4px 0 0;color:#8e8ea0;font-size:13px">CMP Logistics Tracking Portal</p>
+    <p style="margin:4px 0 0;color:#8e8ea0;font-size:13px">Routelo Tracking Portal</p>
   </div>
   <div style="padding:28px 32px">
-    <p style="font-size:15px;margin-bottom:16px">Hi <strong>${user.name}</strong>,<br><br>Your request for access to the CMP Logistics Dispatcher Portal has not been approved at this time.</p>
+    <p style="font-size:15px;margin-bottom:16px">Hi <strong>${user.name}</strong>,<br><br>Your request for access to the Routelo Dispatcher Portal has not been approved at this time.</p>
     <p style="font-size:13px;color:#8e8ea0">If you believe this is a mistake, please contact <a href="mailto:dispatch@cmplogistics.ca" style="color:#007AFF">dispatch@cmplogistics.ca</a>.</p>
   </div>
 </div>`.trim() },
@@ -166,7 +166,7 @@ function html(status, title, body) {
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>CMP Logistics — ${title.replace(/[^\w\s]/g,"")}</title>
+<title>Routelo — ${title.replace(/[^\w\s]/g,"")}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0f0f1a;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}

@@ -6,27 +6,20 @@
 // Returns: { url }  — redirect the browser to this URL
 
 const stripe = require("stripe")(process.env.STRIPE_SECRET);
-const { DynamoDBClient, GetItemCommand, UpdateItemCommand } = require("@aws-sdk/client-dynamodb");
+const { DynamoDBClient, GetItemCommand, UpdateItemCommand, ScanCommand } = require("@aws-sdk/client-dynamodb");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 const { verifyToken, respond } = require("../utils/auth");
 
-const db              = new DynamoDBClient({});
-const COMPANIES_TABLE = process.env.COMPANIES_TABLE;
-const AMPLIFY_BASE    = (process.env.AMPLIFY_BASE_URL || "").replace(/\/$/, "");
+const db           = new DynamoDBClient({});
+// Companies are stored as user records in USERS_TABLE (no separate companies table)
+const USERS_TABLE  = process.env.USERS_TABLE;
+const AMPLIFY_BASE = (process.env.AMPLIFY_BASE_URL || "").replace(/\/$/, "");
 
 // Map plan names to Stripe Price IDs — replace with your actual Stripe price IDs
 const PLAN_PRICES = {
   pro:        process.env.STRIPE_PRICE_PRO        || "price_pro_placeholder",
   enterprise: process.env.STRIPE_PRICE_ENTERPRISE || "price_enterprise_placeholder",
 };
-
-function respond(statusCode, body) {
-  return {
-    statusCode,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  };
-}
 
 exports.handler = async (event) => {
   try {
@@ -42,29 +35,30 @@ exports.handler = async (event) => {
       return respond(400, { error: `Unknown plan: ${plan}. Configure STRIPE_PRICE_${plan.toUpperCase()} env var.` });
     }
 
-    // Fetch company to get or create Stripe customer ID
+    // Fetch the admin user record to get/store Stripe customer ID
+    // The admin email is stored in the JWT as user.email
     const result = await db.send(new GetItemCommand({
-      TableName: COMPANIES_TABLE,
-      Key: marshall({ tenantId: user.tenantId }),
+      TableName: USERS_TABLE,
+      Key: marshall({ email: user.email }),
     }));
     if (!result.Item) {
-      return respond(404, { error: "Company not found." });
+      return respond(404, { error: "Account not found." });
     }
-    const company = unmarshall(result.Item);
+    const adminUser = unmarshall(result.Item);
 
     // Create or reuse Stripe customer
-    let customerId = company.stripeCustomerId;
+    let customerId = adminUser.stripeCustomerId;
     if (!customerId) {
       const customer = await stripe.customers.create({
         email:    user.email,
-        name:     company.companyName,
+        name:     adminUser.companyName || user.companyName,
         metadata: { tenantId: user.tenantId },
       });
       customerId = customer.id;
       // Persist it so future checkouts reuse the same customer
       await db.send(new UpdateItemCommand({
-        TableName: COMPANIES_TABLE,
-        Key: marshall({ tenantId: user.tenantId }),
+        TableName: USERS_TABLE,
+        Key: marshall({ email: user.email }),
         UpdateExpression: "SET stripeCustomerId = :cid",
         ExpressionAttributeValues: marshall({ ":cid": customerId }),
       }));

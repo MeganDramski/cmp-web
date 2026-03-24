@@ -11,27 +11,129 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
+    @State private var showDispatcherLogin = false
 
     var body: some View {
-        if appState.isLoggedIn {
-            switch appState.userRole {
-            case .driver:
-                DriverView()
-            case .dispatcher:
-                DispatcherView()
-            }
+        if appState.isLoggedIn && appState.userRole == .dispatcher {
+            DispatcherView()
+        } else if appState.isLoggedIn && appState.userRole == .driver {
+            DriverView()
+        } else if showDispatcherLogin {
+            AuthView(showDispatcherLogin: $showDispatcherLogin)
         } else {
-            AuthView()
+            // Default: driver waiting screen — no sign-in required
+            DriverWaitingView(showDispatcherLogin: $showDispatcherLogin)
         }
     }
 }
 
-// MARK: - Auth View (Sign In / Create Account)
+// MARK: - Driver Waiting Screen (default launch screen — no auth)
+
+struct DriverWaitingView: View {
+    @Binding var showDispatcherLogin: Bool
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        ZStack {
+            Color(red: 0.06, green: 0.06, blue: 0.11).ignoresSafeArea()
+
+            VStack(spacing: 32) {
+                Spacer()
+
+                RouteloLogo(size: 80)
+
+                VStack(spacing: 12) {
+                    Text("Waiting for your load…")
+                        .font(.title2).fontWeight(.bold).foregroundColor(.white)
+                    Text("Your dispatcher will send you an SMS link.\nTap it and your load will appear here.")
+                        .font(.subheadline).foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+
+                VStack(spacing: 8) {
+                    Image(systemName: "message.fill")
+                        .font(.system(size: 48))
+                        .foregroundColor(.accentColor.opacity(0.4))
+                    Text("📱 Check your SMS")
+                        .font(.caption).foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                // ── DEBUG: simulator test helper ──────────────────────────
+                #if DEBUG
+                Button(action: injectTestLoad) {
+                    Label("Load Test Data (Simulator)", systemImage: "hammer.fill")
+                        .font(.caption).fontWeight(.semibold)
+                        .padding(.horizontal, 16).padding(.vertical, 8)
+                        .background(Color.orange.opacity(0.15))
+                        .foregroundColor(.orange)
+                        .cornerRadius(10)
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.orange.opacity(0.4), lineWidth: 1))
+                }
+                .padding(.bottom, 8)
+                #endif
+
+                // Small unobtrusive dispatcher link at the bottom
+                Button(action: { showDispatcherLogin = true }) {
+                    Text("Dispatcher Portal →")
+                        .font(.caption).foregroundColor(.secondary)
+                }
+                .padding(.bottom, 32)
+            }
+        }
+    }
+
+    // MARK: - Debug helper
+
+    #if DEBUG
+    private func injectTestLoad() {
+        let testDriver = Driver(
+            id: "test-driver-001",
+            name: "Test Driver",
+            phone: "5550001234",
+            email: "testdriver@routelo.app",
+            role: .driver
+        )
+
+        let testLoad = Load(
+            id: "test-load-001",
+            loadNumber: "CMP-TEST-001",
+            description: "Test Load — Electronics",
+            weight: 12000,
+            pickupAddress: "123 Warehouse Blvd, Chicago, IL 60601",
+            deliveryAddress: "456 Distribution Ave, Dallas, TX 75201",
+            pickupDate: Date(),
+            deliveryDate: Date().addingTimeInterval(86400),
+            status: .assigned,
+            assignedDriverId: testDriver.id,
+            assignedDriverName: testDriver.name,
+            assignedDriverEmail: testDriver.email,
+            assignedDriverPhone: testDriver.phone,
+            trackingToken: "test-token-abc123",
+            customerName: "Acme Corp",
+            customerEmail: "logistics@acme.com",
+            customerPhone: "5550009999",
+            dispatcherEmail: "dispatcher@routelo.app",
+            notifyCustomer: false,
+            lastLocation: nil,
+            notes: "Handle with care. Simulator test load.",
+            completedAt: nil
+        )
+
+        LoadStore.shared.upsert(testLoad)
+        appState.login(as: testDriver)
+    }
+    #endif
+}
+
+// MARK: - Auth View (Dispatcher only)
 
 struct AuthView: View {
+    @Binding var showDispatcherLogin: Bool
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var authManager: AuthManager
-
     @State private var isCreatingAccount = false
 
     var body: some View {
@@ -39,20 +141,33 @@ struct AuthView: View {
             ScrollView {
                 VStack(spacing: 32) {
 
-                    // ── Logo ──────────────────────────────────────────────
+                    // ── Back + Logo ───────────────────────────────────────
                     VStack(spacing: 8) {
-                        ParceloLogoD(size: 90)
-                        Text("Logistics. Simplified.")
+                        HStack {
+                            Button(action: { showDispatcherLogin = false }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "chevron.left")
+                                    Text("Back")
+                                }
+                                .foregroundColor(.accentColor)
+                                .font(.subheadline)
+                            }
+                            Spacer()
+                        }
+                        .padding(.horizontal)
+
+                        RouteloLogo(size: 70)
+                        Text("Dispatcher Portal")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
-                    .padding(.top, 40)
+                    .padding(.top, 20)
 
                     // ── Form ──────────────────────────────────────────────
                     if isCreatingAccount {
                         CreateAccountForm()
                     } else {
-                        SignInForm()
+                        SignInForm(isDriverRole: false)
                     }
 
                     // ── Toggle ────────────────────────────────────────────
@@ -77,41 +192,31 @@ struct AuthView: View {
 // MARK: - Sign In Form
 
 struct SignInForm: View {
+    var isDriverRole: Bool = false   // false = dispatcher only (no role picker shown)
+
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var authManager: AuthManager
 
-    @State private var loginId      = ""   // phone (driver) or email (dispatcher)
+    @State private var loginId      = ""
     @State private var password     = ""
     @State private var errorMsg: String? = nil
     @State private var showPassword = false
-    @State private var selectedRole: UserRole = .driver
+    @State private var selectedRole: UserRole = .dispatcher
 
-    private var isDriver: Bool { selectedRole == .driver }
-    private var placeholder: String { isDriver ? "Phone Number" : "Email" }
-    private var keyboardType: UIKeyboardType { isDriver ? .phonePad : .emailAddress }
-    private var contentType: UITextContentType { isDriver ? .telephoneNumber : .emailAddress }
+    private var placeholder: String { "Email" }
     private var isDisabled: Bool { loginId.isEmpty || password.isEmpty || authManager.isLoading }
 
     var body: some View {
         VStack(spacing: 20) {
 
-            // ── Role Toggle ───────────────────────────────────────────────
-            Picker("Role", selection: $selectedRole) {
-                Text("🚛  Driver").tag(UserRole.driver)
-                Text("📋  Dispatcher").tag(UserRole.dispatcher)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-
             // ── Fields ────────────────────────────────────────────────────
             VStack(spacing: 14) {
                 TextField(placeholder, text: $loginId)
                     .textFieldStyle(.roundedBorder)
-                    .keyboardType(keyboardType)
+                    .keyboardType(.emailAddress)
                     .autocapitalization(.none)
                     .autocorrectionDisabled()
-                    .textContentType(contentType)
-                    .animation(.easeInOut(duration: 0.2), value: isDriver)
+                    .textContentType(.emailAddress)
 
                 HStack {
                     Group {
@@ -157,7 +262,7 @@ struct SignInForm: View {
 
     private func signIn() {
         errorMsg = nil
-        authManager.signIn(loginId: loginId, role: selectedRole, password: password) { err in
+        authManager.signIn(loginId: loginId, role: .dispatcher, password: password) { err in
             if let err = err {
                 self.errorMsg = err
             } else if let account = self.authManager.currentAccount {

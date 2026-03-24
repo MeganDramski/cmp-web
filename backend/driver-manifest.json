@@ -1,7 +1,7 @@
 {
-  "name": "CMP Driver Tracking",
-  "short_name": "CMP Driver",
-  "description": "CMP Logistics driver tracking — accept loads and share your location.",
+  "name": "Routelo Driver",
+  "short_name": "Routelo",
+  "description": "Routelo driver tracking — accept loads and share your location.",
   "start_url": "/driver-tracking.html",
   "display": "standalone",
   "background_color": "#0f0f1a",

@@ -160,8 +160,15 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         ]
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
-        // Use background session so iOS delivers the request even when screen is locked
-        bgSession.dataTask(with: req) { _, _, error in
+        // Background session keeps requests alive when screen is locked on a real device.
+        // The simulator crashes if you create tasks on a background URLSession, so fall
+        // back to URLSession.shared there.
+        #if targetEnvironment(simulator)
+        let session = URLSession.shared
+        #else
+        let session = bgSession
+        #endif
+        session.dataTask(with: req) { _, _, error in
             if let error = error {
                 print("📍 Location post failed: \(error.localizedDescription)")
             } else {

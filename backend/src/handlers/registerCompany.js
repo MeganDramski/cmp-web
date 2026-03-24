@@ -13,7 +13,6 @@ const jwt    = require("jsonwebtoken");
 const db  = new DynamoDBClient({});
 const ses = new SESClient({});
 
-const COMPANIES_TABLE = process.env.COMPANIES_TABLE;
 const USERS_TABLE     = process.env.USERS_TABLE;
 const JWT_SECRET      = process.env.JWT_SECRET;
 const SES_FROM        = process.env.SES_FROM_EMAIL;
@@ -56,23 +55,14 @@ exports.handler = async (event) => {
     const tenantId  = crypto.randomUUID();
     const now       = new Date().toISOString();
 
-    // ── Create company record ──────────────────────────────────────────────
+    // Company metadata stored inline on the user record (no separate table needed)
     const company = {
       tenantId,
       companyName:  companyName.trim(),
       adminEmail:   email,
-      plan:         "trial",      // free 14-day trial, upgrades via Stripe
-      status:       "active",
-      trialEndsAt:  new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-      stripeCustomerId:      null,
-      stripeSubscriptionId:  null,
+      plan:         "inactive",   // no access until subscription is active
       createdAt:    now,
     };
-
-    await db.send(new PutItemCommand({
-      TableName: COMPANIES_TABLE,
-      Item: marshall(company, { removeUndefinedValues: true }),
-    }));
 
     // ── Create admin user record ───────────────────────────────────────────
     const user = {
@@ -81,7 +71,7 @@ exports.handler = async (event) => {
       role:         "dispatcher",   // admin dispatchers use the dispatcher role
       tenantId,
       companyName:  companyName.trim(),
-      plan:         "trial",
+      plan:         "inactive",
       passwordHash: sha256(password),
       status:       "active",       // no approval needed — they created the company
       createdAt:    now,
@@ -100,7 +90,7 @@ exports.handler = async (event) => {
         name:        adminName.trim(),
         tenantId,
         companyName: companyName.trim(),
-        plan:        "trial",
+        plan:        "inactive",
       },
       JWT_SECRET,
       { expiresIn: "30d" }
@@ -113,15 +103,15 @@ exports.handler = async (event) => {
           Source: SES_FROM,
           Destination: { ToAddresses: [email] },
           Message: {
-            Subject: { Data: `Welcome to CMP Logistics, ${companyName.trim()}!` },
+            Subject: { Data: `Welcome to Routelo, ${companyName.trim()}!` },
             Body: {
               Html: {
                 Data: `
-                  <h2>Welcome aboard, ${adminName.trim()}!</h2>
-                  <p>Your company <strong>${companyName.trim()}</strong> has been set up on CMP Logistics.</p>
-                  <p>You have a <strong>14-day free trial</strong>. After that, a subscription is required to continue.</p>
+                  <h2>Welcome to Routelo, ${adminName.trim()}!</h2>
+                  <p>Your company <strong>${companyName.trim()}</strong> has been set up on Routelo.</p>
+                  <p>To start dispatching loads, please activate your subscription from the dashboard.</p>
                   <p>Log in at your dispatcher portal to get started.</p>
-                  <p>— The CMP Logistics Team</p>
+                  <p>— The Routelo Team</p>
                 `,
               },
             },

@@ -717,7 +717,7 @@ struct CustomerTrackingView: View {
                         Image(systemName: "truck.box.fill")
                             .font(.title2).foregroundColor(.accentColor)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("CMP Logistics")
+                            Text("Routelo")
                                 .font(.headline)
                             Text("Load \(load.loadNumber)")
                                 .font(.subheadline).foregroundColor(.secondary)
@@ -820,7 +820,7 @@ struct CustomerTrackingView: View {
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
-            Text("Contact CMP Logistics: 1-800-CMP-LOAD")
+            Text("Contact Routelo dispatch for assistance.")
                 .font(.caption).foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

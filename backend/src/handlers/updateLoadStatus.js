@@ -17,7 +17,7 @@ const VALID_STATUSES = ["Pending", "Assigned", "Accepted", "In Transit", "Delive
 
 exports.handler = async (event) => {
   try {
-    verifyToken(event);
+    const user = verifyToken(event);
 
     const loadId = event.pathParameters?.id;
     if (!loadId) return respond(400, { error: "Load ID is required." });
@@ -25,6 +25,20 @@ exports.handler = async (event) => {
     const body = JSON.parse(event.body || "{}");
     if (!VALID_STATUSES.includes(body.status)) {
       return respond(400, { error: `status must be one of: ${VALID_STATUSES.join(", ")}` });
+    }
+
+    // Tenant isolation: check load ownership before update (skip for public token-based calls)
+    if (user.tenantId) {
+      const check = await db.send(new GetItemCommand({
+        TableName: TABLE,
+        Key: marshall({ id: loadId }),
+      }));
+      if (check.Item) {
+        const existingLoad = unmarshall(check.Item);
+        if (existingLoad.tenantId && existingLoad.tenantId !== user.tenantId) {
+          return respond(403, { error: "You do not have permission to update this load." });
+        }
+      }
     }
 
     const now = new Date().toISOString();

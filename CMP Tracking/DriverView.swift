@@ -2,11 +2,23 @@
 //  DriverView.swift
 //  CMP Tracking
 //
-//  Created by Megan Dramski on 3/18/26.
-//
 
 import SwiftUI
 import MapKit
+
+// MARK: - Dark Theme Colors
+private extension Color {
+    static let dkBg       = Color(red: 0.059, green: 0.059, blue: 0.102)   // #0f0f1a
+    static let dkSurface  = Color(red: 0.110, green: 0.110, blue: 0.180)   // #1c1c2e
+    static let dkSurface2 = Color(red: 0.145, green: 0.145, blue: 0.220)   // #252538
+    static let dkBorder   = Color(red: 0.173, green: 0.173, blue: 0.243)   // #2c2c3e
+    static let dkMuted    = Color(red: 0.557, green: 0.557, blue: 0.627)   // #8e8ea0
+    static let dkBlue     = Color(red: 0.000, green: 0.478, blue: 1.000)   // #007AFF
+    static let dkGreen    = Color(red: 0.204, green: 0.780, blue: 0.349)   // #34C759
+    static let dkOrange   = Color(red: 1.000, green: 0.584, blue: 0.000)   // #FF9500
+    static let dkRed      = Color(red: 1.000, green: 0.231, blue: 0.188)   // #FF3B30
+    static let dkPurple   = Color(red: 0.588, green: 0.329, blue: 0.969)   // #9654F7
+}
 
 struct DriverView: View {
     @EnvironmentObject var appState: AppState
@@ -15,7 +27,6 @@ struct DriverView: View {
     @StateObject private var locationManager = LocationManager()
     @StateObject private var network = NetworkManager.shared
 
-    // The load assigned to this driver — fetched from LoadStore by matching driver email
     @State private var assignedLoad: Load? = nil
     @State private var showLoadPicker = false
     @State private var statusMessage: String = ""
@@ -24,119 +35,115 @@ struct DriverView: View {
     @State private var isSendingNotification = false
     @State private var isAcceptingLoad = false
     @State private var isLoadingLoad = false
-    /// Controls the pre-prompt sheet shown before the iOS system permission dialog
     @State private var showLocationPrePrompt = false
-    /// Shown when driver appears to have stopped at the delivery address
     @State private var showDeliveryReminderAlert = false
-    /// Start with a zero-span region; we snap to the real GPS on the first fix
     @State private var mapRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 0, longitude: 0),
         span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
     )
-    /// Tracks whether we've received and applied the first real GPS fix
     @State private var hasSetInitialRegion = false
 
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // ── Status Card ──────────────────────────────────────────
-                    trackingStatusCard
+            ZStack {
+                Color.dkBg.ignoresSafeArea()
 
-                    // ── Assigned Load Card ───────────────────────────────────
-                    if let load = assignedLoad {
-                        loadInfoCard(load: load)
+                ScrollView {
+                    VStack(spacing: 16) {
 
-                        // ── Accept Load Card (only when still in Assigned state) ──
-                        if load.status == .assigned {
-                            acceptLoadCard(load: load)
-                        }
-                    } else {
-                        noLoadCard
-                    }
+                        // ── Header greeting ──────────────────────────────────
+                        headerCard
 
-                    // ── Live Location / Tracking controls (only after accepted) ──
-                    let isAccepted = assignedLoad.map { $0.status == .accepted || $0.status == .inTransit } ?? false
-                    if isAccepted {
-                        // ── Live Location Card ───────────────────────────────────
-                        liveLocationCard
+                        // ── Tracking status pill ─────────────────────────────
+                        trackingStatusCard
 
-                        // ── Map Preview ──────────────────────────────────────────
-                        mapPreviewCard
-
-                        // ── Start / Stop Button ──────────────────────────────────
-                        trackingButton
-
-                        // ── Send Tracking Link ───────────────────────────────────
+                        // ── Load card ────────────────────────────────────────
                         if let load = assignedLoad {
-                            SendTrackingView(
-                                load: load,
-                                dispatcherEmail: appState.currentUser?.email ?? ""
-                            ) { bannerMsg in
-                                notificationBannerMessage = bannerMsg
-                                showNotificationBanner = true
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
-                                    showNotificationBanner = false
+                            loadInfoCard(load: load)
+
+                            if load.status == .assigned {
+                                acceptLoadCard(load: load)
+                            }
+                        } else {
+                            noLoadCard
+                        }
+
+                        // ── Live section (after accepted) ────────────────────
+                        let isAccepted = assignedLoad.map {
+                            $0.status == .accepted || $0.status == .inTransit
+                        } ?? false
+
+                        if isAccepted {
+                            liveLocationCard
+                            mapPreviewCard
+                            trackingButton
+
+                            if let load = assignedLoad {
+                                SendTrackingView(
+                                    load: load,
+                                    dispatcherEmail: appState.currentUser?.email ?? ""
+                                ) { bannerMsg in
+                                    notificationBannerMessage = bannerMsg
+                                    showNotificationBanner = true
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                                        showNotificationBanner = false
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    Spacer(minLength: 40)
+                        Spacer(minLength: 40)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
                 }
-                .padding()
             }
             .refreshable { await fetchAssignedLoadAsync() }
             .navigationTitle("Driver Dashboard")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    ParceloLogoD(showWordmark: false, size: 32)
+                    RouteloLogo(showWordmark: false, size: 32)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack(spacing: 16) {
-                        // Refresh loads from server
+                    HStack(spacing: 14) {
                         Button(action: { fetchAssignedLoad() }) {
                             if isLoadingLoad {
-                                ProgressView().scaleEffect(0.8)
+                                ProgressView().tint(.white).scaleEffect(0.75)
                             } else {
                                 Image(systemName: "arrow.clockwise")
+                                    .foregroundColor(.dkMuted)
                             }
                         }
                         .disabled(isLoadingLoad)
+
                         Button(action: { authManager.signOut(); appState.logout() }) {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .foregroundColor(.dkMuted)
                         }
                     }
                 }
             }
+            .toolbarBackground(Color.dkBg, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .onAppear {
                 fetchAssignedLoad()
-                // Re-check whenever the dispatcher pushes a change from another device
                 NotificationCenter.default.addObserver(
-                    forName: .cmpLoadsDidChangeRemotely,
-                    object: nil,
-                    queue: .main
+                    forName: .cmpLoadsDidChangeRemotely, object: nil, queue: .main
                 ) { _ in fetchAssignedLoad() }
                 switch locationManager.authorizationStatus {
-                case .notDetermined:
-                    // Show our explanation screen first, THEN trigger the system dialog
-                    showLocationPrePrompt = true
+                case .notDetermined: showLocationPrePrompt = true
                 case .authorizedWhenInUse:
-                    // Driver previously picked "While Using" — request upgrade to Always
                     locationManager.requestPermission()
                     locationManager.requestCurrentLocation()
                 case .authorizedAlways:
                     locationManager.requestCurrentLocation()
-                default:
-                    break
+                default: break
                 }
             }
-            // Pre-prompt sheet — shown before the iOS system permission dialog
             .sheet(isPresented: $showLocationPrePrompt) {
                 LocationPermissionView {
                     showLocationPrePrompt = false
-                    // Small delay so sheet dismisses before system dialog appears
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                         locationManager.requestPermission()
                     }
@@ -144,7 +151,6 @@ struct DriverView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
             }
-            // "Upgrade to Always Allow" banner — shown when driver only granted WhenInUse
             .safeAreaInset(edge: .top) {
                 if locationManager.authorizationStatus == .authorizedWhenInUse {
                     AlwaysAllowBanner {
@@ -157,35 +163,26 @@ struct DriverView: View {
             .onReceive(locationManager.$currentLocation) { location in
                 guard let loc = location else { return }
                 if !hasSetInitialRegion {
-                    // First real GPS fix — snap directly to the user's position
                     mapRegion = MKCoordinateRegion(
                         center: loc.coordinate,
                         span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
                     )
                     hasSetInitialRegion = true
                 } else {
-                    // Subsequent updates — only recenter if driver has drifted
-                    // outside the visible area, preserving manual zoom/pan
                     let latDiff = abs(loc.coordinate.latitude  - mapRegion.center.latitude)
                     let lngDiff = abs(loc.coordinate.longitude - mapRegion.center.longitude)
                     if latDiff > mapRegion.span.latitudeDelta * 0.4 ||
                        lngDiff > mapRegion.span.longitudeDelta * 0.4 {
-                        withAnimation {
-                            mapRegion.center = loc.coordinate
-                        }
+                        withAnimation { mapRegion.center = loc.coordinate }
                     }
                 }
             }
             .onReceive(locationManager.$deliveryReminderTriggered) { triggered in
-                if triggered {
-                    showDeliveryReminderAlert = true
-                }
+                if triggered { showDeliveryReminderAlert = true }
             }
-            // Pickup reminder notification was tapped — prompt driver to start
             .onChange(of: notifDelegate.shouldOpenDriverDashboard) { tapped in
                 guard tapped else { return }
                 notifDelegate.shouldOpenDriverDashboard = false
-                // Surface a banner nudging the driver to press Start Tracking
                 notificationBannerMessage = "🚛 It's pickup time! Tap Start Tracking to begin."
                 showNotificationBanner = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
@@ -194,7 +191,6 @@ struct DriverView: View {
             }
             .alert("Delivery Reminder", isPresented: $showDeliveryReminderAlert) {
                 Button("Mark as Delivered") {
-                    // Stop tracking and update load status to delivered
                     locationManager.stopTracking()
                     network.disconnectWebSocket()
                     statusMessage = "Delivered at \(Date().formatted(date: .omitted, time: .shortened))"
@@ -207,7 +203,6 @@ struct DriverView: View {
                     }
                 }
                 Button("Not Yet", role: .cancel) {
-                    // Dismiss — reset so it can fire again after another stillness period
                     locationManager.deliveryReminderTriggered = false
                 }
             } message: {
@@ -226,10 +221,9 @@ struct DriverView: View {
                 Text("Please enable location access in Settings to track your deliveries.")
             }
         }
-        // ── Notification Banner Overlay ──────────────────────────────────────
         .overlay(alignment: .top) {
             if showNotificationBanner {
-                NotificationBanner(message: notificationBannerMessage)
+                DarkNotificationBanner(message: notificationBannerMessage)
                     .transition(.move(edge: .top).combined(with: .opacity))
                     .padding(.top, 8)
             }
@@ -237,116 +231,197 @@ struct DriverView: View {
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: showNotificationBanner)
     }
 
-    // MARK: - Sub Views
+    // MARK: - Header
 
-    private var trackingStatusCard: some View {
-        HStack {
-            Circle()
-                .fill(locationManager.isTracking ? Color.green : Color.gray)
-                .frame(width: 14, height: 14)
-                .overlay(
-                    locationManager.isTracking ?
-                    Circle().stroke(Color.green.opacity(0.4), lineWidth: 6).scaleEffect(1.5) : nil
-                )
-                .animation(.easeInOut(duration: 1).repeatForever(), value: locationManager.isTracking)
-
+    private var headerCard: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(Color.dkBlue.opacity(0.18))
+                    .frame(width: 46, height: 46)
+                Image(systemName: "truck.box.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(.dkBlue)
+            }
             VStack(alignment: .leading, spacing: 2) {
-                Text(locationManager.isTracking ? "Tracking Active" : "Tracking Stopped")
-                    .font(.headline)
-                    .foregroundColor(locationManager.isTracking ? .green : .secondary)
-                if !statusMessage.isEmpty {
-                    Text(statusMessage)
+                Text("Driver Dashboard")
+                    .font(.title3).fontWeight(.bold)
+                    .foregroundColor(.white)
+                if let name = appState.currentUser?.name {
+                    Text("Welcome back, \(name)")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.dkMuted)
                 }
             }
             Spacer()
             if network.wsConnected {
-                Label("Live", systemImage: "bolt.fill")
-                    .font(.caption)
-                    .foregroundColor(.orange)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.orange.opacity(0.15))
-                    .cornerRadius(8)
+                HStack(spacing: 5) {
+                    Circle().fill(Color.dkOrange).frame(width: 7, height: 7)
+                    Text("Live").font(.caption).fontWeight(.semibold).foregroundColor(.dkOrange)
+                }
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                .background(Color.dkOrange.opacity(0.12))
+                .cornerRadius(20)
+                .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.dkOrange.opacity(0.3), lineWidth: 1))
             }
         }
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(14)
+        .padding(16)
+        .background(Color.dkSurface)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.dkBorder, lineWidth: 1))
     }
+
+    // MARK: - Tracking Status Card
+
+    private var trackingStatusCard: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                if locationManager.isTracking {
+                    Circle()
+                        .stroke(Color.dkGreen.opacity(0.3), lineWidth: 8)
+                        .frame(width: 28, height: 28)
+                        .scaleEffect(locationManager.isTracking ? 1.4 : 1)
+                        .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true),
+                                   value: locationManager.isTracking)
+                }
+                Circle()
+                    .fill(locationManager.isTracking ? Color.dkGreen : Color.dkMuted.opacity(0.4))
+                    .frame(width: 14, height: 14)
+            }
+            .frame(width: 30)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(locationManager.isTracking ? "Tracking Active" : "Tracking Stopped")
+                    .font(.subheadline).fontWeight(.semibold)
+                    .foregroundColor(locationManager.isTracking ? .dkGreen : .dkMuted)
+                if !statusMessage.isEmpty {
+                    Text(statusMessage)
+                        .font(.caption)
+                        .foregroundColor(.dkMuted)
+                }
+            }
+            Spacer()
+        }
+        .padding(14)
+        .background(
+            locationManager.isTracking
+                ? Color.dkGreen.opacity(0.08)
+                : Color.dkSurface
+        )
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(
+                    locationManager.isTracking
+                        ? Color.dkGreen.opacity(0.35)
+                        : Color.dkBorder,
+                    lineWidth: 1
+                )
+        )
+    }
+
+    // MARK: - Load Info Card
 
     private func loadInfoCard(load: Load) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header row
             HStack {
                 Label(load.loadNumber, systemImage: "shippingbox.fill")
-                    .font(.headline)
+                    .font(.headline).fontWeight(.bold)
+                    .foregroundColor(.white)
                 Spacer()
-                StatusBadge(status: load.status)
+                DarkStatusBadge(status: load.status)
             }
-            Divider()
-            InfoRow(icon: "arrow.up.circle", label: "Pickup", value: load.pickupAddress)
-            InfoRow(icon: "arrow.down.circle.fill", label: "Delivery", value: load.deliveryAddress)
-            InfoRow(icon: "scalemass.fill", label: "Weight", value: "\(Int(load.weight)) lbs")
-            InfoRow(icon: "person.fill", label: "Customer", value: load.customerName)
-            if !load.notes.isEmpty {
-                InfoRow(icon: "note.text", label: "Notes", value: load.notes)
+            .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 12)
+
+            Divider().background(Color.dkBorder).padding(.horizontal, 16)
+
+            VStack(spacing: 0) {
+                DarkInfoRow(icon: "arrow.up.circle",      label: "PICKUP",   value: load.pickupAddress)
+                DarkInfoRow(icon: "arrow.down.circle.fill", label: "DELIVERY", value: load.deliveryAddress)
+                DarkInfoRow(icon: "scalemass.fill",       label: "WEIGHT",   value: "\(Int(load.weight)) lbs")
+                DarkInfoRow(icon: "person.fill",          label: "CUSTOMER", value: load.customerName)
+                if !load.notes.isEmpty {
+                    DarkInfoRow(icon: "note.text", label: "NOTES", value: load.notes)
+                }
             }
+            .padding(.vertical, 8)
         }
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(14)
+        .background(Color.dkSurface)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.dkBorder, lineWidth: 1))
     }
 
+    // MARK: - No Load Card
+
     private var noLoadCard: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
             if isLoadingLoad {
-                ProgressView("Checking for assigned loads…")
-                    .padding(.vertical, 8)
+                ProgressView()
+                    .tint(.dkBlue)
+                    .scaleEffect(1.2)
+                Text("Checking for loads…")
+                    .font(.subheadline)
+                    .foregroundColor(.dkMuted)
             } else {
-                Image(systemName: "shippingbox")
-                    .font(.largeTitle)
-                    .foregroundColor(.secondary)
+                ZStack {
+                    Circle().fill(Color.dkSurface2).frame(width: 64, height: 64)
+                    Image(systemName: "shippingbox")
+                        .font(.system(size: 26))
+                        .foregroundColor(.dkMuted)
+                }
                 Text("No Load Assigned")
-                    .font(.headline)
-                    .foregroundColor(.secondary)
+                    .font(.headline).fontWeight(.semibold)
+                    .foregroundColor(.white)
                 Text("Contact dispatch for your next assignment.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.subheadline)
+                    .foregroundColor(.dkMuted)
                     .multilineTextAlignment(.center)
                 Button(action: { fetchAssignedLoad() }) {
                     Label("Refresh", systemImage: "arrow.clockwise")
-                        .font(.subheadline)
-                        .foregroundColor(.accentColor)
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundColor(.dkBlue)
+                        .padding(.horizontal, 20).padding(.vertical, 9)
+                        .background(Color.dkBlue.opacity(0.12))
+                        .cornerRadius(20)
+                        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.dkBlue.opacity(0.3), lineWidth: 1))
                 }
             }
         }
         .frame(maxWidth: .infinity)
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(14)
+        .padding(.vertical, 32)
+        .padding(.horizontal, 16)
+        .background(Color.dkSurface)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.dkBorder, lineWidth: 1))
     }
+
+    // MARK: - Accept Load Card
 
     private func acceptLoadCard(load: Load) -> some View {
         VStack(spacing: 14) {
-            HStack(spacing: 10) {
-                Image(systemName: "bell.badge.fill")
-                    .font(.title2)
-                    .foregroundColor(.purple)
-                VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle().fill(Color.dkPurple.opacity(0.18)).frame(width: 44, height: 44)
+                    Image(systemName: "bell.badge.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.dkPurple)
+                }
+                VStack(alignment: .leading, spacing: 3) {
                     Text("New Load Assigned")
-                        .font(.headline)
+                        .font(.headline).fontWeight(.semibold)
+                        .foregroundColor(.white)
                     Text("Pickup: \(load.pickupDate.formatted(date: .abbreviated, time: .shortened))")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.dkMuted)
                 }
                 Spacer()
             }
 
             Button(action: { acceptLoad(load) }) {
-                HStack {
+                HStack(spacing: 8) {
                     if isAcceptingLoad {
-                        ProgressView().tint(.white).scaleEffect(0.85)
+                        ProgressView().tint(.white).scaleEffect(0.8)
                         Text("Accepting…").fontWeight(.semibold)
                     } else {
                         Image(systemName: "checkmark.circle.fill")
@@ -354,84 +429,126 @@ struct DriverView: View {
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.purple)
+                .padding(.vertical, 14)
+                .background(Color.dkPurple)
                 .foregroundColor(.white)
                 .cornerRadius(12)
             }
             .disabled(isAcceptingLoad)
         }
-        .padding()
-        .background(Color.purple.opacity(0.08))
-        .cornerRadius(14)
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.purple.opacity(0.3), lineWidth: 1))
+        .padding(16)
+        .background(Color.dkPurple.opacity(0.08))
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.dkPurple.opacity(0.35), lineWidth: 1))
     }
+
+    // MARK: - Live Location Card
 
     private var liveLocationCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("Current Location", systemImage: "location.fill")
-                .font(.headline)
-            Divider()
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "location.fill").foregroundColor(.dkBlue)
+                Text("Current Location")
+                    .font(.headline).fontWeight(.semibold)
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 16).padding(.top, 14)
+
+            Divider().background(Color.dkBorder).padding(.horizontal, 16)
+
             if let loc = locationManager.currentLocation {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Lat: \(loc.coordinate.latitude, specifier: "%.5f")")
-                            .font(.system(.body, design: .monospaced))
-                        Text("Lng: \(loc.coordinate.longitude, specifier: "%.5f")")
-                            .font(.system(.body, design: .monospaced))
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        coordLabel(label: "Lat", value: loc.coordinate.latitude)
+                        coordLabel(label: "Lng", value: loc.coordinate.longitude)
                     }
                     Spacer()
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Label("\(Int(max(loc.speed, 0) * 2.23694)) mph", systemImage: "speedometer")
-                            .font(.body)
-                        Label("±\(Int(loc.horizontalAccuracy))m", systemImage: "scope")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    VStack(alignment: .trailing, spacing: 6) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "speedometer").foregroundColor(.dkMuted)
+                            Text("\(Int(max(loc.speed, 0) * 2.23694)) mph")
+                                .foregroundColor(.white)
+                        }
+                        .font(.subheadline)
+                        HStack(spacing: 5) {
+                            Image(systemName: "scope").foregroundColor(.dkMuted)
+                            Text("±\(Int(loc.horizontalAccuracy))m")
+                                .foregroundColor(.dkMuted)
+                        }
+                        .font(.caption)
                     }
                 }
+                .padding(.horizontal, 16)
+
                 if let update = locationManager.latestUpdate {
-                    Text("Last sent: \(update.timestamp, style: .relative) ago")
+                    Text("Last sent \(update.timestamp, style: .relative) ago")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.dkMuted)
+                        .padding(.horizontal, 16)
                 }
             } else {
-                Text("Waiting for GPS signal…")
-                    .foregroundColor(.secondary)
-                    .font(.body)
+                HStack(spacing: 8) {
+                    ProgressView().tint(.dkMuted).scaleEffect(0.8)
+                    Text("Waiting for GPS signal…")
+                        .font(.subheadline)
+                        .foregroundColor(.dkMuted)
+                }
+                .padding(.horizontal, 16)
             }
+
+            Spacer(minLength: 14)
         }
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(14)
+        .background(Color.dkSurface)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.dkBorder, lineWidth: 1))
     }
 
+    private func coordLabel(label: String, value: Double) -> some View {
+        HStack(spacing: 6) {
+            Text(label + ":")
+                .font(.caption)
+                .foregroundColor(.dkMuted)
+            Text(String(format: "%.5f", value))
+                .font(.system(.body, design: .monospaced))
+                .foregroundColor(.white)
+        }
+    }
+
+    // MARK: - Map Preview Card
+
     private var mapPreviewCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Live Map", systemImage: "map.fill")
-                .font(.headline)
-                .padding(.horizontal)
-                .padding(.top, 12)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "map.fill").foregroundColor(.dkBlue)
+                Text("Live Map")
+                    .font(.headline).fontWeight(.semibold)
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 10)
+
             ZStack(alignment: .bottomTrailing) {
-                // Free-scrolling map — pinch to zoom, drag to pan
                 Map(coordinateRegion: $mapRegion, showsUserLocation: true)
                     .frame(height: 220)
                     .cornerRadius(12)
+                    .padding(.horizontal, 12)
 
-                // Re-center button
                 Button(action: recenterDriverMap) {
                     Image(systemName: "location.fill")
+                        .font(.system(size: 14))
                         .padding(10)
-                        .background(.regularMaterial)
+                        .background(Color.dkSurface2)
+                        .foregroundColor(.dkBlue)
                         .clipShape(Circle())
-                        .shadow(radius: 3)
+                        .overlay(Circle().stroke(Color.dkBorder, lineWidth: 1))
+                        .shadow(color: .black.opacity(0.4), radius: 4)
                 }
-                .padding(10)
+                .padding(.trailing, 20).padding(.bottom, 10)
             }
-            .padding(.horizontal)
             .padding(.bottom, 12)
         }
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(14)
+        .background(Color.dkSurface)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.dkBorder, lineWidth: 1))
     }
 
     private func recenterDriverMap() {
@@ -444,65 +561,68 @@ struct DriverView: View {
         }
     }
 
+    // MARK: - Tracking Button
+
     private var trackingButton: some View {
         Button(action: toggleTracking) {
-            HStack {
+            HStack(spacing: 10) {
                 if isSendingNotification {
-                    ProgressView()
-                        .tint(.white)
-                        .scaleEffect(0.85)
-                    Text("Notifying…")
-                        .fontWeight(.semibold)
+                    ProgressView().tint(.white).scaleEffect(0.85)
+                    Text("Notifying…").fontWeight(.semibold)
                 } else {
                     Image(systemName: locationManager.isTracking ? "stop.fill" : "play.fill")
+                        .font(.system(size: 16, weight: .semibold))
                     Text(locationManager.isTracking ? "Stop Tracking" : "Start Tracking")
-                        .fontWeight(.semibold)
+                        .font(.body).fontWeight(.bold)
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding()
-            .background(locationManager.isTracking ? Color.red : Color.accentColor)
+            .padding(.vertical, 16)
+            .background(locationManager.isTracking ? Color.dkRed : Color.dkGreen)
             .foregroundColor(.white)
             .cornerRadius(14)
+            .shadow(color: (locationManager.isTracking ? Color.dkRed : Color.dkGreen).opacity(0.4),
+                    radius: 8, x: 0, y: 4)
         }
     }
 
-    // MARK: - Actions
+    // MARK: - Actions (unchanged logic)
 
-    /// Finds the load assigned to the currently logged-in driver.
-    /// Reads from iCloud KV (LoadStore) immediately — the source of truth for
-    /// loads created in the iOS dispatcher app.  Also fires a background server
-    /// fetch to merge any loads created via the web dispatcher.
     private func fetchAssignedLoad() {
         guard let driver = appState.currentUser else { return }
         isLoadingLoad = true
-
-        // 1. Nudge iCloud to push any pending remote changes
         NSUbiquitousKeyValueStore.default.synchronize()
-
-        // 2. Match immediately from local / iCloud store — this is the fast path
-        //    and works even when the server is unreachable or the driver has no JWT.
         matchLoadForDriver(driver)
-
-        // 3. Fire a background server fetch to pick up loads created via the
-        //    web dispatcher portal.  If it succeeds, merge & re-match.
-        //    Ignore any errors — the local store result already shown to driver.
-        network.fetchLoads { serverLoads, _ in
-            if let serverLoads = serverLoads, !serverLoads.isEmpty {
+        let phone = driver.phone.filter { $0.isNumber }
+        let name  = driver.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let email = driver.email.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let base  = AWSConfig.baseURL.trimmingCharacters(in: .init(charactersIn: "/"))
+        var query = "phone=\(phone)"
+        if !name.isEmpty  { query += "&name=\(name)" }
+        if !email.isEmpty { query += "&email=\(email)" }
+        guard !base.contains("REPLACE_WITH"),
+              let url = URL(string: "\(base)/loads/by-driver?\(query)") else {
+            self.isLoadingLoad = false; return
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"; request.timeoutInterval = 12
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                defer { self.isLoadingLoad = false }
+                guard let data = data, error == nil,
+                      (response as? HTTPURLResponse)?.statusCode == 200 else { return }
+                let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+                guard let serverLoads = try? decoder.decode([Load].self, from: data),
+                      !serverLoads.isEmpty else { return }
                 for load in serverLoads { LoadStore.shared.upsert(load) }
-                // Re-match in case the server returned a newly-assigned load
                 self.matchLoadForDriver(driver)
             }
-            self.isLoadingLoad = false
-        }
+        }.resume()
     }
 
-    /// Async wrapper used by pull-to-refresh (.refreshable).
     private func fetchAssignedLoadAsync() async {
         await withCheckedContinuation { cont in
             fetchAssignedLoad()
-            // fetchAssignedLoad sets isLoadingLoad = false when done;
-            // give it a tiny moment to finish before releasing the refresh spinner
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { cont.resume() }
         }
     }
@@ -512,59 +632,35 @@ struct DriverView: View {
         let driverPhone = driver.phone.filter { $0.isNumber }
         let driverName  = driver.name.lowercased().trimmingCharacters(in: .whitespaces)
         let allLoads = LoadStore.shared.load()
-
         let activeStatuses: Set<LoadStatus> = [.assigned, .accepted, .inTransit]
-
         let match = allLoads.first(where: {
             guard activeStatuses.contains($0.status) else { return false }
-            // 1. Phone match against assignedDriverPhone or assignedDriverId
             let phoneMatch = !driverPhone.isEmpty &&
                 ($0.assignedDriverPhone?.filter { $0.isNumber } == driverPhone ||
                  $0.assignedDriverId?.filter    { $0.isNumber } == driverPhone)
-            // 2. Email match against assignedDriverEmail
             let emailMatch = !driverEmail.isEmpty &&
                 ($0.assignedDriverEmail?.lowercased() == driverEmail)
-            // 3. Name match as last resort (case-insensitive)
             let nameMatch = !driverName.isEmpty &&
                 ($0.assignedDriverName?.lowercased().trimmingCharacters(in: .whitespaces) == driverName)
             return phoneMatch || emailMatch || nameMatch
         })
-
         assignedLoad = match
-
-        // Schedule (or cancel) pickup reminders based on the assigned load
-        if let load = match {
-            PickupReminderService.schedule(load: load)
-        }
+        if let load = match { PickupReminderService.schedule(load: load) }
     }
 
     private func acceptLoad(_ load: Load) {
         guard let driver = appState.currentUser else { return }
         isAcceptingLoad = true
-
-        // 1. Update status locally & persist
-        var updated = load
-        updated.status = .accepted
-        assignedLoad = updated
-        LoadStore.shared.upsert(updated)
-
-        // 2. Push status to server
+        var updated = load; updated.status = .accepted
+        assignedLoad = updated; LoadStore.shared.upsert(updated)
         network.updateLoadStatus(loadId: load.id, status: .accepted)
-
-        // 3. Notify dispatcher via server (fire-and-forget — graceful fallback)
         network.notifyDispatcherLoadAccepted(load: updated, driverName: driver.name) { _ in
             isAcceptingLoad = false
         }
-
-        // 4. Re-schedule pickup reminders now that load is accepted
         PickupReminderService.schedule(load: updated)
-
-        // 5. Show confirmation banner
         notificationBannerMessage = "✅ Load accepted — dispatcher has been notified!"
         showNotificationBanner = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-            showNotificationBanner = false
-        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { showNotificationBanner = false }
     }
 
     private func toggleTracking() {
@@ -573,92 +669,108 @@ struct DriverView: View {
             network.disconnectWebSocket()
             statusMessage = "Stopped at \(Date().formatted(date: .omitted, time: .shortened))"
         } else {
-            guard let load = assignedLoad,
-                  let driver = appState.currentUser else {
-                statusMessage = "No load assigned."
-                return
+            guard let load = assignedLoad, let driver = appState.currentUser else {
+                statusMessage = "No load assigned."; return
             }
             locationManager.requestPermission()
-
-            // 1️⃣ Update load status → In Transit immediately (local + server)
-            var updatedLoad = load
-            updatedLoad.status = .inTransit
-            assignedLoad = updatedLoad
-            LoadStore.shared.upsert(updatedLoad)
-            // PATCH /track/{token}/status — public endpoint, no auth needed
+            var updatedLoad = load; updatedLoad.status = .inTransit
+            assignedLoad = updatedLoad; LoadStore.shared.upsert(updatedLoad)
             AWSManager.shared.updateStatusByToken(token: load.trackingToken,
-                                                  loadId: load.id,
-                                                  status: .inTransit)
-
-            // 2️⃣ Start GPS — posts to /track/{token}/location in the background
-            //    The native OS keeps this running even when the screen is locked.
+                                                  loadId: load.id, status: .inTransit)
             locationManager.startTracking(
-                loadId: load.id,
-                driverId: driver.id,
+                loadId: load.id, driverId: driver.id,
                 trackingToken: load.trackingToken,
-                deliveryAddress: load.deliveryAddress,
-                interval: 10
+                deliveryAddress: load.deliveryAddress, interval: 10
             ) { update in
                 DispatchQueue.main.async {
                     self.statusMessage = "Sent at \(update.timestamp.formatted(date: .omitted, time: .shortened))"
                 }
             }
-
             statusMessage = "Tracking started"
             notificationBannerMessage = "🚛 Tracking started — dispatcher can see your location live"
             showNotificationBanner = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                showNotificationBanner = false
-            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { showNotificationBanner = false }
         }
     }
 }
 
-// MARK: - Reusable Sub-components
+// MARK: - Dark Sub-components
 
-struct StatusBadge: View {
+struct DarkStatusBadge: View {
     let status: LoadStatus
     var body: some View {
         Label(status.rawValue, systemImage: status.icon)
-            .font(.caption)
-            .fontWeight(.medium)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .font(.caption).fontWeight(.semibold)
+            .padding(.horizontal, 9).padding(.vertical, 4)
             .background(statusColor.opacity(0.15))
             .foregroundColor(statusColor)
             .cornerRadius(8)
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(statusColor.opacity(0.3), lineWidth: 1))
     }
     private var statusColor: Color {
         switch status {
-        case .pending:   return .gray
-        case .assigned:  return .blue
-        case .accepted:  return .purple
-        case .inTransit: return .orange
-        case .delivered: return .green
-        case .cancelled: return .red
+        case .pending:   return Color(red: 0.557, green: 0.557, blue: 0.627)
+        case .assigned:  return Color(red: 0.000, green: 0.478, blue: 1.000)
+        case .accepted:  return Color(red: 0.588, green: 0.329, blue: 0.969)
+        case .inTransit: return Color(red: 1.000, green: 0.584, blue: 0.000)
+        case .delivered: return Color(red: 0.204, green: 0.780, blue: 0.349)
+        case .cancelled: return Color(red: 1.000, green: 0.231, blue: 0.188)
         }
     }
 }
 
-struct InfoRow: View {
+struct DarkInfoRow: View {
     let icon: String
     let label: String
     let value: String
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
-                .foregroundColor(.accentColor)
-                .frame(width: 20)
+                .font(.system(size: 13))
+                .foregroundColor(Color(red: 0.557, green: 0.557, blue: 0.627))
+                .frame(width: 18)
+                .padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(Color(red: 0.557, green: 0.557, blue: 0.627))
+                    .kerning(0.5)
                 Text(value)
-                    .font(.body)
+                    .font(.subheadline)
+                    .foregroundColor(.white)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            Spacer()
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 9)
     }
 }
+
+struct DarkNotificationBanner: View {
+    let message: String
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "bell.fill")
+                .foregroundColor(.white)
+            Text(message)
+                .font(.subheadline).fontWeight(.medium)
+                .foregroundColor(.white)
+                .multilineTextAlignment(.leading)
+            Spacer()
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .background(Color(red: 0.000, green: 0.478, blue: 1.000).opacity(0.9))
+        .cornerRadius(14)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.15), lineWidth: 1))
+        .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 4)
+        .padding(.horizontal, 16)
+    }
+}
+
+// Keep old names available so other files that reference them don't break
+typealias StatusBadge = DarkStatusBadge
+typealias InfoRow = DarkInfoRow
 
 struct ShareSheet: UIViewControllerRepresentable {
     let activityItems: [Any]
@@ -668,69 +780,38 @@ struct ShareSheet: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
-// MARK: - Always Allow Banner
-
 struct AlwaysAllowBanner: View {
     let onOpenSettings: () -> Void
-
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "location.fill")
-                .foregroundColor(.white)
+            Image(systemName: "location.fill").foregroundColor(.white)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Background location needed")
-                    .font(.caption)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
+                    .font(.caption).fontWeight(.bold).foregroundColor(.white)
                 Text("Tap to change to \"Always Allow\" in Settings")
-                    .font(.caption2)
-                    .foregroundColor(.white.opacity(0.85))
+                    .font(.caption2).foregroundColor(.white.opacity(0.85))
             }
             Spacer()
             Button(action: onOpenSettings) {
                 Text("Fix")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
+                    .font(.caption).fontWeight(.semibold)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
                     .background(Color.white)
                     .foregroundColor(.orange)
                     .cornerRadius(20)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 14).padding(.vertical, 10)
         .background(Color.orange.gradient)
         .cornerRadius(12)
-        .padding(.horizontal, 12)
-        .padding(.top, 4)
-        .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+        .padding(.horizontal, 12).padding(.top, 4)
+        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
     }
 }
 
-// MARK: - Notification Banner
-
 struct NotificationBanner: View {
     let message: String
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "bell.fill")
-                .foregroundColor(.white)
-            Text(message)
-                .font(.subheadline)
-                .fontWeight(.medium)
-                .foregroundColor(.white)
-                .multilineTextAlignment(.leading)
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color.accentColor.gradient)
-        .cornerRadius(14)
-        .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
-        .padding(.horizontal, 16)
-    }
+    var body: some View { DarkNotificationBanner(message: message) }
 }
 
 #Preview {

@@ -1,12 +1,12 @@
 /**
- * CMP Logistics — Driver Tracking Service Worker  (v7)
+ * Routelo — Driver Tracking Service Worker  (v11)
  *
  * v7 changes: fixed duplicate setInterval block, replaced ts-based dedup
  * with wall-clock check so stationary drivers get heartbeats every 20s,
  * postLastKnownLocation now includes loadId for faster Lambda lookup.
  */
 
-const CACHE_NAME   = 'cmp-driver-v9';
+const CACHE_NAME   = 'routelo-driver-v11';
 const ASSETS_CACHE = [
   'driver-tracking.html',
   'config.js',
@@ -146,12 +146,8 @@ async function postLastKnownLocation() {
       longitude: record.longitude,
       speed:     record.speed   || 0,
       heading:   record.heading || 0,
-      timestamp: new Date().toISOString(), // always use current time so dispatcher sees a fresh ping
-      loadId:    record.loadId || undefined
-      speed:     record.speed   || 0,
-      heading:   record.heading || 0,
-      timestamp: new Date().toISOString(), // always use current time so dispatcher sees a fresh ping
-      loadId:    record.loadId || undefined,
+      timestamp: new Date().toISOString(),
+      loadId:    record.loadId  || undefined,
     };
 
     var resp = await fetch(record.apiBase + '/track/' + record.token + '/location', {

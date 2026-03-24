@@ -1,9 +1,9 @@
-<!that tDOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>CMP Logistics - Dispatcher Portal</title>
+<title>Routelo - Dispatcher Portal</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -206,14 +206,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <div id="auth-screen">
   <div class="acard">
     <div class="alogo">
-      <!-- CMP Logistics logo -->
-      <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:14px">
-        <div style="width:42px;height:42px;background:linear-gradient(135deg,#533AB7,#AFA9EC);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;flex-shrink:0">C</div>
-        <div style="text-align:left;line-height:1">
-          <div style="font-size:24px;font-weight:600;color:#fff;letter-spacing:-0.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">CMP Logistics</div>
-          <div style="font-size:9px;font-weight:400;color:#8e8ea0;letter-spacing:2.5px;text-transform:uppercase;margin-top:3px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">FREIGHT MANAGEMENT</div>
+      <!-- Routelo Logo -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:13px;margin-bottom:10px">
+        <!-- GPS Signal Ring Icon -->
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Outer ring -->
+          <circle cx="24" cy="24" r="22" stroke="#7F77DD" stroke-width="1.6" opacity="0.25"/>
+          <!-- Mid ring -->
+          <circle cx="24" cy="24" r="16.7" stroke="#7F77DD" stroke-width="1.6" opacity="0.45"/>
+          <!-- Inner ring -->
+          <circle cx="24" cy="24" r="11.4" stroke="#7F77DD" stroke-width="2" opacity="0.7"/>
+          <!-- Center dot -->
+          <circle cx="24" cy="24" r="5.3" fill="#534AB7"/>
+          <!-- White inner dot -->
+          <circle cx="24" cy="24" r="2.2" fill="white"/>
+        </svg>
+        <!-- Wordmark -->
+        <div style="text-align:left">
+          <div style="font-size:26px;font-weight:600;color:#fff;letter-spacing:-0.5px;line-height:1.1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">Routelo</div>
+          <div style="font-size:9px;font-weight:400;color:#8e8ea0;letter-spacing:2.2px;text-transform:uppercase;margin-top:2px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">LIVE TRACKING</div>
         </div>
       </div>
+      <div style="font-size:11px;color:#8e8ea0;margin-bottom:4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:0.3px">Powered by <span style="font-weight:600;color:#AFA9EC">OTTIO</span></div>
       <p id="auth-subtitle" style="margin:0">Dispatcher Portal</p>
     </div>
     <div class="atabs">
@@ -228,11 +242,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
       <button type="button" class="btn btn-p btn-full" id="btn-in">Sign In</button>
     </div>
     <div class="aform" id="form-up">
-      <div class="fg"><label>Full Name</label><input type="text" id="reg-name" placeholder="Jane Dispatcher"/></div>
-      <div class="fg"><label>Work Email</label><input type="email" id="reg-email" placeholder="dispatcher@yourcompany.com"/></div>
-      <div class="fg"><label>Phone (optional)</label><input type="tel" id="reg-phone" placeholder="+1 312 555 0100"/></div>
-      <div class="fg"><label>Password (min 6 chars)</label><input type="password" id="reg-pw" placeholder="Password"/></div>
-      <button type="button" class="btn btn-p btn-full" id="btn-up">Request Access</button>
+      <!-- Step 1: Company lookup -->
+      <div id="reg-step1">
+        <div class="fg">
+          <label>Company Name</label>
+          <input type="text" id="reg-company" placeholder="Acme Freight Inc." autocomplete="organization"/>
+          <div id="reg-company-status" style="margin-top:7px;font-size:12px;border-radius:8px;padding:8px 11px;display:none"></div>
+        </div>
+        <button type="button" class="btn btn-p btn-full" id="btn-lookup-company">Find My Company</button>
+      </div>
+      <!-- Step 2: User details (shown after company confirmed) -->
+      <div id="reg-step2" style="display:none">
+        <div id="reg-company-banner" style="background:rgba(52,199,89,.1);border:1px solid rgba(52,199,89,.3);border-radius:9px;padding:9px 12px;font-size:13px;color:#34C759;margin-bottom:12px;display:flex;align-items:center;gap:7px">
+          <span>✅</span><span id="reg-company-banner-name"></span>
+        </div>
+        <div class="fg"><label>Full Name</label><input type="text" id="reg-name" placeholder="Jane Dispatcher"/></div>
+        <div class="fg"><label>Work Email</label><input type="email" id="reg-email" placeholder="dispatcher@yourcompany.com"/></div>
+        <div class="fg"><label>Phone (optional)</label><input type="tel" id="reg-phone" placeholder="+1 312 555 0100"/></div>
+        <div class="fg"><label>Password (min 6 chars)</label><input type="password" id="reg-pw" placeholder="Password"/></div>
+        <button type="button" class="btn btn-p btn-full" id="btn-up">Request Access</button>
+        <button type="button" class="btn btn-full" style="margin-top:7px;background:var(--s2);font-size:12px" id="btn-reg-back">← Different company</button>
+      </div>
     </div>
     <!-- Create Company — self-service sign-up for new tenants -->
     <div class="aform" id="form-co">
@@ -241,7 +271,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
       <div class="fg"><label>Work Email</label><input type="email" id="co-email" placeholder="jane@acmefreight.com"/></div>
       <div class="fg"><label>Password (min 8 chars)</label><input type="password" id="co-pw" placeholder="Strong password"/></div>
       <button type="button" class="btn btn-p btn-full" id="btn-co">Create Company &amp; Sign In</button>
-      <p class="anote" style="margin-top:10px">Includes a 14-day free trial. No credit card required to start.</p>
+      <div style="margin-top:14px;background:rgba(0,122,255,.08);border:1px solid rgba(0,122,255,.25);border-radius:12px;padding:12px 14px;text-align:center">
+        <div style="font-size:13px;font-weight:700;color:var(--blue);margin-bottom:4px">💳 Subscription Required</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.5">After signing up, activate your plan via Stripe.<br>No load limits. Cancel any time.</div>
+        <button type="button" onclick="document.getElementById('btn-co').click()" style="display:none"></button>
+      </div>
     </div>
     <!-- Shown after a successful request submission -->
     <div class="aform" id="form-pending" style="text-align:center;padding:8px 0">
@@ -253,7 +287,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
       </div>
       <button class="btn btn-full" style="background:var(--s2)" onclick="document.getElementById('tab-in').click()">Back to Sign In</button>
     </div>
-    <p class="anote">Existing user? Sign in above. New company? Use the New Company tab.</p>
+    <p class="anote">Signing in? Use Sign In above. New company? Use the New Company tab to subscribe.</p>
   </div>
 </div>
 
@@ -261,7 +295,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <div id="app-screen">
   <nav class="nav">
     <div class="brand" style="display:flex;align-items:center;gap:8px">
-      <span id="nav-company">CMP Logistics</span><span id="nav-platform-tag" style="display:none;font-size:10px;font-weight:500;color:var(--muted);margin-left:6px;padding:2px 7px;background:rgba(255,255,255,.06);border-radius:20px;border:1px solid var(--border)">via CMP Logistics</span>
+      <span id="nav-company">Routelo</span><span id="nav-platform-tag" style="display:none;font-size:10px;font-weight:500;color:var(--muted);margin-left:6px;padding:2px 7px;background:rgba(255,255,255,.06);border-radius:20px;border:1px solid var(--border)">via Routelo</span>
     </div>
     <div class="spacer"></div>
     <span id="nav-plan-badge" style="display:none;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:rgba(255,149,0,.15);color:#FF9500;border:1px solid rgba(255,149,0,.3);cursor:pointer" title="Upgrade plan" onclick="upgradePlan()"></span>
@@ -308,6 +342,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   <div class="modal">
     <div class="mhdr"><h2>New Load</h2><button class="mclose" id="m-close">✕</button></div>
     <div class="mbody">
+      <div id="modal-offline-warn" style="display:none;background:rgba(255,149,0,.12);border:1px solid rgba(255,149,0,.4);color:#FF9500;border-radius:9px;padding:9px 13px;font-size:13px;margin-bottom:12px">⚠️ You are offline. Changes will be saved locally.</div>
       <div class="merr" id="merr"></div>
       <div class="ftitle">Load Info</div>
       <div class="frow">
@@ -396,6 +431,30 @@ function fmt(iso){ if(!iso)return '--'; return new Date(iso).toLocaleDateString(
 function bc(s){ return 'badge b'+(s||'Pending').replace(/\s/g,''); }
 function ah(){ var h={'Content-Type':'application/json'}; if(session&&session.token&&session.token!=='local')h['Authorization']='Bearer '+session.token; return h; }
 
+/* Central fetch wrapper — auto-logout on 401 */
+function apiFetch(url, opts){
+  return fetch(url, opts).then(function(r){
+    if(r.status===401){
+      session=null; localStorage.removeItem('cmp_session');
+      clearInterval(_bgPollTimer); _bgPollTimer=null;
+      // Close any open modal first
+      var ov=document.getElementById('modal-ov'); if(ov) ov.classList.remove('on');
+      showAuth();
+      aerr('Your session has expired. Please sign in again.');
+      return Promise.reject(new Error('__SESSION_EXPIRED__'));
+    }
+    // Service worker returns 503 + {error:'offline'} when network is unreachable.
+    // Treat it as a real network rejection so .catch handlers handle it as offline.
+    if(r.status===503){
+      return r.json().catch(function(){ return {error:'offline'}; }).then(function(d){
+        if(d && d.error==='offline') return Promise.reject(new Error('__OFFLINE__'));
+        return Promise.reject(new Error(d.error||'Server unavailable'));
+      });
+    }
+    return r;
+  });
+}
+
 /* TOAST */
 var _tt;
 function toast(m,d){ var e=document.getElementById('toast'); e.textContent=m; e.classList.add('on'); clearTimeout(_tt); _tt=setTimeout(function(){e.classList.remove('on');},d||3200); }
@@ -436,6 +495,12 @@ document.getElementById('tab-up').addEventListener('click',function(){
   ['form-in','form-up','form-co'].forEach(function(id){document.getElementById(id).classList.remove('on');});
   document.getElementById('tab-up').classList.add('on');
   document.getElementById('form-up').classList.add('on');
+  // Reset to step 1
+  document.getElementById('reg-step1').style.display='';
+  document.getElementById('reg-step2').style.display='none';
+  document.getElementById('reg-company-status').style.display='none';
+  document.getElementById('reg-company').value='';
+  window._regTenantId=null;
   aclr();
 });
 document.getElementById('tab-co').addEventListener('click',function(){
@@ -485,8 +550,84 @@ function doSignIn(){
 /* REGISTER / REQUEST ACCESS */
 document.getElementById('btn-up').addEventListener('click', doRegister);
 document.getElementById('reg-pw').addEventListener('keydown',function(e){if(e.key==='Enter')doRegister();});
+document.getElementById('btn-lookup-company').addEventListener('click', doLookupCompany);
+document.getElementById('reg-company').addEventListener('keydown',function(e){if(e.key==='Enter')doLookupCompany();});
+document.getElementById('btn-reg-back').addEventListener('click', function(){
+  document.getElementById('reg-step1').style.display='';
+  document.getElementById('reg-step2').style.display='none';
+  document.getElementById('reg-company-status').style.display='none';
+  window._regTenantId=null;
+  aclr();
+});
 
-/* CREATE COMPANY (new tenant self-sign-up) */
+/* COMPANY LOOKUP for Create Account flow */
+function doLookupCompany(){
+  aclr();
+  var companyName = document.getElementById('reg-company').value.trim();
+  if(!companyName) return aerr('Please enter your company name.');
+  var btn = document.getElementById('btn-lookup-company');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span> Looking up…';
+  var statusEl = document.getElementById('reg-company-status');
+  statusEl.style.display='none';
+
+  if(!isLive()){
+    // Offline: check local accounts
+    var accs=JSON.parse(localStorage.getItem('cmp_accounts')||'[]');
+    var match=accs.find(function(a){return a.companyName&&a.companyName.toLowerCase()===companyName.toLowerCase()&&a.role==='dispatcher';});
+    btn.disabled=false; btn.textContent='Find My Company';
+    if(match){
+      window._regTenantId=match.tenantId;
+      showRegStep2(match.companyName);
+    } else {
+      showCompanyNotFound(companyName);
+    }
+    return;
+  }
+
+  fetch(API+'/companies/lookup?name='+encodeURIComponent(companyName))
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(!d.exists){
+        showCompanyNotFound(companyName);
+      } else if(!d.hasActiveSubscription){
+        showCompanyNoSub(d.companyName);
+      } else {
+        window._regTenantId = d.tenantId;
+        showRegStep2(d.companyName);
+      }
+    })
+    .catch(function(){
+      statusEl.style.cssText='display:block;background:rgba(255,59,48,.1);border:1px solid rgba(255,59,48,.3);color:#FF3B30';
+      statusEl.textContent='⚠️ Could not reach server. Check your connection.';
+    })
+    .finally(function(){btn.disabled=false; btn.textContent='Find My Company';});
+}
+
+function showCompanyNotFound(name){
+  var statusEl=document.getElementById('reg-company-status');
+  statusEl.style.cssText='display:block;background:rgba(255,149,0,.1);border:1px solid rgba(255,149,0,.3);color:#FF9500';
+  statusEl.innerHTML='⚠️ <strong>'+esc(name)+'</strong> is not registered on Routelo yet.<br><span style="font-size:11px;opacity:.85">Use the <strong>New Company</strong> tab to create your company and subscribe.</span>';
+  // Flash the New Company tab
+  var tabCo=document.getElementById('tab-co');
+  tabCo.style.animation='none'; tabCo.offsetHeight;
+  tabCo.style.background='rgba(0,122,255,.25)';
+  setTimeout(function(){tabCo.style.background='';},1500);
+}
+
+function showCompanyNoSub(name){
+  var statusEl=document.getElementById('reg-company-status');
+  statusEl.style.cssText='display:block;background:rgba(255,59,48,.1);border:1px solid rgba(255,59,48,.3);color:#FF3B30';
+  statusEl.innerHTML='❌ <strong>'+esc(name)+'</strong> exists but does not have an active subscription.<br><span style="font-size:11px;opacity:.85">Ask your company admin to activate the subscription first.</span>';
+}
+
+function showRegStep2(companyName){
+  document.getElementById('reg-step1').style.display='none';
+  document.getElementById('reg-step2').style.display='';
+  document.getElementById('reg-company-banner-name').textContent='Joining: '+companyName;
+  aclr();
+}
+
+/* REGISTER / REQUEST ACCESS */
 document.getElementById('btn-co').addEventListener('click', doCreateCompany);
 document.getElementById('co-pw').addEventListener('keydown',function(e){if(e.key==='Enter')doCreateCompany();});
 
@@ -505,14 +646,14 @@ function doCreateCompany(){
     var accs=JSON.parse(localStorage.getItem('cmp_accounts')||'[]');
     for(var i=0;i<accs.length;i++){if(accs[i].email===email){btn.disabled=false;btn.textContent='Create Company & Sign In';return aerr('An account with that email already exists.');}}
     var tenantId='local-'+Date.now();
-    var newUser={name:name,email:email,role:'dispatcher',tenantId:tenantId,companyName:company,plan:'trial',passwordHash:sha256(pass),status:'active'};
+    var newUser={name:name,email:email,role:'dispatcher',tenantId:tenantId,companyName:company,plan:'inactive',passwordHash:sha256(pass),status:'active'};
     accs.push(newUser);
     localStorage.setItem('cmp_accounts',JSON.stringify(accs));
-    session={token:'local',user:{name:name,email:email,role:'dispatcher',tenantId:tenantId,companyName:company,plan:'trial'}};
+    session={token:'local',user:{name:name,email:email,role:'dispatcher',tenantId:tenantId,companyName:company,plan:'inactive'}};
     localStorage.setItem('cmp_session',JSON.stringify(session));
     btn.disabled=false;btn.textContent='Create Company & Sign In';
     enterApp();
-    toast('🎉 Welcome, '+company+'! Your 14-day trial has started.');
+    toast('🎉 Welcome, '+company+'! Activate your subscription to start dispatching.');
     return;
   }
 
@@ -524,17 +665,20 @@ function doCreateCompany(){
       session={token:res.d.token,user:res.d.user};
       localStorage.setItem('cmp_session',JSON.stringify(session));
       enterApp();
-      toast('🎉 Welcome, '+company+'! Your 14-day trial has started.');
+      toast('🎉 Welcome, '+company+'! Activate your subscription to start dispatching.');
     })
     .catch(function(e){aerr(e.message&&e.message!=='Failed to fetch'?e.message:'Cannot reach the server. Try again later.');})
     .finally(function(){btn.disabled=false;btn.textContent='Create Company & Sign In';});
 }
 
-function showPendingScreen(email){
+function showPendingScreen(email, msg){
   document.getElementById('form-up').classList.remove('on');
   document.getElementById('form-pending').classList.add('on');
   document.getElementById('pending-email').textContent=email;
-  // Hide the tabs so the user can't accidentally go back to Create Account
+  if(msg){
+    var msgEl=document.querySelector('#form-pending > div:nth-child(3)');
+    if(msgEl) msgEl.innerHTML=esc(msg)+'<br><br>You\'ll receive an email at <span style="color:var(--text);font-weight:600">'+esc(email)+'</span> once your account is approved.';
+  }
   document.getElementById('tab-up').style.display='none';
 }
 
@@ -546,24 +690,23 @@ function doRegister(){
   var pass=document.getElementById('reg-pw').value;
   if(!name||!email||!pass)return aerr('Name, email, and password are required.');
   if(pass.length<6)return aerr('Password must be at least 6 characters.');
+  var tenantId = window._regTenantId || null;
   var btn=document.getElementById('btn-up'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Sending request…';
   if(!isLive()){
-    // Offline/local mode — save as pending locally and show the waiting screen
     var accs=JSON.parse(localStorage.getItem('cmp_accounts')||'[]');
     for(var i=0;i<accs.length;i++){if(accs[i].email===email){btn.disabled=false;btn.textContent='Request Access';return aerr('An account with that email already exists.');}}
-    accs.push({name:name,email:email,phone:phone,role:'dispatcher',passwordHash:sha256(pass),status:'pending'});
+    accs.push({name:name,email:email,phone:phone,role:'dispatcher',tenantId:tenantId,passwordHash:sha256(pass),status:'pending'});
     localStorage.setItem('cmp_accounts',JSON.stringify(accs));
     btn.disabled=false; btn.textContent='Request Access';
     showPendingScreen(email); return;
   }
   var regBody={name:name,email:email,phone:phone,password:pass,role:'dispatcher'};
-  if(window._inviteTenantId) regBody.tenantId=window._inviteTenantId;
+  if(tenantId) regBody.tenantId=tenantId;
   fetch(API+'/users/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(regBody)})
     .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
     .then(function(res){
       if(!res.ok)throw new Error(res.d.error||'Request failed.');
-      // status === 'pending' — show the waiting screen
-      showPendingScreen(email);
+      showPendingScreen(email, res.d.message);
     })
     .catch(function(e){aerr(e.message&&e.message!=='Failed to fetch'?e.message:'Cannot reach the server. Try again later.');})
     .finally(function(){btn.disabled=false;btn.textContent='Request Access';});
@@ -588,20 +731,23 @@ function enterApp(){
     document.getElementById('nav-platform-tag').style.display = '';
     // Also update auth screen subtitle so it shows the company on next load
     var sub = document.getElementById('auth-subtitle');
-    if(sub) sub.textContent = u.companyName + ' · CMP Logistics';
+    if(sub) sub.textContent = u.companyName + ' · Routelo';
   }
 
   // Show plan badge
   var planBadge = document.getElementById('nav-plan-badge');
-  if(u.plan === 'trial'){
-    planBadge.textContent = '⏳ Trial';
+  if(u.plan === 'trial' || u.plan === 'inactive' || !u.plan){
+    planBadge.textContent = '💳 Subscribe';
     planBadge.style.display = '';
-    planBadge.title = 'Free trial active — click to upgrade';
+    planBadge.style.background = 'rgba(0,122,255,.15)';
+    planBadge.style.color = 'var(--blue)';
+    planBadge.style.borderColor = 'rgba(0,122,255,.3)';
+    planBadge.title = 'Activate your subscription to unlock all features';
   } else if(u.plan === 'free'){
     planBadge.textContent = '⬆️ Upgrade';
     planBadge.style.display = '';
     planBadge.title = 'Click to upgrade to Pro';
-  } else if(u.plan === 'pro'){
+  } else if(u.plan === 'pro' || u.plan === 'active'){
     planBadge.textContent = '⭐ Pro';
     planBadge.style.background = 'rgba(52,199,89,.15)';
     planBadge.style.color = '#34C759';
@@ -625,7 +771,7 @@ function enterApp(){
   // Handle billing query params (return from Stripe)
   var params = new URLSearchParams(window.location.search);
   if(params.get('billing')==='success'){
-    toast('✅ Subscription activated! Thank you.');
+    toast('✅ Subscription activated! Welcome to Routelo Pro.');
     window.history.replaceState({}, '', window.location.pathname);
   } else if(params.get('billing')==='cancelled'){
     toast('Checkout cancelled — you have not been charged.');
@@ -653,7 +799,7 @@ function upgradePlan(){
   if(!isLive()){ toast('Billing is only available on the live portal.'); return; }
   var btn = document.getElementById('nav-plan-badge');
   if(btn) btn.textContent = '⏳ Loading…';
-  fetch(API+'/billing/checkout',{method:'POST',headers:ah(),body:JSON.stringify({plan:'pro'})})
+  apiFetch(API+'/billing/checkout',{method:'POST',headers:ah(),body:JSON.stringify({plan:'pro'})})
     .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
     .then(function(res){
       if(!res.ok) throw new Error(res.d.error||'Could not start checkout.');
@@ -661,7 +807,7 @@ function upgradePlan(){
     })
     .catch(function(e){
       toast('❌ '+e.message);
-      if(btn) btn.textContent = u.plan==='trial'?'⏳ Trial':'⬆️ Upgrade';
+      if(btn) btn.textContent = (u.plan==='pro'||u.plan==='active') ? '⭐ Pro' : '💳 Subscribe';
     });
 }
 
@@ -714,8 +860,8 @@ function startBackgroundPoll(){
   if(_bgPollTimer) return;
   // Snapshot current statuses so we don't fire on first load
   loads.forEach(function(l){ _knownStatuses[l.id] = l.status; });
-  // Poll every 10 seconds (live backend) or 5 seconds (localStorage)
-  var interval = isLive() ? 10000 : 5000;
+  // Poll every 3 seconds (live backend) or 2 seconds (localStorage)
+  var interval = isLive() ? 3000 : 2000;
   _bgPollTimer = setInterval(bgPollLoads, interval);
   // Also poll immediately when tab regains focus or becomes visible
   document.addEventListener('visibilitychange', function(){
@@ -726,34 +872,44 @@ function startBackgroundPoll(){
 
 function bgPollLoads(){
   if(isLive()){
-    fetch(API+'/loads', {headers:ah()})
-      .then(function(r){ return r.ok ? r.json() : null; })
+    apiFetch(API+'/loads', {headers:ah()})
+      .then(function(r){
+        if(r.status===401){
+          return r.json().then(function(d){
+            if(d && d.code==='STALE_TOKEN'){
+              session=null; localStorage.removeItem('cmp_session');
+              clearInterval(_bgPollTimer); _bgPollTimer=null;
+              showAuth();
+              aerr('Your session has expired. Please sign in again.');
+            }
+            return null;
+          });
+        }
+        return r.ok ? r.json() : null;
+      })
       .then(function(fresh){
         if(!Array.isArray(fresh)) return;
         fresh = filterDeleted(fresh);
+        // Check for status changes BEFORE merging so checkStatusChange sees old vs new
         fresh.forEach(function(l){ checkStatusChange(l); });
-        // Merge fresh data into loads[], but never overwrite a load that
-        // was edited more recently than what the API returned (handles
-        // DynamoDB eventual-consistency lag after a PUT).
+        // Merge fresh data into loads[].
+        // The server is the source of truth for status — driver status changes
+        // (Accepted, In Transit, etc.) come from the driver's browser via PATCH
+        // and must always be reflected here.
+        // We only keep the local copy if it is strictly newer by updatedAt timestamp
+        // (handles the ~1-2 s DynamoDB propagation lag after a dispatcher PUT).
         fresh.forEach(function(l){
           var existing = null;
           for(var i=0;i<loads.length;i++){if(loads[i].id===l.id){existing=loads[i];break;}}
           if(existing){
-            // If the local copy is newer, keep it — the PUT is still propagating.
             var localTs  = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
             var remoteTs = l.updatedAt        ? new Date(l.updatedAt).getTime()        : 0;
-            if(localTs > remoteTs){
-              // Still protect status from being rolled back
-              if(_knownStatuses[l.id] && _knownStatuses[l.id] !== existing.status){
-                // noop — local is already correct
-              }
-              return; // keep existing local copy untouched
+            // Only keep local if it is strictly newer AND the status hasn't changed
+            // (i.e. it was a field edit, not a driver status update).
+            if(localTs > remoteTs && existing.status === l.status){
+              return; // local edit still propagating — keep it
             }
-            // If _knownStatuses has a different (newer) status than what the API
-            // returned, keep the local one — the PATCH is still in-flight.
-            if(_knownStatuses[l.id] && _knownStatuses[l.id] !== l.status){
-              l.status = _knownStatuses[l.id];
-            }
+            // In all other cases trust the server (including driver status changes)
             for(var i=0;i<loads.length;i++){if(loads[i].id===l.id){loads[i]=l;break;}}
           } else {
             loads.push(l);
@@ -840,7 +996,7 @@ function loadDrivers(){
     drivers=accs.filter(function(a){return a.role==='driver';});
     return;
   }
-  fetch(API+'/users?role=driver',{headers:ah()})
+  apiFetch(API+'/users?role=driver',{headers:ah()})
     .then(function(r){return r.ok?r.json():[];})
     .then(function(d){drivers=Array.isArray(d)?d:[];})
     .catch(function(){drivers=[];});
@@ -861,8 +1017,23 @@ function loadData(){
     if(!s.length)localStorage.setItem('cmp_loads',JSON.stringify(loads));
     renderList(); btn.textContent='🔄'; btn.disabled=false; return;
   }
-  fetch(API+'/loads',{headers:ah()})
-    .then(function(r){if(r.status===401){showAuth();throw new Error('unauth');}return r.json();})
+  apiFetch(API+'/loads',{headers:ah()})
+    .then(function(r){
+      if(r.status===401){
+        return r.json().then(function(d){
+          if(d && d.code==='STALE_TOKEN'){
+            // Session is stale (missing tenantId) — force re-login
+            session=null; localStorage.removeItem('cmp_session');
+            showAuth();
+            aerr('Your session has expired. Please sign in again to continue.');
+          } else {
+            showAuth();
+          }
+          throw new Error('unauth');
+        });
+      }
+      return r.json();
+    })
     .then(function(d){
       loads=filterDeleted(Array.isArray(d)?d:[]);
       // Seed known statuses so background poll baseline is correct
@@ -1001,18 +1172,7 @@ function renderDetail(){
   document.getElementById('dph').style.display='none';
   var el=document.getElementById('dc'); el.style.display='block';
   var base=isLive()?API:window.location.origin;
-  var loadPayload = {
-    id:load.id, loadNumber:load.loadNumber, description:load.description,
-    pickupAddress:load.pickupAddress, deliveryAddress:load.deliveryAddress,
-    pickupDate:load.pickupDate, deliveryDate:load.deliveryDate,
-    weight:load.weight, customerName:load.customerName,
-    customerEmail:load.customerEmail, dispatcherEmail:load.dispatcherEmail,
-    notifyCustomer:load.notifyCustomer, notes:load.notes,
-    assignedDriverName:load.assignedDriverName,
-    status: (load.status === 'Pending' || !load.status) ? 'Assigned' : load.status,
-    trackingToken:load.trackingToken
-  };
-  var dURL=base+'/driver-tracking.html?token='+esc(load.trackingToken)+'&loadId='+esc(load.id)+'&d='+encodeURIComponent(b64enc(JSON.stringify(loadPayload)));
+  var dURL=base+'/driver-tracking.html?token='+esc(load.trackingToken)+'&loadId='+esc(load.id);
   var cURL=base+'/track-shipment.html?token='+esc(load.trackingToken);
   var sopts=['Pending','Assigned','Accepted','In Transit','Delivered','Cancelled'].map(function(s){return '<option value="'+s+'"'+(s===load.status?' selected':'')+'>'+s+'</option>';}).join('');
 
@@ -1377,7 +1537,7 @@ function pingDriver(){
   var btn=document.getElementById('btn-ping-driver');
   if(btn){btn.disabled=true;btn.textContent='Sending…';}
 
-  fetch(API+'/loads/'+load.id+'/send-driver-link',{
+  apiFetch(API+'/loads/'+load.id+'/send-driver-link',{
     method:'POST',
     headers:ah(),
     body:JSON.stringify({
@@ -1416,7 +1576,7 @@ function assignDriver(loadId, driverId, driverName, driverEmail, driverPhone){
     localStorage.setItem('cmp_loads',JSON.stringify(loads));
   } else {
     // Patch driver fields on the load
-    fetch(API+'/loads/'+loadId+'/assign',{method:'PATCH',headers:ah(),body:JSON.stringify({assignedDriverId:driverId,assignedDriverName:driverName,assignedDriverEmail:driverEmail,assignedDriverPhone:driverPhone})})
+    apiFetch(API+'/loads/'+loadId+'/assign',{method:'PATCH',headers:ah(),body:JSON.stringify({assignedDriverId:driverId,assignedDriverName:driverName,assignedDriverEmail:driverEmail,assignedDriverPhone:driverPhone})})
       .catch(function(e){toast('Assign error: '+e.message);});
   }
   renderList();
@@ -1440,7 +1600,7 @@ function updStatus(id,s){
   // Re-render detail panel if this load is currently open
   if(selId===id) renderDetail();
   if(!isLive()){localStorage.setItem('cmp_loads',JSON.stringify(loads));toast('Status: '+s);return;}
-  fetch(API+'/loads/'+id+'/status',{method:'PATCH',headers:ah(),body:JSON.stringify({status:s})})
+  apiFetch(API+'/loads/'+id+'/status',{method:'PATCH',headers:ah(),body:JSON.stringify({status:s})})
     .then(function(r){
       if(!r.ok) return r.json().then(function(d){throw new Error(d.error||r.status);});
       toast('Status: '+s);
@@ -1457,28 +1617,14 @@ function sendLink(id){
   var base=window.location.origin;
 
   // Safely encode load data into URL (unicode-safe btoa)
-  var payload={
-    id:load.id||'',loadNumber:load.loadNumber||'',description:load.description||'',
-    pickupAddress:load.pickupAddress||'',deliveryAddress:load.deliveryAddress||'',
-    pickupDate:load.pickupDate||'',deliveryDate:load.deliveryDate||'',
-    weight:load.weight||0,customerName:load.customerName||'',
-    customerEmail:load.customerEmail||'',dispatcherEmail:load.dispatcherEmail||'',
-    notifyCustomer:load.notifyCustomer||false,notes:load.notes||'',
-    assignedDriverName:load.assignedDriverName||'',
-    assignedDriverEmail:load.assignedDriverEmail||'',
-    assignedDriverPhone:load.assignedDriverPhone||'',
-    status: (load.status === 'Pending' || !load.status) ? 'Assigned' : load.status,
-    trackingToken:load.trackingToken||''
-  };
-  var encoded='';
-  try{ encoded=btoa(unescape(encodeURIComponent(JSON.stringify(payload)))); }catch(e){ encoded=''; }
-
   var dURL = base + '/driver-tracking.html?token=' + encodeURIComponent(load.trackingToken||'')
-           + '&loadId=' + encodeURIComponent(load.id||'')
-           + (encoded ? '&d=' + encodeURIComponent(encoded) : '');
+           + '&loadId=' + encodeURIComponent(load.id||'');
+
+  var appURL = 'routelo://driver?token=' + encodeURIComponent(load.trackingToken||'')
+           + '&loadId=' + encodeURIComponent(load.id||'');
 
   var pickupStr=load.pickupDate?new Date(load.pickupDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
-  var companyName = (session && session.user && session.user.companyName) ? session.user.companyName : 'CMP Logistics';
+  var companyName = (session && session.user && session.user.companyName) ? session.user.companyName : 'Routelo';
 
   var msgText='Hi '+(load.assignedDriverName||'Driver')+',\n\n'
     +'You have a new load from '+companyName+'.\n\n'
@@ -1487,9 +1633,10 @@ function sendLink(id){
     +'DELIVERY: '+(load.deliveryAddress||'--')+'\n'
     +(pickupStr?'DATE: '+pickupStr+'\n':'')
     +(load.notes?'NOTES: '+load.notes+'\n':'')
-    +'\n👉 Tap this link to accept and track your load:\n'
+    +'\n👉 Tap to accept & start tracking:\n'
     +dURL
-    +'\n\nTip: After opening, tap "Add to Home Screen" for the best experience — works like an app, no App Store needed.';
+    +'\n\n📱 Have the Routelo app? Open directly:\n'
+    +appURL;
 
   var smsLink=(dp?'sms:+'+dp.replace(/^\+/,''):'sms:')+('?body='+encodeURIComponent(msgText));
   var emailLink='mailto:'+(load.assignedDriverEmail||'')
@@ -1511,6 +1658,12 @@ function sendLink(id){
     +(waLink?'<button id="sm-send-wa" style="width:100%;margin-bottom:8px;background:#25D366;color:#fff;font-size:15px;font-weight:600;padding:12px;border:none;border-radius:11px;cursor:pointer">💬 Send via WhatsApp</button>':'')
     +'<a class="btn btn-full" href="'+esc(emailLink)+'" style="margin-bottom:8px;display:flex;align-items:center;justify-content:center;font-size:14px;padding:12px;text-decoration:none">✉️ Send via Email</a>'
     +'<button class="btn btn-full" id="sm-copy-link" style="font-size:14px;padding:11px">📋 Copy Link</button>'
+    +'</div>'
+    // ── Simulator shortcut (debug) ───────────────────────────────────────
+    +'<div style="background:rgba(255,149,0,.08);border:1px solid rgba(255,149,0,.3);border-radius:12px;padding:12px 14px;margin-bottom:12px">'
+    +'<div style="font-size:11px;font-weight:700;color:#FF9500;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🛠 Simulator Testing</div>'
+    +'<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Opens the driver link in a new tab — paste it into the iOS Simulator\'s Safari to test the full accept → track flow without a real phone.</div>'
+    +'<button id="sm-open-sim" style="width:100%;background:rgba(255,149,0,.18);color:#FF9500;border:1px solid rgba(255,149,0,.5);font-size:14px;font-weight:700;padding:11px;border-radius:10px;cursor:pointer">🖥 Open in Simulator Browser</button>'
     +'</div>'
     // ── Link preview ────────────────────────────────────────────────────
     +'<div style="background:var(--s2);border-radius:10px;padding:10px 12px;font-family:monospace;font-size:11px;color:var(--muted);word-break:break-all;line-height:1.5;margin-bottom:12px">'+esc(dURL)+'</div>'
@@ -1549,6 +1702,13 @@ function sendLink(id){
     var self=this; setTimeout(function(){self.textContent='📋 Copy Link';},2500);
   });
 
+  document.getElementById('sm-open-sim').addEventListener('click',function(){
+    window.open(dURL, '_blank');
+    copyText(dURL);
+    this.textContent='✅ Opened + Link Copied!';
+    var self=this; setTimeout(function(){self.textContent='🖥 Open in Simulator Browser';},3500);
+  });
+
 }
 
 /* DELETE LOAD */
@@ -1563,12 +1723,12 @@ function delLoad(id){
   closeDetailPanel();
   renderList();
   if(!isLive()){localStorage.setItem('cmp_loads',JSON.stringify(loads));toast('Deleted');return;}
-  fetch(API+'/loads/'+id,{method:'DELETE',headers:ah()})
+  apiFetch(API+'/loads/'+id,{method:'DELETE',headers:ah()})
     .then(function(r){
       if(!r.ok) return r.json().then(function(d){throw new Error(d.error||r.status);});
       toast('Deleted');
     })
-    .catch(function(e){toast('Failed: '+e.message);});
+    .catch(function(e){if(e&&e.message==='__SESSION_EXPIRED__') return; toast('Failed: '+e.message);});
 }
 
 /* COPY */
@@ -1723,6 +1883,7 @@ function editLoad(id){
   document.getElementById('al-notes').value=load.notes||'';
   document.getElementById('al-nfy').checked=!!load.notifyCustomer;
   document.getElementById('merr').style.display='none';
+  document.getElementById('modal-offline-warn').style.display = (!navigator.onLine) ? 'block' : 'none';
 
   // Pre-select driver
   selectedDriverId=null;
@@ -1759,12 +1920,13 @@ function openModal(){
   document.querySelector('#modal-ov .mhdr h2').textContent='New Load';
   document.getElementById('btn-save').textContent='Save Load';
   var now=new Date(),tom=new Date(now.getTime()+86400000);
-  var tl=function(d){return d.toISOString().slice(0,16);};
+  var tl=function(d){var off=d.getTimezoneOffset()*60000;return new Date(d.getTime()-off).toISOString().slice(0,16);};
   document.getElementById('al-pd').value=tl(now);
   document.getElementById('al-dd').value=tl(tom);
   ['al-num','al-wt','al-desc','al-pu','al-de','al-dn','al-dp','al-cn','al-ce','al-cp','al-notes'].forEach(function(id){document.getElementById(id).value='';});
   document.getElementById('al-nfy').checked=true;
   document.getElementById('merr').style.display='none';
+  document.getElementById('modal-offline-warn').style.display = (!navigator.onLine) ? 'block' : 'none';
   document.getElementById('manual-driver').style.display='none';
   document.getElementById('toggle-manual').textContent='+ Enter manually instead';
   selectedDriverId=null;
@@ -1811,7 +1973,8 @@ function saveLoad(){
   var de=document.getElementById('al-de').value.trim();
   var cn=document.getElementById('al-cn').value.trim();
   var ce=document.getElementById('al-ce').value.trim();
-  if(!pu||!de||!cn){var e=document.getElementById('merr');e.textContent='Pickup address, delivery address and customer name are required.';e.style.display='block';return;}
+  var isEditCheck=!!editingLoadId;
+  if(!pu||!de||(!cn&&!isEditCheck)){var e=document.getElementById('merr');e.textContent='Pickup address, delivery address and customer name are required.';e.style.display='block';return;}
 
   // Resolve driver from picker or manual fields
   var dId=null,dName=null,dEmail=null,dPhone=null;
@@ -1823,10 +1986,17 @@ function saveLoad(){
   } else {
     dName=document.getElementById('al-dn').value.trim()||null;
     dPhone=phoneFieldVal;
-    if(dName)dId='D'+Math.floor(Math.random()*900+100);
+    if(dName){
+      // On edit, preserve the existing driver ID rather than generating a new random one
+      var existingForDriver=null;
+      if(isEditCheck){for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){existingForDriver=loads[i];break;}}}
+      dId=(existingForDriver&&existingForDriver.assignedDriverId&&!existingForDriver.assignedDriverId.includes('@'))
+        ? existingForDriver.assignedDriverId
+        : 'D'+Math.floor(Math.random()*900+100);
+    }
   }
 
-  var isEdit=!!editingLoadId;
+  var isEdit=isEditCheck;
   var existing=null;
   if(isEdit){for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){existing=loads[i];break;}}}
 
@@ -1841,7 +2011,7 @@ function saveLoad(){
     status: isEdit ? (existing?existing.status:'Pending') : (dId?'Assigned':'Pending'),
     assignedDriverId:dId,assignedDriverName:dName,assignedDriverEmail:dEmail,assignedDriverPhone:dPhone,
     trackingToken: isEdit && existing ? existing.trackingToken : uid(),
-    customerName:cn,customerEmail:ce,
+    customerName:cn||(isEdit&&existing?existing.customerName||'':''),customerEmail:ce,
     customerPhone:document.getElementById('al-cp').value.trim(),
     dispatcherEmail:session&&session.user?session.user.email:null,
     notifyCustomer:document.getElementById('al-nfy').checked,
@@ -1868,7 +2038,7 @@ function saveLoad(){
   }
 
   if(isEdit){
-    fetch(API+'/loads/'+editingLoadId,{method:'PUT',headers:ah(),body:JSON.stringify(load)})
+    apiFetch(API+'/loads/'+editingLoadId,{method:'PUT',headers:ah(),body:JSON.stringify(load)})
       .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
       .then(function(res){
         if(!res.ok) throw new Error(res.d&&res.d.error ? res.d.error : 'Save failed (HTTP '+res.d.status+')');
@@ -1878,19 +2048,43 @@ function saveLoad(){
         var localTs = new Date(load.updatedAt).getTime();
         var updated = (apiTs >= localTs) ? res.d : load;
         for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){loads[i]=updated;break;}}
+        localStorage.setItem('cmp_loads',JSON.stringify(loads));
         renderList();closeModal();selLoad(updated.id);toast('✅ Load updated');
       })
       .catch(function(e){
+        if(e&&e.message==='__SESSION_EXPIRED__') return;
+        // Network error or server unreachable — save locally so changes aren't lost
+        var isNetworkErr = !navigator.onLine || (e instanceof TypeError) || (e.message==='__OFFLINE__') || (e.message && (e.message.toLowerCase().indexOf('fetch')!==-1||e.message.toLowerCase().indexOf('network')!==-1||e.message.toLowerCase().indexOf('offline')!==-1));
+        if(isNetworkErr){
+          for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){loads[i]=load;break;}}
+          localStorage.setItem('cmp_loads',JSON.stringify(loads));
+          renderList();closeModal();selLoad(load.id);
+          toast('⚠️ Saved locally — server unreachable. Changes will sync when back online.');
+          btn.disabled=false;btn.textContent='Save Changes';
+          return;
+        }
         var err=document.getElementById('merr');
         err.textContent='⚠️ ' + (e.message || 'Failed to save. Please try again.');
         err.style.display='block';
       })
       .finally(function(){btn.disabled=false;btn.textContent='Save Changes';});
   } else {
-    fetch(API+'/loads',{method:'POST',headers:ah(),body:JSON.stringify(load)})
+    apiFetch(API+'/loads',{method:'POST',headers:ah(),body:JSON.stringify(load)})
       .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
-      .then(function(res){if(!res.ok)throw new Error(res.d.error||'Save failed');loads.unshift(res.d);renderList();closeModal();selLoad(res.d.id);toast('Load '+load.loadNumber+' created');})
-      .catch(function(e){var err=document.getElementById('merr');err.textContent=e.message;err.style.display='block';})
+      .then(function(res){if(!res.ok)throw new Error(res.d.error||'Save failed');loads.unshift(res.d);localStorage.setItem('cmp_loads',JSON.stringify(loads));renderList();closeModal();selLoad(res.d.id);toast('Load '+load.loadNumber+' created');})
+      .catch(function(e){
+        if(e&&e.message==='__SESSION_EXPIRED__') return;
+        var isNetworkErr = !navigator.onLine || (e instanceof TypeError) || (e.message==='__OFFLINE__') || (e.message && (e.message.toLowerCase().indexOf('fetch')!==-1||e.message.toLowerCase().indexOf('network')!==-1||e.message.toLowerCase().indexOf('offline')!==-1));
+        if(isNetworkErr){
+          loads.unshift(load);
+          localStorage.setItem('cmp_loads',JSON.stringify(loads));
+          renderList();closeModal();selLoad(load.id);
+          toast('⚠️ Saved locally — server unreachable. Changes will sync when back online.');
+          btn.disabled=false;btn.textContent='Save Load';
+          return;
+        }
+        var err=document.getElementById('merr');err.textContent='⚠️ '+(e.message||'Failed to save. Please try again.');err.style.display='block';
+      })
       .finally(function(){btn.disabled=false;btn.textContent='Save Load';});
   }
 }
@@ -1913,8 +2107,46 @@ function makeSamples(){
 
 /* INIT */
 (function(){
+  // Decode JWT payload without verifying signature (client-side only)
+  function decodeJwt(token){
+    try{
+      var payload=token.split('.')[1];
+      return JSON.parse(atob(payload.replace(/-/g,'+').replace(/_/g,'/')));
+    }catch(e){return null;}
+  }
+
   var s=localStorage.getItem('cmp_session');
-  if(s){try{var p=JSON.parse(s);if(p&&p.user){session=p;enterApp();return;}}catch(e){}}
+  if(s){
+    try{
+      var p=JSON.parse(s);
+      if(p&&p.user){
+        // Validate token before entering app (skip for local/offline session)
+        if(!p.token||p.token==='local'||!API){
+          session=p; enterApp(); return;
+        }
+
+        // Immediately reject tokens missing tenantId (issued before multi-tenant login was deployed)
+        var jwt=decodeJwt(p.token);
+        if(!jwt||!jwt.tenantId){
+          localStorage.removeItem('cmp_session');
+          showAuth();
+          aerr('Your session has expired. Please sign in again.');
+          return;
+        }
+
+        // Also reject expired tokens
+        if(jwt.exp && jwt.exp < Math.floor(Date.now()/1000)){
+          localStorage.removeItem('cmp_session');
+          showAuth();
+          aerr('Your session has expired. Please sign in again.');
+          return;
+        }
+
+        session=p; enterApp();
+        return;
+      }
+    }catch(e){}
+  }
 
   // Handle invite link: ?invite=<tenantId>
   // Switch to Create Account tab and store the tenantId so register uses it.

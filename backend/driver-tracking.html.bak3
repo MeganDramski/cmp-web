@@ -4,36 +4,7 @@
  <meta charset="UTF-8" />
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
  <meta name="theme-color" content="#1a1a2e" />
- <title>Routelo - Driver Tracking</title>
- <!-- PWA manifest — patched at runtime to bake token into start_url -->
- <link rel="manifest" id="pwa-manifest-link" href="driver-manifest.json" />
- <script>
-   (function patchManifest() {
-     var p = new URLSearchParams(location.search);
-     var t = p.get('token'); var l = p.get('loadId');
-     if (!t && !l) return; // no token — leave manifest as-is
-     var startUrl = location.pathname + '?token=' + encodeURIComponent(t||'') + '&loadId=' + encodeURIComponent(l||'');
-     var manifest = {
-       name:'Routelo Driver', short_name:'Routelo',
-       start_url: startUrl, display:'standalone',
-       background_color:'#0f0f1a', theme_color:'#1a1a2e', orientation:'portrait',
-       icons:[
-         {src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='38' fill='%230f0f1a'/%3E%3Ctext x='96' y='130' font-size='100' text-anchor='middle'%3E🚛%3C/text%3E%3C/svg%3E",sizes:'192x192',type:'image/svg+xml',purpose:'any maskable'},
-         {src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%230f0f1a'/%3E%3Ctext x='256' y='340' font-size='260' text-anchor='middle'%3E🚛%3C/text%3E%3C/svg%3E",sizes:'512x512',type:'image/svg+xml',purpose:'any maskable'}
-       ]
-     };
-     var blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
-     var url  = URL.createObjectURL(blob);
-     var link = document.getElementById('pwa-manifest-link');
-     if (link) link.href = url;
-   })();
- </script>
- <!-- Apple PWA meta tags — enables "Add to Home Screen" on iOS Safari -->
- <meta name="apple-mobile-web-app-capable" content="yes" />
- <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
- <meta name="apple-mobile-web-app-title" content="Routelo" />
- <!-- Fallback icon for iOS (inline SVG data URI — no separate file needed) -->
- <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='36' fill='%230f0f1a'/%3E%3Ctext x='90' y='122' font-size='90' text-anchor='middle'%3E🚛%3C/text%3E%3C/svg%3E" />
+ <title>CMP Logistics – Driver Tracking</title>
  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
  <style>
@@ -367,168 +338,89 @@
    }
    #conn-bar.offline     { display: block; background: rgba(255,59,48,0.92);  color: #fff; }
    #conn-bar.back-online { display: block; background: rgba(52,199,89,0.92); color: #fff; }
-   #conn-bar.paused      { display: none; }
+   #conn-bar.paused      { display: block; background: rgba(255,149,0,0.95); color: #fff; cursor: pointer; }
 
-   /* ── PWA Install Modal (full-screen overlay) ── */
-   #pwa-modal-overlay {
+   /* Background tracking resume banner */
+   #bg-resume-banner {
      display: none;
-     position: fixed; inset: 0; z-index: 9999;
-     background: rgba(0,0,0,0.82);
-     flex-direction: column;
-     align-items: center;
-     justify-content: flex-end;
-     padding-bottom: 110px; /* leave room for Safari toolbar */
-     animation: fadeInOverlay 0.25s ease;
+     width: 100%;
+     max-width: 400px;
+     background: rgba(255,149,0,0.13);
+     border: 1px solid rgba(255,149,0,0.45);
+     border-radius: 14px;
+     padding: 14px 16px;
+     margin-bottom: 12px;
+     font-size: 14px;
+     color: #FF9500;
+     line-height: 1.5;
    }
-   #pwa-modal-overlay.visible { display: flex; }
-   @keyframes fadeInOverlay {
-     from { opacity: 0; } to { opacity: 1; }
+   #bg-resume-banner.visible { display: block; }
+   #bg-resume-banner strong  { display: block; font-size: 15px; margin-bottom: 4px; }
+   #btn-resume-tracking {
+     margin-top: 10px;
+     width: 100%;
+     background: #FF9500;
+     color: #fff;
+     border: none;
+     border-radius: 12px;
+     padding: 13px;
+     font-size: 15px;
+     font-weight: 700;
+     cursor: pointer;
+     -webkit-tap-highlight-color: transparent;
    }
-   #pwa-modal-box {
-     width: calc(100% - 32px);
-     max-width: 380px;
-     background: #1c1c2e;
-     border: 1px solid rgba(255,255,255,0.12);
-     border-radius: 20px;
-     padding: 22px 20px 18px;
-     text-align: center;
-     animation: slideUpBox 0.3s cubic-bezier(0.34,1.56,0.64,1);
+
+   /* iOS Add-to-Home-Screen tip banner */
+   #ios-tip-banner {
+     display: none;
+     width: 100%;
+     max-width: 400px;
+     background: rgba(0,122,255,0.10);
+     border: 1px solid rgba(0,122,255,0.35);
+     border-radius: 14px;
+     padding: 14px 16px;
+     margin-bottom: 12px;
+     font-size: 13px;
+     color: #4da6ff;
+     line-height: 1.6;
      position: relative;
    }
-   @keyframes slideUpBox {
-     from { opacity:0; transform:translateY(40px); }
-     to   { opacity:1; transform:translateY(0);    }
-   }
-   #pwa-modal-icon {
-     font-size: 52px; margin-bottom: 10px; line-height:1;
-   }
-   #pwa-modal-title {
-     font-size: 20px; font-weight: 800; color: #fff;
-     margin-bottom: 6px;
-   }
-   #pwa-modal-sub {
-     font-size: 14px; color: #8e8ea0; margin-bottom: 18px; line-height: 1.5;
-   }
-   /* iOS step row */
-   .pwa-ios-step {
-     display: flex; align-items: center; gap: 14px;
-     background: rgba(255,255,255,0.05);
-     border-radius: 12px; padding: 12px 14px;
-     margin-bottom: 10px; text-align: left;
-   }
-   .pwa-ios-step-icon {
-     font-size: 26px; flex-shrink: 0; width: 42px; text-align: center;
-   }
-   .pwa-ios-step-text { font-size: 14px; color: #fff; line-height: 1.4; }
-   .pwa-ios-step-text span { color: #8e8ea0; font-size: 12px; display:block; margin-top:2px; }
-   /* Highlight the share icon step */
-   .pwa-ios-step.highlight {
-     background: rgba(0,122,255,0.18);
-     border: 1px solid rgba(0,122,255,0.4);
-   }
-   /* Android one-tap button */
-   #pwa-android-btn {
-     width: 100%; padding: 16px; margin-bottom: 10px;
-     background: #34C759; color: #fff; border: none;
-     border-radius: 14px; font-size: 17px; font-weight: 800;
-     cursor: pointer; letter-spacing: 0.2px;
-     -webkit-tap-highlight-color: transparent;
-     box-shadow: 0 4px 20px rgba(52,199,89,0.4);
-   }
-   #pwa-modal-dismiss {
+   #ios-tip-banner.visible { display: block; }
+   #ios-tip-banner strong  { display: block; font-size: 14px; margin-bottom: 4px; color: #fff; }
+   #ios-tip-close {
+     position: absolute; top: 10px; right: 12px;
      background: none; border: none; color: #8e8ea0;
-     font-size: 14px; padding: 8px 20px; cursor: pointer;
+     font-size: 18px; cursor: pointer; line-height: 1;
      -webkit-tap-highlight-color: transparent;
    }
-   /* Animated arrow pointing DOWN to Safari share button at the bottom */
-   #pwa-arrow {
-     display: none;
-     position: fixed;
-     bottom: 88px;          /* sits just above the Safari toolbar */
-     left: 50%;
-     transform: translateX(-50%);
-     z-index: 10000;
-     text-align: center;
-     pointer-events: none;
-     animation: bounceArrowDown 0.8s ease-in-out infinite;
-   }
-   #pwa-arrow.visible { display: block; }
-   @keyframes bounceArrowDown {
-     0%,100% { transform: translateX(-50%) translateY(0);   }
-     50%      { transform: translateX(-50%) translateY(7px); }
-   }
-   /* Triangle pointing DOWN */
-   #pwa-arrow-inner {
-     background: #007AFF; color: #fff;
-     font-size: 13px; font-weight: 700;
-     padding: 8px 18px 8px; border-radius: 20px;
-     white-space: nowrap; box-shadow: 0 4px 20px rgba(0,122,255,0.6);
-     display: inline-block;
-   }
-   /* downward-pointing triangle BELOW the pill */
-   #pwa-arrow-inner::after {
-     content: ''; display: block; width: 0; height: 0;
-     border-left: 11px solid transparent;
-     border-right: 11px solid transparent;
-     border-top: 13px solid #007AFF;  /* points DOWN */
-     margin: 4px auto 0;
-   }
-   /* keep old ids so legacy references don't crash */
-   #pwa-banner { display: none; }
-   #ios-tip-banner { display: none; }
  </style>
- </head>
- <body>
+</head>
+<body>
 
  <!-- Connection status bar -->
  <div id="conn-bar"></div>
 
- <!-- Company name header -->
- <div style="text-align:center;margin-bottom:20px;display:flex;align-items:center;justify-content:center;gap:10px">
-   <svg width="36" height="36" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-     <circle cx="24" cy="24" r="22" stroke="#7F77DD" stroke-width="1.6" opacity="0.25"/>
-     <circle cx="24" cy="24" r="16.7" stroke="#7F77DD" stroke-width="1.6" opacity="0.45"/>
-     <circle cx="24" cy="24" r="11.4" stroke="#7F77DD" stroke-width="2" opacity="0.7"/>
-     <circle cx="24" cy="24" r="5.3" fill="#534AB7"/>
-     <circle cx="24" cy="24" r="2.2" fill="white"/>
-   </svg>
-   <div style="text-align:left">
-     <div style="font-size:19px;font-weight:600;color:#fff;letter-spacing:-0.3px;line-height:1.1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">Routelo</div>
-     <div style="font-size:8px;color:#8e8ea0;letter-spacing:2px;text-transform:uppercase;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">LIVE TRACKING</div>
-   </div>
- </div>
+ <p class="logo">CMP Logistics</p>
 
  <div id="error-banner"   class="error-banner"></div>
  <div id="success-banner" class="success-banner"></div>
 
- <!-- ── PWA Install Modal ─────────────────────────────────────────────────── -->
- <div id="pwa-modal-overlay">
-   <div id="pwa-modal-box">
-     <div id="pwa-modal-icon">
-       <svg width="54" height="48" viewBox="0 0 62 55" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto 4px">
-         <circle cx="16" cy="16" r="16" fill="#378ADD"/>
-         <circle cx="16" cy="16" r="6" fill="white"/>
-         <path d="M7 30 L25 30 L21.5 40.5 L16 47 L10.5 40.5 Z" fill="#378ADD"/>
-         <rect x="35" y="14" width="5" height="3.5" rx="1.75" fill="#378ADD"/>
-         <rect x="42" y="14" width="5" height="3.5" rx="1.75" fill="#378ADD"/>
-         <rect x="49" y="14" width="5" height="3.5" rx="1.75" fill="#378ADD"/>
-         <circle cx="60" cy="15.75" r="4.5" stroke="#378ADD" stroke-width="2.5" fill="none"/>
-       </svg>
-     </div>
-     <div id="pwa-modal-title">Add App to Phone</div>
-     <div id="pwa-modal-sub">Keeps GPS running in the background — no App Store needed.</div>
-     <div id="pwa-modal-body"><!-- filled by JS --></div>
-     <button id="pwa-android-btn" style="display:none" onclick="triggerAndroidInstall()">📲 Add to Home Screen</button>
-     <button id="pwa-modal-dismiss" onclick="dismissPWABanner()">Not now — show my load ›</button>
-   </div>
+ <!-- Background-resume banner: shown when driver reopens the link after GPS stopped -->
+ <div id="bg-resume-banner">
+   <strong>⚠️ Tracking Was Paused</strong>
+   Your browser stopped GPS tracking while the page was closed or in the background.
+   Tap below to resume — your dispatcher will see live updates again.
+   <button id="btn-resume-tracking" onclick="resumeTracking()">▶ Resume Tracking Now</button>
  </div>
- <!-- Animated arrow pointing DOWN at Safari share button (iOS only) -->
- <div id="pwa-arrow">
-   <div id="pwa-arrow-inner">👇 Tap this button below ↓</div>
+
+ <!-- iOS tip: add to home screen keeps GPS alive in background -->
+ <div id="ios-tip-banner">
+   <button id="ios-tip-close" onclick="document.getElementById('ios-tip-banner').classList.remove('visible');localStorage.setItem('cmp_ios_tip_dismissed','1')">✕</button>
+   <strong>📍 Keep GPS Running in Background</strong>
+   On iPhone, Safari stops tracking when you leave the browser.<br>
+   <strong style="color:#4da6ff;">Fix:</strong> Tap the share icon <strong>⬆</strong> at the bottom of Safari, then tap
+   <strong>"Add to Home Screen"</strong>. Open the app from your home screen — it stays active in the background.
  </div>
- <!-- keep old ids so legacy JS refs don't crash -->
- <div id="pwa-banner" style="display:none"></div>
- <div id="ios-tip-banner" style="display:none"></div>
 
  <!-- ── Load Info Card ──────────────────────────────────────────────────── -->
  <div class="card" id="load-card">
@@ -584,33 +476,11 @@
  <!-- ── Delivered success screen ───────────────────────────────────────── -->
  <div id="delivered-screen">
    <div class="check-circle">✅</div>
-   <h2 style="font-size:22px;">Trip Complete!</h2>
-   <p style="color:var(--muted);font-size:14px;text-align:center;line-height:1.6;">
-     Tracking has stopped. The dispatcher has been notified.<br><br>
-     <strong style="color:var(--text);">This load is done.</strong><br>
-     When your next load is assigned, you'll get a new SMS link from dispatch — just tap it to load up again. 🚛
+   <h2 style="font-size:22px;">Trip Complete</h2>
+   <p style="color:var(--muted);font-size:14px;">
+     Tracking has stopped. The dispatcher has been notified.<br>
+     You can close this tab.
    </p>
- </div>
-
- <!-- ── No active load screen (shown when PWA icon opened with no assignment) ── -->
- <div id="no-load-screen" style="display:none;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:32px 24px;">
-   <div style="font-size:64px;margin-bottom:20px;">🚛</div>
-   <h2 style="font-size:22px;font-weight:700;margin-bottom:8px;">No Active Load</h2>
-   <p id="no-load-msg" style="color:var(--muted);font-size:14px;line-height:1.6;max-width:300px;margin-bottom:24px;">
-     You have no load assigned right now.
-   </p>
-   <!-- Phone lookup — lets driver find their load by entering their cell number -->
-   <div id="phone-lookup" style="width:100%;max-width:320px;margin-bottom:20px;">
-     <p style="color:var(--muted);font-size:13px;margin-bottom:10px;">Have a load assigned? Enter your phone number to find it:</p>
-     <input id="lookup-phone" type="tel" placeholder="e.g. +1 347 559 9151"
-       style="width:100%;padding:14px 16px;background:#1c1c2e;border:1px solid #2c2c3e;border-radius:12px;color:#fff;font-size:16px;margin-bottom:10px;box-sizing:border-box;"
-       onkeydown="if(event.key==='Enter')lookupByPhone()"/>
-     <button onclick="lookupByPhone()" id="btn-lookup"
-       style="width:100%;padding:14px;background:#007AFF;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;">
-       Find My Load
-     </button>
-     <p id="lookup-error" style="color:#FF3B30;font-size:13px;margin-top:8px;display:none;"></p>
-   </div>
  </div>
 
  <!-- ── Action Buttons ──────────────────────────────────────────────────── -->
@@ -634,34 +504,7 @@
    const API_BASE = (_rawBase && _rawBase !== "__API_BASE__")
      ? _rawBase.replace(/\/$/, "")
      : null;
-   const UPDATE_INTERVAL_MS = 5000;
-
-   // ── Save token IMMEDIATELY so the PWA home screen icon can pick it up ────
-   // This must run before restorePWATokenEarly so the token is always fresh.
-   if (TOKEN)   try { localStorage.setItem('cmp_pwa_token',  TOKEN);   } catch(e) {}
-   if (LOAD_ID) try { localStorage.setItem('cmp_pwa_loadid', LOAD_ID); } catch(e) {}
-
-   // ── PWA token restore — MUST run before init() ───────────────────────────
-   // When the driver opens the app from the home screen icon, there are no
-   // URL params. Restore the saved token from localStorage and redirect so
-   // all existing code sees a normal ?token=... URL.
-   (function restorePWATokenEarly() {
-     if (TOKEN || LOAD_ID) return; // already have params — nothing to restore
-     var isStandalone = window.navigator.standalone === true ||
-                        window.matchMedia('(display-mode: standalone)').matches;
-     if (!isStandalone) return; // only restore when running as installed PWA
-     var savedToken  = '';
-     var savedLoadId = '';
-     try { savedToken  = localStorage.getItem('cmp_pwa_token')  || ''; } catch(e) {}
-     try { savedLoadId = localStorage.getItem('cmp_pwa_loadid') || ''; } catch(e) {}
-     if (savedToken || savedLoadId) {
-       var newURL = window.location.pathname
-         + '?token='  + encodeURIComponent(savedToken)
-         + '&loadId=' + encodeURIComponent(savedLoadId);
-       window.location.replace(newURL);
-       throw new Error('PWA_REDIRECT');
-     }
-   })();
+   const UPDATE_INTERVAL_MS = 15000;
 
    // ── Persisted tracking state key ──────────────────────────────────────────
    // Stored in localStorage so GPS restarts automatically when the driver
@@ -810,6 +653,10 @@
        bar.textContent = '✅ Back online — syncing queued locations…';
        bar.className = 'back-online';
        _connHideTimer = setTimeout(function() { bar.className = ''; bar.textContent = ''; }, 4000);
+     } else if (state === 'paused') {
+       bar.textContent = msg || '⚠️ Tracking paused — tap here to resume';
+       bar.className = 'paused';
+       bar.onclick = function() { resumeTracking(); };
      } else {
        bar.className = '';
        bar.textContent = '';
@@ -825,111 +672,17 @@
 
    (function init() {
      if (!TOKEN && !LOAD_ID) {
-       var isStandalone = window.navigator.standalone === true ||
-                          window.matchMedia('(display-mode: standalone)').matches;
-       var noLoadScreen = document.getElementById('no-load-screen');
-
-       // ── Try to find an active load via stored driver phone ──────────────
-       // This covers the case where the PWA is installed and opened fresh —
-       // localStorage is separate from Safari so the token may not be here,
-       // but we stored the driver's phone when they last used the app.
-       var storedPhone = '';
-       try { storedPhone = localStorage.getItem('cmp_driver_phone') || ''; } catch(e) {}
-
-       if (isLive() && storedPhone) {
-         var digits = storedPhone.replace(/\D/g, '');
-         fetch(API_BASE + '/loads/by-driver?phone=' + encodeURIComponent(digits))
-           .then(function(r) { return r.ok ? r.json() : []; })
-           .then(function(loads) {
-             if (!Array.isArray(loads) || loads.length === 0) {
-               if (noLoadScreen) noLoadScreen.style.display = 'flex';
-               document.getElementById('load-card').style.display = 'none';
-               return;
-             }
-             // Pick the most relevant load: In Transit > Accepted > Assigned
-             var priority = {'In Transit': 0, 'Accepted': 1, 'Assigned': 2};
-             loads.sort(function(a, b) {
-               return (priority[a.status] || 9) - (priority[b.status] || 9);
-             });
-             var best = loads[0];
-             // Save token so future opens work via restorePWATokenEarly
-             try { localStorage.setItem('cmp_pwa_token',  best.trackingToken || ''); } catch(e) {}
-             try { localStorage.setItem('cmp_pwa_loadid', best.id || ''); } catch(e) {}
-             // Redirect so TOKEN/LOAD_ID are set in URL and all code works normally
-             var newURL = window.location.pathname
-               + '?token='  + encodeURIComponent(best.trackingToken || '')
-               + '&loadId=' + encodeURIComponent(best.id || '');
-             window.location.replace(newURL);
-           })
-           .catch(function() {
-             if (noLoadScreen) noLoadScreen.style.display = 'flex';
-             document.getElementById('load-card').style.display = 'none';
-           });
-         return; // wait for fetch to complete
-       }
-
-       // No phone stored — show the no-load screen
-       if (isStandalone && noLoadScreen) {
-         document.getElementById('load-card').style.display  = 'none';
-         document.getElementById('pwa-banner').style.display = 'none';
-         var deliveredAt = localStorage.getItem('cmp_pwa_delivered_at');
-         if (deliveredAt) {
-           var d = new Date(deliveredAt);
-           noLoadScreen.querySelector('#no-load-msg').textContent =
-             'Last delivery completed ' + d.toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) + '.';
-         }
-         noLoadScreen.style.display = 'flex';
-         return;
-       }
        showError("Invalid tracking link — no token found.");
        document.getElementById("btn-start").disabled = true;
        return;
      }
      requestDriverNotifPermission(function(granted) {
        if (granted) {
-         driverNotify('🚛 Routelo', 'Notifications enabled — we\'ll remind you at pickup time.');
+         driverNotify('🚛 CMP Tracking', 'Notifications enabled — we\'ll remind you at pickup time.');
        }
      });
      loadLoadInfo();
    })();
-
-   // ── Live status poll ──────────────────────────────────────────────────────
-   // Polls the API every 30 s while the page is open so status changes made
-   // by the dispatcher (e.g. Unassigned) are reflected in the driver's browser
-   // without requiring a page refresh.
-   var _statusPollTimer = null;
-   var STATUS_POLL_MS   = 30000;
-
-   function startStatusPoll() {
-     stopStatusPoll();
-     if (!isLive() || (!TOKEN && !LOAD_ID)) return;
-     _statusPollTimer = setInterval(function() {
-       // Don't interfere while actively tracking — postLocation already talks to the server.
-       if (isTracking) return;
-       var url = TOKEN ? API_BASE + '/track/' + TOKEN : API_BASE + '/loads/' + LOAD_ID;
-       fetch(url)
-         .then(function(r) { return r.ok ? r.json() : null; })
-         .then(function(live) {
-           if (!live) return;
-           var currentStatus = loadData ? loadData.status : null;
-           if (live.status && live.status !== currentStatus) {
-             // Merge in any missing fields from cached data so we don't lose them
-             if (loadData) {
-               live.pickupDate      = live.pickupDate      || loadData.pickupDate;
-               live.deliveryDate    = live.deliveryDate    || loadData.deliveryDate;
-               live.pickupAddress   = live.pickupAddress   || loadData.pickupAddress;
-               live.deliveryAddress = live.deliveryAddress || loadData.deliveryAddress;
-             }
-             populateLoad(live);
-           }
-         })
-         .catch(function() {});
-     }, STATUS_POLL_MS);
-   }
-
-   function stopStatusPoll() {
-     if (_statusPollTimer) { clearInterval(_statusPollTimer); _statusPollTimer = null; }
-   }
 
    // ── Fetch load details ────────────────────────────────────────────────────
    function loadLoadInfo() {
@@ -938,28 +691,7 @@
        if (dParam) {
          try {
            var decoded = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(dParam)))));
-           if (decoded && decoded.loadNumber) {
-             populateLoad(decoded);
-             // ?d= param is baked-in at link-send time — always verify live status
-             if (isLive() && (TOKEN || LOAD_ID)) {
-               var url = TOKEN ? API_BASE + '/track/' + TOKEN : API_BASE + '/loads/' + LOAD_ID;
-               fetch(url)
-                 .then(function(r) { return r.ok ? r.json() : null; })
-                 .then(function(live) {
-                   if (!live) return;
-                   if (live.status && live.status !== decoded.status) {
-                     live.pickupDate      = live.pickupDate      || decoded.pickupDate;
-                     live.deliveryDate    = live.deliveryDate    || decoded.deliveryDate;
-                     live.pickupAddress   = live.pickupAddress   || decoded.pickupAddress;
-                     live.deliveryAddress = live.deliveryAddress || decoded.deliveryAddress;
-                     populateLoad(live);
-                   }
-                 })
-                 .catch(function() {});
-             }
-             startStatusPoll();
-             return;
-           }
+           if (decoded && decoded.loadNumber) { populateLoad(decoded); return; }
          } catch(e) {}
        }
        var stored = JSON.parse(localStorage.getItem('cmp_loads') || '[]');
@@ -970,32 +702,11 @@
            found = stored[i]; break;
          }
        }
-       if (found) {
-         populateLoad(found);
-         // Cache may be stale — always verify live status
-         if (isLive() && (TOKEN || LOAD_ID)) {
-           var url2 = TOKEN ? API_BASE + '/track/' + TOKEN : API_BASE + '/loads/' + LOAD_ID;
-           fetch(url2)
-             .then(function(r) { return r.ok ? r.json() : null; })
-             .then(function(live) {
-               if (!live) return;
-               if (live.status && live.status !== found.status) {
-                 live.pickupDate      = live.pickupDate      || found.pickupDate;
-                 live.deliveryDate    = live.deliveryDate    || found.deliveryDate;
-                 live.pickupAddress   = live.pickupAddress   || found.pickupAddress;
-                 live.deliveryAddress = live.deliveryAddress || found.deliveryAddress;
-                 populateLoad(live);
-               }
-             })
-             .catch(function() {});
-         }
-         startStatusPoll();
-         return;
-       }
+       if (found) { populateLoad(found); return; }
        if (isLive()) {
          fetch(API_BASE + '/track/' + TOKEN)
            .then(function(r) { return r.ok ? r.json() : r.json().then(function(d){ throw new Error(d.error||'Load not found.'); }); })
-           .then(function(d) { populateLoad(d); startStatusPoll(); })
+           .then(function(d) { populateLoad(d); })
            .catch(function(err) {
              document.getElementById('load-number').textContent = 'Load Not Found';
              document.getElementById('load-desc').textContent   = err.message;
@@ -1019,10 +730,6 @@
 
    function populateLoad(data) {
      loadData = data;
-     // Save driver phone so the PWA can look up the load when opened with no token
-     if (data.assignedDriverPhone) {
-       try { localStorage.setItem('cmp_driver_phone', data.assignedDriverPhone); } catch(e) {}
-     }
      document.getElementById("load-number").textContent   = data.loadNumber || "—";
      document.getElementById("load-desc").textContent     = data.description || "";
      document.getElementById("pickup-addr").textContent   = data.pickupAddress || "—";
@@ -1042,13 +749,8 @@
      if (data.deliveryDate) extras += '<div style="font-size:13px;color:var(--muted);margin-top:4px">📅 Delivery by: ' + new Date(data.deliveryDate).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"}) + '</div>';
      if (data.customerName) extras += '<div style="font-size:13px;color:var(--muted);margin-top:4px">🏢 Customer: ' + data.customerName + '</div>';
      if (data.notes)        extras += '<div style="font-size:13px;color:var(--muted);margin-top:4px;padding:8px;background:rgba(255,255,255,.04);border-radius:8px">📝 ' + data.notes + '</div>';
-     // Always replace (never append) so re-calling populateLoad doesn't duplicate extras
-     var existingExtras = document.getElementById("load-card-extras");
-     if (existingExtras) {
-       existingExtras.innerHTML = extras;
-     } else if (extras) {
+     if (extras) {
        var extraDiv = document.createElement("div");
-       extraDiv.id = "load-card-extras";
        extraDiv.style.marginTop = "10px";
        extraDiv.innerHTML = extras;
        document.getElementById("load-card").appendChild(extraDiv);
@@ -1058,18 +760,22 @@
      if (data.status === "In Transit") {
        badge.className   = "status-badge active";
        badge.textContent = "🚛 In Transit";
-       document.getElementById("btn-start").style.display   = "none";
-       document.getElementById("btn-stop").style.display    = "flex";
-       document.getElementById("btn-deliver").style.display = "flex";
-       document.getElementById("gps-card").style.display    = "block";
-       document.getElementById("log-card").style.display    = "block";
+       document.getElementById("btn-start").style.display = "none";
+       document.getElementById("btn-stop").style.display  = "flex";
+       document.getElementById("gps-card").style.display  = "block";
        isTracking = true;
        loadTrailHistory();
-       startNoSleep();
-       // ── Auto-resume GPS immediately — don't require a tap ─────────────────
-       // Whether this is a fresh open or a reload after a crash/lock, just
-       // restart GPS right away so the dispatcher gets location immediately.
-       startGPS(false);
+       // ── Auto-resume if we were tracking before the page was closed ────────
+       var savedState = loadTrackingState();
+       if (savedState) {
+         // GPS was running; show resume banner so driver can tap to re-activate
+         document.getElementById('bg-resume-banner').classList.add('visible');
+         setConnBar('paused', '⚠️ GPS paused — tap to resume tracking');
+         document.getElementById('btn-deliver').style.display = 'flex';
+         document.getElementById('log-card').style.display    = 'block';
+       } else {
+         startGPS(false);
+       }
      } else if (data.status === "Delivered") {
        badge.className   = "status-badge stopped";
        badge.textContent = "✅ Delivered";
@@ -1080,9 +786,8 @@
      } else if (data.status === "Accepted") {
        badge.className   = "status-badge accepted";
        badge.textContent = "✅ Accepted";
-       document.getElementById("accept-card").style.display = "none";
-       document.getElementById("gps-card").style.display    = "block";
-       document.getElementById("btn-start").style.display   = "flex";
+       document.getElementById("gps-card").style.display  = "block";
+       document.getElementById("btn-start").style.display = "flex";
      } else {
        badge.textContent = "⏳ " + (data.status || "Pending");
        document.getElementById("gps-card").style.display   = "none";
@@ -1096,7 +801,40 @@
              hour: "2-digit", minute: "2-digit"
            });
        }
+       if (isLive() && (TOKEN || LOAD_ID)) {
+         var liveUrl = TOKEN ? API_BASE + '/track/' + TOKEN : API_BASE + '/loads/' + LOAD_ID;
+         fetch(liveUrl)
+           .then(function(r){ return r.ok ? r.json() : null; })
+           .then(function(live){
+             if (!live) return;
+             var liveStatus = live.status || data.status;
+             if (liveStatus !== data.status) {
+               live.pickupDate    = live.pickupDate    || data.pickupDate;
+               live.deliveryDate  = live.deliveryDate  || data.deliveryDate;
+               live.pickupAddress = live.pickupAddress || data.pickupAddress;
+               live.deliveryAddress = live.deliveryAddress || data.deliveryAddress;
+               populateLoad(live);
+             }
+           })
+           .catch(function(){});
+       }
      }
+   }
+
+   // ── Resume Tracking (called by the banner when GPS dropped in background) ─
+   function resumeTracking() {
+     document.getElementById('bg-resume-banner').classList.remove('visible');
+     setConnBar('');
+     if (!isTracking) { isTracking = true; }
+     // Re-start GPS (triggers wake lock + noSleep inline with user gesture)
+     startGPS(false);
+     startNoSleep();
+     if ('wakeLock' in navigator) {
+       navigator.wakeLock.request('screen').then(function(wl){ wakeLock = wl; }).catch(function(){});
+     }
+     saveTrackingState(true);
+     addLog('▶ Tracking resumed after pause');
+     showSuccess('✅ Tracking resumed!');
    }
 
    // ── Start Tracking ────────────────────────────────────────────────────────
@@ -1144,11 +882,6 @@
 
          // Start NoSleep to prevent OS from killing the tab while in background
          startNoSleep();
-         // No longer need dispatcher-change polling once we're actively tracking
-         stopStatusPoll();
-
-         // Show Add-to-Home-Screen banner (iOS + Android) if not already a PWA
-         showPWABanner();
 
          postLocation(pos);
          startGPS(true);
@@ -1175,11 +908,7 @@
      var loadNumber = loadData ? loadData.loadNumber : '';
      var driverName = loadData ? (loadData.assignedDriverName || 'Driver') : 'Driver';
 
-     var _accepted      = false;
-     var _acceptTimeout = null;
-
-     function doAcceptUI() {
-       if (_acceptTimeout) { clearTimeout(_acceptTimeout); _acceptTimeout = null; }
+     function onAccepted() {
        updateLocalStatus('Accepted');
        var badge = document.getElementById('status-badge');
        badge.className   = 'status-badge accepted';
@@ -1188,23 +917,11 @@
        document.getElementById('accept-card').style.display  = 'none';
        document.getElementById('gps-card').style.display     = 'block';
        document.getElementById('btn-start').style.display    = 'flex';
-       showSuccess('✅ Load accepted! Tap Start Tracking when ready.');
+       showSuccess('✅ Load accepted! Dispatcher has been notified. Tap Start Tracking when ready.');
        addLog('✅ Load accepted');
        driverNotify('✅ Load Accepted',
          'Load ' + (loadData ? loadData.loadNumber : '') + ' accepted. Pickup reminders are set.');
-       showPWABanner();
      }
-
-     function onAccepted() {
-       if (_accepted) return;
-       _accepted = true;
-       doAcceptUI();
-     }
-
-     // Safety net: if API call hangs, complete locally after 3 s
-     _acceptTimeout = setTimeout(function() {
-       if (!_accepted) { _accepted = true; doAcceptUI(); }
-     }, 3000);
 
      if (isLive() && TOKEN) {
        fetch(API_BASE + '/track/' + TOKEN + '/status', {
@@ -1307,7 +1024,6 @@
      function finishDelivered() {
        stopGPS();
        stopNoSleep();
-       stopStatusPoll();
        isTracking = false;
        saveTrackingState(false);
        updateLocalStatus("Delivered");
@@ -1319,17 +1035,6 @@
        addLog("✅ Marked as Delivered");
        driverNotify('📦 Delivery Complete!',
          'Load ' + (loadData ? loadData.loadNumber : '') + ' marked as delivered. Great work!');
-       // Clear the saved PWA token so the home screen icon shows
-       // "waiting for next load" instead of this completed load.
-       // When dispatcher assigns the next load the new SMS link will
-       // re-activate the icon automatically.
-       try {
-         localStorage.removeItem('cmp_pwa_token');
-         localStorage.removeItem('cmp_pwa_loadid');
-         localStorage.removeItem('cmp_pwa_delivered_at');
-         localStorage.setItem('cmp_pwa_delivered_at', new Date().toISOString());
-         localStorage.setItem('cmp_pwa_installed', '1'); // already installed — never ask again
-       } catch(e) {}
      }
 
      doDeliver(1);
@@ -1373,20 +1078,17 @@
    function startGPS(fresh) {
      if (gpsRestartTimer) { clearTimeout(gpsRestartTimer); gpsRestartTimer = null; }
      if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
-     // Always clear and restart the interval so we never have a stale/missing one
-     if (intervalId != null) { clearInterval(intervalId); intervalId = null; }
-
-     var _firstFix = true;
 
      watchId = navigator.geolocation.watchPosition(
        function(pos) {
          gpsRestartDelay = 5000;
          lastPosition = pos;
          updateGPSDisplay(pos);
-         // Post on first fix immediately, then let the heartbeat handle subsequent posts
-         if (_firstFix) {
-           _firstFix = false;
-           if (isTracking) postLocation(pos);
+         // Dismiss the "paused" banner once GPS is flowing again
+         var resumeBanner = document.getElementById('bg-resume-banner');
+         if (resumeBanner && resumeBanner.classList.contains('visible')) {
+           resumeBanner.classList.remove('visible');
+           setConnBar('');
          }
        },
        function(err) {
@@ -1403,26 +1105,22 @@
            }
          }
        },
-       { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+       { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
      );
 
-     // Use recursive setTimeout instead of setInterval — more reliable on iOS
-     // when the page is backgrounded (setInterval gets throttled to ~1min).
-     // Post lastPosition every 5s while tracking is active.
-     function scheduleHeartbeat() {
-       intervalId = setTimeout(function() {
-         if (!isTracking) return; // stopped — don't reschedule
-         if (lastPosition) postLocation(lastPosition);
-         scheduleHeartbeat(); // reschedule immediately after post
+     if (!intervalId) {
+       intervalId = setInterval(function() {
+         if (lastPosition && isTracking) {
+           postLocation(lastPosition);
+         }
        }, UPDATE_INTERVAL_MS);
      }
-     scheduleHeartbeat();
    }
 
    function stopGPS() {
      if (gpsRestartTimer) { clearTimeout(gpsRestartTimer); gpsRestartTimer = null; }
      if (watchId != null)    { navigator.geolocation.clearWatch(watchId); watchId = null; }
-     if (intervalId != null) { clearTimeout(intervalId); intervalId = null; }
+     if (intervalId != null) { clearInterval(intervalId); intervalId = null; }
    }
 
    // ── Map setup ─────────────────────────────────────────────────────────────
@@ -1555,7 +1253,6 @@
         ts:        Date.now(),
         token:     TOKEN,
         apiBase:   API_BASE,
-        loadId:    loadData ? loadData.id : (LOAD_ID || null),
       };
       getLocationDB().then(function(db) {
         var tx  = db.transaction('kv', 'readwrite');
@@ -1575,7 +1272,6 @@
         speed:     c.speed   != null ? c.speed * 2.237 : 0,
         heading:   c.heading != null ? c.heading : 0,
         timestamp: new Date().toISOString(),
-        loadId:    loadData ? loadData.id : (LOAD_ID || undefined),
       };
       if (!navigator.onLine) { offlineQueue.push(payload); setConnBar('offline'); return; }
       sendLocationPayload(payload);
@@ -1594,53 +1290,6 @@
       if (!isLive() || offlineQueue.length === 0) return;
      var queue = offlineQueue.slice(); offlineQueue = [];
      queue.forEach(function(payload) { sendLocationPayload(payload); });
-   }
-
-   // ── Phone-based load lookup (used from no-load screen) ───────────────────
-   function lookupByPhone() {
-     var input = document.getElementById('lookup-phone');
-     var errEl = document.getElementById('lookup-error');
-     var btn   = document.getElementById('btn-lookup');
-     var phone = (input ? input.value : '').replace(/\D/g, '');
-     errEl.style.display = 'none';
-     if (!phone || phone.length < 7) {
-       errEl.textContent = 'Please enter a valid phone number.';
-       errEl.style.display = 'block';
-       return;
-     }
-     if (!isLive()) {
-       errEl.textContent = 'No connection — check your internet and try again.';
-       errEl.style.display = 'block';
-       return;
-     }
-     btn.disabled = true;
-     btn.textContent = 'Searching…';
-     fetch(API_BASE + '/loads/by-driver?phone=' + encodeURIComponent(phone))
-       .then(function(r) { return r.ok ? r.json() : []; })
-       .then(function(loads) {
-         btn.disabled = false; btn.textContent = 'Find My Load';
-         if (!Array.isArray(loads) || loads.length === 0) {
-           errEl.textContent = 'No active load found for that number. Contact your dispatcher.';
-           errEl.style.display = 'block';
-           return;
-         }
-         var priority = {'In Transit': 0, 'Accepted': 1, 'Assigned': 2};
-         loads.sort(function(a, b) { return (priority[a.status]||9) - (priority[b.status]||9); });
-         var best = loads[0];
-         // Save phone + token for future opens
-         try { localStorage.setItem('cmp_driver_phone', best.assignedDriverPhone || ('+' + phone)); } catch(e) {}
-         try { localStorage.setItem('cmp_pwa_token',  best.trackingToken || ''); } catch(e) {}
-         try { localStorage.setItem('cmp_pwa_loadid', best.id || ''); } catch(e) {}
-         // Navigate to the load
-         window.location.replace(window.location.pathname
-           + '?token='  + encodeURIComponent(best.trackingToken || '')
-           + '&loadId=' + encodeURIComponent(best.id || ''));
-       })
-       .catch(function() {
-         btn.disabled = false; btn.textContent = 'Find My Load';
-         errEl.textContent = 'Could not reach server. Check your connection.';
-         errEl.style.display = 'block';
-       });
    }
 
    // ── Log helpers ───────────────────────────────────────────────────────────
@@ -1761,284 +1410,21 @@
      }
    });
    document.addEventListener("visibilitychange", function() {
-     if (document.visibilityState === "hidden" && isTracking && lastPosition) {
-       var c = lastPosition.coords;
-       if (isLive() && navigator.onLine) {
-         fetch(API_BASE + "/track/" + TOKEN + "/location", {
-           method: "POST", keepalive: true,
-           headers: { "Content-Type": "application/json" },
-           body: JSON.stringify({
-             latitude:  c.latitude, longitude: c.longitude,
-             speed:     c.speed   != null ? c.speed * 2.237 : 0,
-             heading:   c.heading != null ? c.heading : 0,
-             timestamp: new Date().toISOString(),
-             loadId:    loadData ? loadData.id : (LOAD_ID || undefined),
-           }),
-         }).catch(function(){});
-       }
+     // Re-acquire wake lock when page becomes visible again
+     if (wakeLock !== null && document.visibilityState === "visible") {
+       navigator.wakeLock.request("screen").then(function(wl){ wakeLock=wl; }).catch(function(){});
      }
      if (document.visibilityState === "visible") {
-       if (wakeLock !== null) {
-         navigator.wakeLock.request("screen").then(function(wl){ wakeLock=wl; }).catch(function(){});
-       }
+       // Flush offline queue
        if (navigator.onLine) flushOfflineQueue();
-       if (isTracking) {
-         // Always restart GPS when coming back to foreground — iOS silently
-         // freezes watchPosition callbacks without clearing watchId, so we
-         // cannot rely on watchId===null to detect a stale watch.
-         stopGPS();
-         startGPS(false);
-         startNoSleep();
-         if ('wakeLock' in navigator) {
-           navigator.wakeLock.request('screen').then(function(wl){ wakeLock = wl; }).catch(function(){});
-         }
-         // Post immediately so dispatcher sees a fresh ping right away
-         if (lastPosition) postLocation(lastPosition);
-         addLog('▶ GPS restarted on foreground');
+       // If we were tracking but GPS dropped (browser killed it in background),
+       // show the resume banner instead of silently failing
+       if (isTracking && watchId === null && !gpsRestartTimer) {
+         var resumeBanner = document.getElementById('bg-resume-banner');
+         resumeBanner.classList.add('visible');
+         setConnBar('paused', '⚠️ GPS stopped in background — tap to resume');
        }
      }
-   });
-
-   // ── freeze event: fired by iOS/Android right before the page is frozen ───
-   // This is the last guaranteed execution window before JS is fully suspended.
-   // Post the last known location with keepalive:true so it reaches the server.
-   document.addEventListener("freeze", function() {
-     if (!isTracking || !lastPosition || !isLive() || !navigator.onLine) return;
-     var c = lastPosition.coords;
-     fetch(API_BASE + "/track/" + TOKEN + "/location", {
-       method: "POST", keepalive: true,
-       headers: { "Content-Type": "application/json" },
-       body: JSON.stringify({
-         latitude:  c.latitude,  longitude: c.longitude,
-         speed:     c.speed   != null ? c.speed * 2.237 : 0,
-         heading:   c.heading != null ? c.heading        : 0,
-         timestamp: new Date().toISOString(),
-         loadId:    loadData ? loadData.id : (LOAD_ID || undefined),
-       }),
-     }).catch(function(){});
-     // Also persist to IDB so the SW keep-alive can resend if the fetch fails
-     saveLocationToIDB(lastPosition);
-   });
-
-   // ── resume event: page unfrozen — restart GPS if it dropped ─────────────
-   document.addEventListener("resume", function() {
-     if (!isTracking) return;
-     if (wakeLock !== null) {
-       navigator.wakeLock.request("screen").then(function(wl){ wakeLock = wl; }).catch(function(){});
-     }
-     if ((watchId === null && !gpsRestartTimer) || intervalId === null) {
-       stopGPS();
-       startGPS(false);
-       startNoSleep();
-       addLog('▶ GPS auto-resumed after freeze/resume');
-     }
-   });
-
-   // ── PWA: Save token so the home-screen icon always opens the right load ──
-   var PWA_TOKEN_KEY  = 'cmp_pwa_token';
-   var PWA_LOADID_KEY = 'cmp_pwa_loadid';
-
-   (function savePWAToken() {
-     if (TOKEN)   try { localStorage.setItem(PWA_TOKEN_KEY,  TOKEN);   } catch(e) {}
-     if (LOAD_ID) try { localStorage.setItem(PWA_LOADID_KEY, LOAD_ID); } catch(e) {}
-   })();
-
-   // ── Android Chrome: capture beforeinstallprompt for one-tap install ──────
-   var _androidDeferredPrompt = null;
-   window.addEventListener('beforeinstallprompt', function(e) {
-     e.preventDefault();
-     _androidDeferredPrompt = e;
-     // If modal is already open, reveal the install button now
-     var overlay = document.getElementById('pwa-modal-overlay');
-     if (overlay && overlay.classList.contains('visible')) {
-       document.getElementById('pwa-android-btn').style.display = 'block';
-     }
-   });
-
-   // Android: fires after the user taps "Install" in the native popup
-   window.addEventListener('appinstalled', function() {
-     addLog('📲 App added to home screen');
-     showInstalledAndClose();
-   });
-
-   // Show a "installed" success screen.
-   function showInstalledAndClose() {
-     try {
-       localStorage.setItem('cmp_pwa_banner_dismissed', '1');
-       localStorage.setItem('cmp_pwa_installed', '1');
-     } catch(e) {}
-     var box = document.getElementById('pwa-modal-box');
-     if (box) {
-       var ua = navigator.userAgent;
-       var isIOS = /iphone|ipad|ipod/i.test(ua);
-       box.innerHTML =
-         '<div style="font-size:64px;margin-bottom:16px">✅</div>'
-         + '<div style="font-size:20px;font-weight:700;margin-bottom:8px">App Installed!</div>'
-         + '<div style="font-size:14px;color:#8e8ea0;line-height:1.6;margin-bottom:20px">'
-         + 'The 🚛 icon is now on your home screen.</div>'
-         + (isIOS
-           ? '<div style="background:rgba(52,199,89,.12);border:1px solid rgba(52,199,89,.3);border-radius:12px;padding:14px;font-size:14px;line-height:1.7;margin-bottom:16px;text-align:left">'
-             + '<strong style="color:#fff">Next step:</strong><br>'
-             + '1. Press the iPhone home button (or swipe up)<br>'
-             + '2. Find the 🚛 <strong style="color:#fff">Routelo</strong> icon<br>'
-             + '3. Tap it — your load will be ready</div>'
-           : '<div style="background:rgba(52,199,89,.12);border:1px solid rgba(52,199,89,.3);border-radius:12px;padding:14px;font-size:14px;line-height:1.7;margin-bottom:16px;text-align:left">'
-             + 'Go to your home screen and tap the 🚛 <strong style="color:#fff">Routelo</strong> icon to open your load.</div>'
-         )
-         + '<button onclick="dismissPWABanner()" style="width:100%;padding:14px;background:#007AFF;color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer">Continue in browser →</button>';
-     }
-     var overlay = document.getElementById('pwa-modal-overlay');
-     if (overlay) overlay.classList.add('visible');
-   }
-
-   // Called when driver taps the green "Add to Home Screen" button (Android)
-   function triggerAndroidInstall() {
-     if (!_androidDeferredPrompt) return;
-     _androidDeferredPrompt.prompt();
-     _androidDeferredPrompt.userChoice.then(function(result) {
-       _androidDeferredPrompt = null;
-       if (result.outcome === 'accepted') {
-         // appinstalled event will fire and call showInstalledAndClose()
-         // but call it as a fallback here too in case the event is slow
-         setTimeout(showInstalledAndClose, 800);
-       } else {
-         dismissPWABanner();
-       }
-     });
-   }
-
-   // Hide modal and scroll to the load card so driver sees their load immediately
-   function dismissPWABanner() {
-     document.getElementById('pwa-modal-overlay').classList.remove('visible');
-     document.getElementById('pwa-arrow').classList.remove('visible');
-     try {
-       localStorage.setItem('cmp_pwa_banner_dismissed', '1');
-       localStorage.setItem('cmp_pwa_installed', '1'); // treat dismiss as installed — don't show again
-     } catch(e) {}
-     // Scroll load card into view smoothly
-     setTimeout(function() {
-       var card = document.getElementById('load-card');
-       if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-     }, 200);
-   }
-
-   // ── Show the install modal for iOS or Android ─────────────────────────────
-   function showPWABanner() {
-     // Already running as a standalone PWA (opened from home screen icon)
-     var isStandalone = window.navigator.standalone === true ||
-                        window.matchMedia('(display-mode: standalone)').matches;
-     if (isStandalone) return;
-
-     // Previously installed or dismissed — never prompt again
-     if (localStorage.getItem('cmp_pwa_installed') ||
-         localStorage.getItem('cmp_pwa_banner_dismissed') ||
-         localStorage.getItem('cmp_ios_tip_dismissed')) return;
-
-     // If the driver has previously used the home screen app, the token would
-     // have been saved by the PWA context — treat as already installed.
-     // This catches the case where localStorage was cleared between sessions
-     // but the app is still on the home screen.
-     if (localStorage.getItem('cmp_pwa_token') || localStorage.getItem('cmp_pwa_loadid')) {
-       try { localStorage.setItem('cmp_pwa_installed', '1'); } catch(e) {}
-       return;
-     }
-
-     var ua        = navigator.userAgent;
-     var isIOS     = /iphone|ipad|ipod/i.test(ua);
-     var isAndroid = /android/i.test(ua);
-     if (!isIOS && !isAndroid) return;
-
-     // On Android Chrome, if beforeinstallprompt never fires it means the browser
-     // already considers the app installed — don't show the modal at all.
-     // We wait up to 1.5 s for the event before deciding to show.
-     if (isAndroid) {
-       if (_androidDeferredPrompt) {
-         _doShowPWABanner(isIOS, isAndroid);
-       } else {
-         setTimeout(function() {
-           // If still no prompt after 1.5 s, the app is likely already installed
-           if (!_androidDeferredPrompt) {
-             try { localStorage.setItem('cmp_pwa_installed', '1'); } catch(e) {}
-             return; // suppress the modal silently
-           }
-           _doShowPWABanner(isIOS, isAndroid);
-         }, 1500);
-       }
-       return;
-     }
-
-     _doShowPWABanner(isIOS, isAndroid);
-   }
-
-   function _doShowPWABanner(isIOS, isAndroid) {
-     var overlay  = document.getElementById('pwa-modal-overlay');
-     var body     = document.getElementById('pwa-modal-body');
-     var androidBtn = document.getElementById('pwa-android-btn');
-     var arrow    = document.getElementById('pwa-arrow');
-
-     if (isIOS) {
-       // Inline SVG of the actual Safari share button (box with arrow)
-       var shareIcon = '<svg width="28" height="32" viewBox="0 0 50 60" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">'
-         + '<rect x="5" y="18" width="40" height="32" rx="6" stroke="#007AFF" stroke-width="3.5" fill="none"/>'
-         + '<line x1="25" y1="2" x2="25" y2="36" stroke="#007AFF" stroke-width="3.5" stroke-linecap="round"/>'
-         + '<polyline points="14,13 25,2 36,13" fill="none" stroke="#007AFF" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>'
-         + '</svg>';
-       var addIcon = '<svg width="28" height="28" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">'
-         + '<rect x="3" y="3" width="44" height="44" rx="10" stroke="#8e8ea0" stroke-width="3" fill="none"/>'
-         + '<line x1="25" y1="13" x2="25" y2="37" stroke="#8e8ea0" stroke-width="3.5" stroke-linecap="round"/>'
-         + '<line x1="13" y1="25" x2="37" y2="25" stroke="#8e8ea0" stroke-width="3.5" stroke-linecap="round"/>'
-         + '</svg>';
-       body.innerHTML =
-         '<div class="pwa-ios-step highlight">'
-         + '<div class="pwa-ios-step-icon">' + shareIcon + '</div>'
-         + '<div class="pwa-ios-step-text"><strong>1. Tap this button at the bottom of Safari</strong>'
-         + '<span>The arrow-in-a-box icon in the middle of the bottom bar</span></div></div>'
-         + '<div class="pwa-ios-step">'
-         + '<div class="pwa-ios-step-icon">' + addIcon + '</div>'
-         + '<div class="pwa-ios-step-text"><strong>2. Tap "Add to Home Screen"</strong>'
-         + '<span>Scroll down a little in the menu that opens</span></div></div>'
-         + '<div class="pwa-ios-step">'
-         + '<div class="pwa-ios-step-icon"><span style="font-size:28px">✅</span></div>'
-         + '<div class="pwa-ios-step-text"><strong>3. Tap Add — you\'re done!</strong>'
-         + '<span>A 🚛 icon appears on your home screen</span></div></div>'
-         + '<div class="pwa-ios-step" style="margin-top:4px;background:rgba(52,199,89,.1);border-radius:10px;padding:10px 12px;">'
-         + '<div class="pwa-ios-step-icon"><span style="font-size:28px">✕</span></div>'
-         + '<div class="pwa-ios-step-text"><strong>4. Close this tab &amp; open the 🚛 icon</strong>'
-         + '<span>Always use the home screen icon from now on — GPS works better from there</span></div></div>';
-       androidBtn.style.display = 'none';
-       // Show the bouncing arrow after a short delay
-       setTimeout(function() { arrow.classList.add('visible'); }, 500);
-     } else {
-       // Android
-       body.innerHTML =
-         '<div class="pwa-ios-step highlight">'
-         + '<div class="pwa-ios-step-icon">👇</div>'
-         + '<div class="pwa-ios-step-text"><strong>Tap the button below</strong>'
-         + '<span>Then tap Install in the popup — takes 2 seconds</span></div></div>';
-       androidBtn.style.display = 'block';
-       // Show the button immediately if Chrome already captured the prompt,
-       // otherwise it will appear when beforeinstallprompt fires
-       if (!_androidDeferredPrompt) androidBtn.style.display = 'none';
-     }
-
-     overlay.classList.add('visible');
-   }
-
-   // ── pagehide: last-gasp location send when browser tab is closed/navigated away ──
-   window.addEventListener("pagehide", function() {
-     if (!isTracking || !lastPosition || !isLive() || !navigator.onLine) return;
-     var c = lastPosition.coords;
-     fetch(API_BASE + "/track/" + TOKEN + "/location", {
-       method: "POST", keepalive: true,
-       headers: { "Content-Type": "application/json" },
-       body: JSON.stringify({
-         latitude:  c.latitude, longitude: c.longitude,
-         speed:     c.speed   != null ? c.speed * 2.237 : 0,
-         heading:   c.heading != null ? c.heading : 0,
-         timestamp: new Date().toISOString(),
-         loadId:    loadData ? loadData.id : (LOAD_ID || undefined),
-       }),
-     }).catch(function(){});
    });
 
    // ── Service Worker registration ───────────────────────────────────────────
@@ -2046,24 +1432,11 @@
      navigator.serviceWorker.register('driver-tracking-sw.js')
        .then(function(reg) {
          console.log('[SW] registered, scope:', reg.scope);
-
-         // When a new SW version is found, skip waiting and reload the page
-         // so the driver always gets the latest HTML immediately.
-         reg.addEventListener('updatefound', function() {
-           var newSW = reg.installing;
-           if (!newSW) return;
-           newSW.addEventListener('statechange', function() {
-             if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
-               // New SW installed — tell it to take over immediately
-               newSW.postMessage({ type: 'SKIP_WAITING' });
-             }
-           });
-         });
-
          window.addEventListener('online', function() {
            if (reg.sync) reg.sync.register('cmp-location-sync').catch(function(){});
          });
          // Register periodic background sync (Android Chrome only, requires HTTPS)
+         // This allows the SW to fire even when the page is fully closed
          if (reg.periodicSync) {
            navigator.permissions.query({ name: 'periodic-background-sync' })
              .then(function(status) {
@@ -2076,30 +1449,929 @@
        })
        .catch(function(err) { console.warn('[SW] registration failed:', err); });
 
-     // When the new SW takes control, reload once to get fresh HTML
-     var _swRefreshing = false;
-     navigator.serviceWorker.addEventListener('controllerchange', function() {
-       if (_swRefreshing) return;
-       _swRefreshing = true;
-       window.location.reload();
-     });
-
      navigator.serviceWorker.addEventListener('message', function(evt) {
        if (evt.data && evt.data.type === 'SW_KEEPALIVE') {
          if (wakeLock === null && isTracking && 'wakeLock' in navigator) {
            navigator.wakeLock.request('screen').then(function(wl){ wakeLock = wl; }).catch(function(){});
          }
-         // GPS dropped while backgrounded — restart silently, no banner
          if (isTracking && watchId === null && !gpsRestartTimer) {
-           stopGPS();
-           startGPS(false);
-           startNoSleep();
-           addLog('▶ GPS auto-resumed via SW keepalive');
+           // GPS dropped while backgrounded — show resume banner
+           var resumeBanner = document.getElementById('bg-resume-banner');
+           if (resumeBanner) resumeBanner.classList.add('visible');
+           setConnBar('paused', '⚠️ GPS stopped — tap to resume');
          }
        }
        // SW is requesting a location push (periodicSync fired while page open)
        if (evt.data && evt.data.type === 'SW_REQUEST_LOCATION') {
          if (lastPosition && isTracking) postLocation(lastPosition);
+       }
+     });
+   }
+ </script>
+
+   function requestDriverNotifPermission(onGranted) {
+     if (!('Notification' in window)) { if(onGranted) onGranted(false); return; }
+     if (Notification.permission === 'granted') { if(onGranted) onGranted(true); return; }
+     if (Notification.permission === 'denied')  { if(onGranted) onGranted(false); return; }
+     Notification.requestPermission().then(function(p) {
+       if(onGranted) onGranted(p === 'granted');
+     });
+   }
+
+   function driverNotify(title, body) {
+     if (!('Notification' in window) || Notification.permission !== 'granted') return;
+     try {
+       var n = new Notification(title, { body: body || '', tag: title });
+       n.onclick = function() { window.focus(); n.close(); };
+       setTimeout(function() { n.close(); }, 10000);
+     } catch(e) {}
+   }
+
+   function schedulePickupReminders(pickupDateStr) {
+     // Clear any previously scheduled reminders
+     _pickupReminderTimers.forEach(function(t) { clearTimeout(t); });
+     _pickupReminderTimers = [];
+
+     if (!pickupDateStr) return;
+     var pickupMs = new Date(pickupDateStr).getTime();
+     var now = Date.now();
+
+     // 30-minute early warning
+     var earlyMs = pickupMs - 30 * 60 * 1000;
+     if (earlyMs > now) {
+       _pickupReminderTimers.push(setTimeout(function() {
+         driverNotify('🚛 Pickup in 30 Minutes',
+           (loadData ? 'Load ' + loadData.loadNumber + ': ' : '') +
+           'Head to ' + (loadData ? loadData.pickupAddress : 'your pickup location'));
+       }, earlyMs - now));
+     }
+
+     // On-time pickup alert
+     if (pickupMs > now) {
+       _pickupReminderTimers.push(setTimeout(function() {
+         driverNotify('🚛 Time to Start Driving!',
+           (loadData ? 'Load ' + loadData.loadNumber + ' — ' : '') +
+           'Pickup: ' + (loadData ? loadData.pickupAddress : 'your pickup location'));
+       }, pickupMs - now));
+     }
+   }
+
+   // ── Connection status bar ─────────────────────────────────────────────────
+   var _connHideTimer = null;
+   function setConnBar(state) { // 'offline' | 'online' | ''
+     var bar = document.getElementById('conn-bar');
+     if (state === 'offline') {
+       bar.textContent = '📵 No connection — locations queued, will retry when back online';
+       bar.className = 'offline';
+       if (_connHideTimer) { clearTimeout(_connHideTimer); _connHideTimer = null; }
+     } else if (state === 'online') {
+       bar.textContent = '✅ Back online — syncing queued locations…';
+       bar.className = 'back-online';
+       _connHideTimer = setTimeout(function() {
+         bar.className = '';
+         bar.textContent = '';
+       }, 4000);
+     } else {
+       bar.className = '';
+       bar.textContent = '';
+     }
+   }
+
+   window.addEventListener('offline', function() { setConnBar('offline'); });
+   window.addEventListener('online',  function() {
+     setConnBar('online');
+     flushOfflineQueue();
+   });
+
+   (function init() {
+     if (!TOKEN && !LOAD_ID) {
+       showError("Invalid tracking link — no token found.");
+       document.getElementById("btn-start").disabled = true;
+       return;
+     }
+     // Ask for notification permission straight away so reminders can fire
+     requestDriverNotifPermission(function(granted) {
+       if (granted) {
+         driverNotify('🚛 CMP Tracking', 'Notifications enabled — we\'ll remind you at pickup time.');
+       }
+     });
+     loadLoadInfo();
+   })();
+
+   // ── Fetch load details — decode from URL first, then localStorage, then API ──
+   function loadLoadInfo() {
+     try {
+       // 1. Try decoding load data embedded in the URL (?d=base64json)
+       var dParam = params.get('d');
+       if (dParam) {
+         try {
+           // Unicode-safe decode: matches b64enc(JSON.stringify(...)) in dispatcher
+           var decoded = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(dParam)))));
+           if (decoded && decoded.loadNumber) {
+             populateLoad(decoded);
+             return;
+           }
+         } catch(e) {}
+       }
+
+       // 2. Try localStorage (same device as dispatcher)
+       var stored = JSON.parse(localStorage.getItem('cmp_loads') || '[]');
+       var found  = null;
+       for (var i = 0; i < stored.length; i++) {
+         if ((TOKEN && stored[i].trackingToken === TOKEN) ||
+             (LOAD_ID && stored[i].id === LOAD_ID)) {
+           found = stored[i]; break;
+         }
+       }
+       if (found) { populateLoad(found); return; }
+
+       // 3. Try backend API
+       if (isLive()) {
+         fetch(API_BASE + '/track/' + TOKEN)
+           .then(function(r) { return r.ok ? r.json() : r.json().then(function(d){ throw new Error(d.error||'Load not found.'); }); })
+           .then(function(d) { populateLoad(d); })
+           .catch(function(err) {
+             document.getElementById('load-number').textContent = 'Load Not Found';
+             document.getElementById('load-desc').textContent   = err.message;
+             document.getElementById('btn-start').disabled = true;
+           });
+         return;
+       }
+
+       // 4. Nothing found — show clear instructions
+       document.getElementById('load-number').textContent = 'No Load Found';
+       document.getElementById('load-desc').textContent   = '';
+       document.getElementById('pickup-addr').textContent  = 'Check your SMS or email for the tracking link sent by your dispatcher. The link must include your load data.';
+       document.getElementById('delivery-addr').textContent = '';
+       document.getElementById('status-badge').textContent  = '⚠️ Use link from dispatcher';
+       document.getElementById('btn-start').disabled = true;
+       document.getElementById('btn-start').textContent = 'Waiting for valid link…';
+
+     } catch(e) {
+       document.getElementById('load-number').textContent = 'Error';
+       document.getElementById('load-desc').textContent   = e.message;
+       document.getElementById('btn-start').disabled = true;
+     }
+   }
+
+   function populateLoad(data) {
+     loadData = data;
+     document.getElementById("load-number").textContent   = data.loadNumber || "—";
+     document.getElementById("load-desc").textContent     = data.description || "";
+     document.getElementById("pickup-addr").textContent   = data.pickupAddress || "—";
+     document.getElementById("delivery-addr").textContent = data.deliveryAddress || "—";
+
+     // Schedule pickup time reminders (works for Assigned & Accepted statuses)
+     if (data.pickupDate && (data.status === 'Assigned' || data.status === 'Accepted')) {
+       schedulePickupReminders(data.pickupDate);
+     }
+
+     // New assignment notification
+     if (data.status === 'Assigned') {
+       driverNotify('📋 New Load Assigned',
+         'Load ' + (data.loadNumber || '') + ' — pickup at ' + (data.pickupAddress || ''));
+     }
+
+     // Show extra details row if available
+     var extras = "";
+     if (data.weight)       extras += '<div style="font-size:13px;color:var(--muted);margin-top:6px">⚖️ ' + Number(data.weight).toLocaleString() + ' lbs</div>';
+     if (data.pickupDate)   extras += '<div style="font-size:13px;color:var(--muted);margin-top:4px">📅 Pickup: ' + new Date(data.pickupDate).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"}) + '</div>';
+     if (data.deliveryDate) extras += '<div style="font-size:13px;color:var(--muted);margin-top:4px">📅 Delivery by: ' + new Date(data.deliveryDate).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"}) + '</div>';
+     if (data.customerName) extras += '<div style="font-size:13px;color:var(--muted);margin-top:4px">🏢 Customer: ' + data.customerName + '</div>';
+     if (data.notes)        extras += '<div style="font-size:13px;color:var(--muted);margin-top:4px;padding:8px;background:rgba(255,255,255,.04);border-radius:8px">📝 ' + data.notes + '</div>';
+     if (extras) {
+       var extraDiv = document.createElement("div");
+       extraDiv.style.marginTop = "10px";
+       extraDiv.innerHTML = extras;
+       document.getElementById("load-card").appendChild(extraDiv);
+     }
+
+     var badge = document.getElementById("status-badge");
+     if (data.status === "In Transit") {
+       badge.className   = "status-badge active";
+       badge.textContent = "🚛 In Transit";
+       document.getElementById("btn-start").style.display = "none";
+       document.getElementById("btn-stop").style.display  = "flex";
+       document.getElementById("gps-card").style.display  = "block";
+       isTracking = true;
+       loadTrailHistory();
+       startGPS(false);
+     } else if (data.status === "Delivered") {
+       badge.className   = "status-badge stopped";
+       badge.textContent = "✅ Delivered";
+       document.getElementById("btn-start").style.display = "none";
+       document.getElementById("gps-card").style.display  = "none";
+       document.getElementById("delivered-screen").style.display = "flex";
+     } else if (data.status === "Accepted") {
+       badge.className   = "status-badge accepted";
+       badge.textContent = "✅ Accepted";
+       document.getElementById("gps-card").style.display  = "block";
+       document.getElementById("btn-start").style.display = "flex";
+     } else {
+       // Assigned, Pending, or anything else — always show Accept card
+       // (Pending means the link was sent before status was saved as Assigned,
+       //  but the driver still needs to accept and start tracking)
+       badge.textContent = "⏳ " + (data.status || "Pending");
+       document.getElementById("gps-card").style.display   = "none";
+       document.getElementById("btn-start").style.display  = "none";
+       var acceptCard = document.getElementById("accept-card");
+       acceptCard.style.display = "block";
+       if (data.pickupDate) {
+         document.getElementById("accept-pickup-time").textContent =
+           "Pickup: " + new Date(data.pickupDate).toLocaleDateString("en-US", {
+             month: "short", day: "numeric", year: "numeric",
+             hour: "2-digit", minute: "2-digit"
+           });
+       }
+       // If we have a live backend, check whether the status has already been
+       // updated (e.g. dispatcher changed it after sending the link)
+       if (isLive() && (TOKEN || LOAD_ID)) {
+         var liveUrl = TOKEN ? API_BASE + '/track/' + TOKEN
+                             : API_BASE + '/loads/' + LOAD_ID;
+         fetch(liveUrl)
+           .then(function(r){ return r.ok ? r.json() : null; })
+           .then(function(live){
+             if (!live) return;
+             var liveStatus = live.status || data.status;
+             if (liveStatus !== data.status) {
+               // Backend has a newer status — re-render with it
+               live.pickupDate    = live.pickupDate    || data.pickupDate;
+               live.deliveryDate  = live.deliveryDate  || data.deliveryDate;
+               live.pickupAddress = live.pickupAddress || data.pickupAddress;
+               live.deliveryAddress = live.deliveryAddress || data.deliveryAddress;
+               populateLoad(live);
+             }
+           })
+           .catch(function(){});
+       }
+     }
+   }
+
+   // ── Start Tracking ────────────────────────────────────────────────────────
+   function startTracking() {
+     var btn = document.getElementById('btn-start');
+     btn.disabled = true;
+     btn.innerHTML = '<span class="spinner"></span> Starting…';
+     btn.className = 'btn btn-loading';
+     clearError();
+
+     if (!navigator.geolocation) {
+       showError('Geolocation is not supported by this browser.');
+       resetStartButton(); return;
+     }
+
+     navigator.geolocation.getCurrentPosition(
+       function(pos) {
+         lastPosition = pos;
+         updateGPSDisplay(pos);
+
+         // Update status in URL-decoded load
+         updateLocalStatus('In Transit');
+
+         // Notify dispatcher via /start (sets In Transit + sends email)
+         notifyDispatcher(pos);
+
+         // Belt-and-suspenders: also PATCH status directly so DynamoDB is
+         // updated even if /start fails or is slow
+         if (isLive() && TOKEN) {
+           fetch(API_BASE + '/track/' + TOKEN + '/status', {
+             method: 'PATCH',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({
+               status: 'In Transit',
+               loadId: loadData ? loadData.id : (LOAD_ID || null),
+               driverName: loadData ? (loadData.assignedDriverName || 'Driver') : 'Driver',
+             }),
+           }).catch(function(e) { console.warn('In Transit status patch failed:', e); });
+         }
+
+         isTracking = true;
+         document.getElementById('status-badge').className   = 'status-badge active';
+         document.getElementById('status-badge').textContent = '🚛 In Transit';
+         btn.style.display = 'none';
+         document.getElementById('btn-stop').style.display    = 'flex';
+         document.getElementById('btn-deliver').style.display = 'flex';
+         document.getElementById('log-card').style.display    = 'block';
+         showSuccess('✅ Tracking started! Dispatcher has been notified.');
+         addLog('🚛 Tracking started');
+         driverNotify('🚛 Tracking Started', 'Your location is now being shared. Drive safe!');
+
+         postLocation(pos);
+         startGPS(true);
+       },
+       function(err) {
+         if (err.code === 1) {
+           showError('denied');
+         } else {
+           showError('Could not get your location: ' + err.message);
+         }
+         resetStartButton();
+       },
+       { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+     );
+   }
+
+   // ── Accept Load ───────────────────────────────────────────────────────────
+   function acceptLoad() {
+     var btn = document.getElementById('btn-accept');
+     btn.disabled = true;
+     btn.innerHTML = '<span class="spinner"></span> Accepting…';
+
+     var loadId     = loadData ? loadData.id     : LOAD_ID;
+     var loadNumber = loadData ? loadData.loadNumber : '';
+     var driverName = loadData ? (loadData.assignedDriverName || 'Driver') : 'Driver';
+
+     function onAccepted() {
+       // Update local status
+       updateLocalStatus('Accepted');
+
+       // Update badge
+       var badge = document.getElementById('status-badge');
+       badge.className   = 'status-badge accepted';
+       badge.textContent = '✅ Accepted';
+
+       // Re-schedule pickup reminders (in case permission was just granted)
+       if (loadData && loadData.pickupDate) schedulePickupReminders(loadData.pickupDate);
+
+       // Hide accept card, reveal tracking controls
+       document.getElementById('accept-card').style.display  = 'none';
+       document.getElementById('gps-card').style.display     = 'block';
+       document.getElementById('btn-start').style.display    = 'flex';
+
+       showSuccess('✅ Load accepted! Dispatcher has been notified. Tap Start Tracking when ready.');
+       addLog('✅ Load accepted');
+       driverNotify('✅ Load Accepted',
+         'Load ' + (loadData ? loadData.loadNumber : '') + ' accepted. Pickup reminders are set.');
+     }
+
+     // Try backend accept endpoint
+     if (isLive() && TOKEN) {
+       // Update status via the public token-based endpoint (no JWT required)
+       fetch(API_BASE + '/track/' + TOKEN + '/status', {
+         method: 'PATCH',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ status: 'Accepted', loadId: loadId, driverName: driverName }),
+       }).catch(function(){});
+
+       // Also call the dedicated accept endpoint (sends dispatcher email)
+       fetch(API_BASE + '/loads/' + loadId + '/accept', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({
+           loadId:          loadId,
+           loadNumber:      loadNumber,
+           driverName:      driverName,
+           dispatcherEmail: loadData ? (loadData.dispatcherEmail || '') : ''
+         }),
+       })
+       .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+       .then(function() { onAccepted(); })
+       .catch(function(err) {
+         // Graceful fallback — status already patched above, just show UI
+         console.warn('Accept endpoint error:', err);
+         onAccepted();
+       });
+     } else {
+       // No backend — update locally and open mailto
+       onAccepted();
+       if (loadData && loadData.dispatcherEmail) {
+         var subject = 'Load ' + loadNumber + ' Accepted by ' + driverName;
+         var body    = driverName + ' has accepted load ' + loadNumber + '.\nThey are ready to start tracking at pickup time.';
+         openMailtoDispatcher(subject, body);
+       }
+     }
+   }
+
+   // ── Notify Dispatcher ─────────────────────────────────────────────────────
+   function notifyDispatcher(pos) {
+     if (!loadData) return;
+
+     var mapsLink = 'https://maps.google.com/?q=' + pos.coords.latitude + ',' + pos.coords.longitude;
+     var subject  = 'Driver Started Tracking - Load ' + (loadData.loadNumber || '');
+     var body     = 'Your driver has started tracking for Load ' + (loadData.loadNumber || '') + '.\n\n'
+                  + 'Driver: ' + (loadData.assignedDriverName || 'Driver') + '\n'
+                  + 'Pickup: '   + (loadData.pickupAddress   || '--') + '\n'
+                  + 'Delivery: ' + (loadData.deliveryAddress || '--') + '\n\n'
+                  + 'Current location:\n' + mapsLink + '\n\n'
+                  + 'GPS: ' + pos.coords.latitude.toFixed(5) + ', ' + pos.coords.longitude.toFixed(5);
+
+     // Try backend first
+     if (isLive()) {
+       fetch(API_BASE + '/track/' + TOKEN + '/start', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({
+           latitude: pos.coords.latitude,
+           longitude: pos.coords.longitude,
+           dispatcherEmail: loadData.dispatcherEmail || '',
+           notifyCustomer:  loadData.notifyCustomer  || false,
+         }),
+       }).catch(function() { openMailtoDispatcher(subject, body); });
+       return;
+     }
+
+     // No backend — open mailto so dispatcher gets an email
+     openMailtoDispatcher(subject, body);
+   }
+
+   function openMailtoDispatcher(subject, body) {
+     if (!loadData || !loadData.dispatcherEmail) return;
+     var link = 'mailto:' + loadData.dispatcherEmail
+              + '?subject=' + encodeURIComponent(subject)
+              + '&body='    + encodeURIComponent(body);
+     // Open silently — driver shouldn't have to do anything
+     var a = document.createElement('a');
+     a.href = link;
+     a.style.display = 'none';
+     document.body.appendChild(a);
+     a.click();
+     document.body.removeChild(a);
+   }
+
+   // ── Mark Delivered ────────────────────────────────────────────────────────
+   function markDelivered() {
+     if (!confirm("Mark this load as Delivered?")) return;
+
+     var btn = document.getElementById('btn-deliver');
+     btn.disabled = true;
+     btn.innerHTML = '<span class="spinner"></span> Saving…';
+
+     function doDeliver(attempt) {
+       if (!isLive() || !TOKEN) {
+         finishDelivered(); return;
+       }
+       fetch(API_BASE + "/track/" + TOKEN + "/status", {
+         method: "PATCH",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({
+           status: "Delivered",
+           loadId: loadData ? loadData.id : (LOAD_ID || null),
+           driverName: loadData ? (loadData.assignedDriverName || "Driver") : "Driver",
+         }),
+       })
+       .then(function(r) {
+         if (!r.ok) return r.json().then(function(d) { throw new Error(d.error || ("HTTP " + r.status)); });
+         finishDelivered();
+       })
+       .catch(function(err) {
+         console.error("markDelivered attempt " + attempt + " failed:", err);
+         if (attempt < 3) {
+           setTimeout(function() { doDeliver(attempt + 1); }, 2000 * attempt);
+         } else {
+           // All retries failed — still mark locally but warn driver
+           finishDelivered();
+           showError("⚠️ Could not reach server after 3 tries (" + (err.message || "network error") + "). Status saved locally — ask dispatcher to update manually if needed.");
+         }
+       });
+     }
+
+     function finishDelivered() {
+       stopGPS();
+       isTracking = false;
+       updateLocalStatus("Delivered");
+       document.getElementById("btn-stop").style.display    = "none";
+       document.getElementById("btn-deliver").style.display = "none";
+       document.getElementById("status-badge").className    = "status-badge stopped";
+       document.getElementById("status-badge").textContent  = "✅ Delivered";
+       document.getElementById("delivered-screen").style.display = "flex";
+       addLog("✅ Marked as Delivered");
+       driverNotify('📦 Delivery Complete!',
+         'Load ' + (loadData ? loadData.loadNumber : '') + ' marked as delivered. Great work!');
+     }
+
+     doDeliver(1);
+   }
+
+   function updateLocalStatus(newStatus) {
+     var stored = JSON.parse(localStorage.getItem("cmp_loads") || "[]");
+     var updated = false;
+     for (var i = 0; i < stored.length; i++) {
+       if ((TOKEN  && stored[i].trackingToken === TOKEN)  ||
+           (LOAD_ID && stored[i].id           === LOAD_ID)) {
+         stored[i].status = newStatus;
+         updated = true;
+         break;
+       }
+     }
+     // If not found in stored loads, add a minimal record so dispatcher can see it
+     if (!updated && loadData) {
+       var entry = JSON.parse(JSON.stringify(loadData));
+       entry.status = newStatus;
+       stored.push(entry);
+     }
+     localStorage.setItem("cmp_loads", JSON.stringify(stored));
+     if (loadData) loadData.status = newStatus;
+   }
+
+   // ── Stop Tracking ─────────────────────────────────────────────────────────
+   function stopTracking() {
+     isTracking = false;
+     stopGPS();
+     updateLocalStatus("Pending");
+     document.getElementById("btn-stop").style.display    = "none";
+     document.getElementById("btn-deliver").style.display = "none";
+     document.getElementById("btn-start").style.display   = "flex";
+     document.getElementById("status-badge").className    = "status-badge pending";
+     document.getElementById("status-badge").textContent  = "⏸ Paused";
+     resetStartButton();
+     addLog("⏸ Tracking paused");
+   }
+
+   // ── GPS Helpers ───────────────────────────────────────────────────────────
+   function startGPS(fresh) {
+     if (gpsRestartTimer) { clearTimeout(gpsRestartTimer); gpsRestartTimer = null; }
+     if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+
+     watchId = navigator.geolocation.watchPosition(
+       function(pos) {
+         gpsRestartDelay = 5000; // reset back-off on success
+         lastPosition = pos;
+         updateGPSDisplay(pos);
+       },
+       function(err) {
+         if (err.code === 1) { // PERMISSION_DENIED — permanent, don't retry
+           showError('denied');
+         } else {
+           // Timeout or POSITION_UNAVAILABLE — auto-restart after delay
+           navigator.geolocation.clearWatch(watchId);
+           watchId = null;
+           if (isTracking) {
+             gpsRestartTimer = setTimeout(function() {
+               if (isTracking) startGPS(false);
+             }, gpsRestartDelay);
+             // Exponential back-off, cap at 60 s
+             gpsRestartDelay = Math.min(gpsRestartDelay * 2, 60000);
+           }
+         }
+       },
+       { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+     );
+
+     if (!intervalId) {
+       intervalId = setInterval(function() {
+         if (lastPosition && isTracking) {
+           postLocation(lastPosition);
+         }
+       }, UPDATE_INTERVAL_MS);
+     }
+   }
+
+   function stopGPS() {
+     if (gpsRestartTimer) { clearTimeout(gpsRestartTimer); gpsRestartTimer = null; }
+     if (watchId != null)    { navigator.geolocation.clearWatch(watchId); watchId = null; }
+     if (intervalId != null) { clearInterval(intervalId); intervalId = null; }
+   }
+
+   // ── Map setup ─────────────────────────────────────────────────────────────
+   var map = null, mapMarker = null, mapCircle = null, trailPolyline = null;
+   // trailPoints stores raw GPS coords as {lat, lng, ts} objects
+   var trailPoints = [];
+   var snapDebounceTimer = null;
+   var snapInFlight = false;
+
+   function initMap(lat, lng) {
+     if (map) return;
+     map = L.map('map', { zoomControl: true, attributionControl: false }).setView([lat, lng], 15);
+     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+       maxZoom: 19
+     }).addTo(map);
+     var truckIcon = L.divIcon({
+       html: '<div style="font-size:28px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">🚛</div>',
+       className: '',
+       iconSize: [32, 32],
+       iconAnchor: [16, 16]
+     });
+     mapMarker = L.marker([lat, lng], { icon: truckIcon }).addTo(map);
+     mapCircle = L.circle([lat, lng], { radius: 20, color: '#007AFF', fillColor: '#007AFF', fillOpacity: 0.15, weight: 2 }).addTo(map);
+     // Trail polyline — updated by road-snap or raw fallback
+     trailPolyline = L.polyline([], {
+       color: '#007AFF',
+       weight: 5,
+       opacity: 0.85,
+       lineJoin: 'round',
+       lineCap: 'round',
+     }).addTo(map);
+   }
+
+   // Snap trailPoints to roads via OSRM /route — works everywhere, no API key needed.
+   // Falls back to raw GPS if OSRM is unreachable.
+   function snapAndDrawTrail() {
+     if (!trailPolyline || trailPoints.length < 2) {
+       if (trailPolyline && trailPoints.length === 1) {
+         trailPolyline.setLatLngs([[trailPoints[0].lat, trailPoints[0].lng]]);
+       }
+       return;
+     }
+
+     // Sample down to ≤25 waypoints (OSRM /route limit)
+     var pts = trailPoints;
+     if (pts.length > 25) {
+       var step = (pts.length - 1) / 24;
+       var sampled = [];
+       for (var i = 0; i < 24; i++) sampled.push(pts[Math.round(i * step)]);
+       sampled.push(pts[pts.length - 1]);
+       pts = sampled;
+     }
+
+     var coords = pts.map(function(p) { return p.lng + ',' + p.lat; }).join(';');
+     var url = 'https://router.project-osrm.org/route/v1/driving/' + coords
+             + '?overview=full&geometries=geojson&steps=false';
+
+     snapInFlight = true;
+     fetch(url)
+       .then(function(r) { return r.json().catch(function() { return null; }); })
+       .then(function(data) {
+         snapInFlight = false;
+         if (data && data.code === 'Ok' && data.routes && data.routes.length) {
+           var roadCoords = data.routes[0].geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
+           if (roadCoords.length >= 2) {
+             trailPolyline.setLatLngs(roadCoords);
+             return;
+           }
+         }
+         // OSRM returned nothing useful — keep raw GPS trail
+         trailPolyline.setLatLngs(trailPoints.map(function(p) { return [p.lat, p.lng]; }));
+       })
+       .catch(function() {
+         snapInFlight = false;
+         if (trailPolyline) {
+           trailPolyline.setLatLngs(trailPoints.map(function(p) { return [p.lat, p.lng]; }));
+         }
+       });
+   }
+
+   // Debounce: wait 2 s after last GPS tick before calling OSRM
+   function scheduleSnap() {
+     if (snapDebounceTimer) clearTimeout(snapDebounceTimer);
+     snapDebounceTimer = setTimeout(function() {
+       if (!snapInFlight) snapAndDrawTrail();
+     }, 2000);
+   }
+
+   function updateMap(lat, lng, accuracy) {
+     var ts = Math.floor(Date.now() / 1000);
+     trailPoints.push({ lat: lat, lng: lng, ts: ts });
+     if (!map) { initMap(lat, lng); return; }
+     mapMarker.setLatLng([lat, lng]);
+     mapCircle.setLatLng([lat, lng]);
+     mapCircle.setRadius(accuracy || 20);
+     map.panTo([lat, lng]);
+     // Draw raw trail immediately (no visual gap), then snap to roads asynchronously
+     trailPolyline.setLatLngs(trailPoints.map(function(p) { return [p.lat, p.lng]; }));
+     scheduleSnap();
+   }
+
+   // Load existing trail from API when resuming a trip
+   function loadTrailHistory() {
+     if (!isLive() || !TOKEN) return;
+     fetch(API_BASE + '/track/' + TOKEN)
+       .then(function(r) { return r.ok ? r.json() : null; })
+       .then(function(data) {
+         if (!data || !data.locationHistory || data.locationHistory.length < 2) return;
+         trailPoints = data.locationHistory.map(function(p) {
+           return {
+             lat: p.latitude,
+             lng: p.longitude,
+             ts: p.timestamp ? Math.floor(new Date(p.timestamp).getTime() / 1000) : 0
+           };
+         });
+         if (trailPolyline) {
+           trailPolyline.setLatLngs(trailPoints.map(function(p) { return [p.lat, p.lng]; }));
+         }
+         snapAndDrawTrail();
+       })
+       .catch(function() {});
+   }
+
+   function updateGPSDisplay(pos) {
+     var c = pos.coords;
+     document.getElementById("gps-lat").textContent  = "Lat " + c.latitude.toFixed(5);
+     document.getElementById("gps-lng").textContent  = "Lng " + c.longitude.toFixed(5);
+     var spd = c.speed != null ? (c.speed * 2.237).toFixed(1) + " mph" : "";
+     document.getElementById("gps-speed").textContent = spd;
+
+     var acc  = c.accuracy;
+     var dot  = document.getElementById("acc-dot");
+     var text = document.getElementById("acc-text");
+     if (acc <= 20)       { dot.className = "accuracy-dot good";   text.textContent = "±" + Math.round(acc) + "m — Good signal"; }
+     else if (acc <= 100) { dot.className = "accuracy-dot medium"; text.textContent = "±" + Math.round(acc) + "m — Fair signal"; }
+     else                 { dot.className = "accuracy-dot poor";   text.textContent = "±" + Math.round(acc) + "m — Poor signal"; }
+
+     updateMap(c.latitude, c.longitude, c.accuracy);
+   }
+
+   // ── POST location to API (with offline queue + auto-retry) ─────────────
+   function postLocation(pos) {
+     updateCount++;
+     if (!isLive()) return;
+     var c = pos.coords;
+     var payload = {
+       latitude:  c.latitude,
+       longitude: c.longitude,
+       speed:     c.speed   != null ? c.speed * 2.237 : 0,
+       heading:   c.heading != null ? c.heading : 0,
+       timestamp: new Date().toISOString(),
+     };
+
+     if (!navigator.onLine) {
+       offlineQueue.push(payload);
+       setConnBar('offline');
+       return;
+     }
+
+     sendLocationPayload(payload);
+   }
+
+   function sendLocationPayload(payload) {
+     fetch(API_BASE + "/track/" + TOKEN + "/location", {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify(payload),
+     }).catch(function() {
+       offlineQueue.push(payload);
+       setConnBar('offline');
+     });
+   }
+
+   function flushOfflineQueue() {
+     if (!isLive() || offlineQueue.length === 0) return;
+     var queue = offlineQueue.slice();
+     offlineQueue = [];
+     queue.forEach(function(payload) { sendLocationPayload(payload); });
+   }
+
+   // ── Log helpers ───────────────────────────────────────────────────────────
+   function addLog(msg) {
+     const list = document.getElementById("log-list");
+     const now  = new Date().toLocaleTimeString();
+     const item = document.createElement("div");
+     item.className = "log-item";
+     item.innerHTML = `<span class="log-time">${now}</span><span>${msg}</span>`;
+     list.prepend(item);
+     // Keep last 20 entries
+     while (list.children.length > 20) list.removeChild(list.lastChild);
+   }
+
+   // ── Banner helpers ────────────────────────────────────────────────────────
+   function showError(msg) {
+     const el = document.getElementById("error-banner");
+     el.innerHTML = '';
+
+     const isDenied = msg.toLowerCase().includes('denied') ||
+                      msg.toLowerCase().includes('permission') ||
+                      msg.code === 1;
+
+     if (isDenied) {
+       // Detect iOS vs Android for tailored instructions
+       const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+       const isAndroid = /android/i.test(navigator.userAgent);
+
+       let html = `
+         <div style="font-size:15px;font-weight:700;margin-bottom:10px;">📍 Location Access is Blocked</div>
+         <div style="font-size:13px;margin-bottom:14px;color:#ff9580;">
+           Your phone is blocking this page from seeing your location.
+           Follow the steps below to fix it.
+         </div>`;
+
+       if (isIOS) {
+         html += `
+         <div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+           <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8e8ea0;margin-bottom:8px;">Step 1 — Allow in Safari</div>
+           <div style="font-size:13px;line-height:1.7;">
+             1. Tap the <strong>AA</strong> or <strong>🔒</strong> icon in the Safari address bar<br>
+             2. Tap <strong>"Website Settings"</strong><br>
+             3. Tap <strong>"Location"</strong> → select <strong>"Allow"</strong><br>
+             4. Come back here and tap <strong>🔄 Reload</strong> below
+           </div>
+         </div>
+         <div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+           <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8e8ea0;margin-bottom:8px;">Step 2 — If that doesn't work: Check iPhone Settings</div>
+           <div style="font-size:13px;line-height:1.7;">
+             1. Open the iPhone <strong>Settings</strong> app (grey gear icon)<br>
+             2. Scroll down and tap <strong>"Privacy &amp; Security"</strong><br>
+             3. Tap <strong>"Location Services"</strong><br>
+             4. Make sure <strong>Location Services</strong> is turned <strong>ON</strong> at the top<br>
+             5. Scroll down and tap <strong>"Safari Websites"</strong><br>
+             6. Set it to <strong>"While Using the App"</strong> or <strong>"Ask Next Time"</strong><br>
+             7. Come back here and tap <strong>🔄 Reload</strong> below
+           </div>
+         </div>
+         <div style="background:rgba(255,149,0,0.12);border:1px solid rgba(255,149,0,0.3);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#FF9500;">
+           💡 <strong>Tip:</strong> If you tapped "Don't Allow" when Safari first asked, you must go to iPhone Settings to reset it — Safari won't ask again automatically.
+         </div>`;
+       } else if (isAndroid) {
+         html += `
+         <div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+           <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8e8ea0;margin-bottom:8px;">Step 1 — Allow in Chrome</div>
+           <div style="font-size:13px;line-height:1.7;">
+             1. Tap the <strong>🔒 lock icon</strong> in the Chrome address bar<br>
+             2. Tap <strong>"Permissions"</strong> → <strong>"Location"</strong><br>
+             3. Select <strong>"Allow"</strong><br>
+             4. Tap <strong>🔄 Reload</strong> below
+           </div>
+         </div>
+         <div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+           <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8e8ea0;margin-bottom:8px;">Step 2 — If that doesn't work: Check Android Settings</div>
+           <div style="font-size:13px;line-height:1.7;">
+             1. Open <strong>Settings</strong> → <strong>"Apps"</strong> → <strong>"Chrome"</strong><br>
+             2. Tap <strong>"Permissions"</strong> → <strong>"Location"</strong><br>
+             3. Select <strong>"Allow only while using the app"</strong><br>
+             4. Come back here and tap <strong>🔄 Reload</strong> below
+           </div>
+         </div>`;
+       } else {
+         // Desktop / unknown browser fallback
+         html += `
+         <div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+           <div style="font-size:13px;line-height:1.7;">
+             1. Look for a <strong>🔒 lock</strong> or <strong>📍 location</strong> icon in your browser address bar<br>
+             2. Click it and set <strong>Location</strong> to <strong>"Allow"</strong><br>
+             3. Reload the page and tap <strong>Start Tracking</strong> again
+           </div>
+         </div>`;
+       }
+
+       html += `
+         <button onclick="location.reload()"
+           style="width:100%;background:#007AFF;color:#fff;border:none;border-radius:12px;
+                  padding:14px;font-size:16px;font-weight:700;cursor:pointer;margin-top:4px;
+                  -webkit-tap-highlight-color:transparent;">
+           🔄 Reload Page
+         </button>
+         <div style="font-size:11px;color:#8e8ea0;margin-top:8px;text-align:center;">
+           After changing settings, always reload the page before tapping Start Tracking.
+         </div>`;
+
+       el.innerHTML = html;
+     } else {
+       el.textContent = msg;
+     }
+     el.classList.add("visible");
+   }
+   function clearError() {
+     document.getElementById("error-banner").classList.remove("visible");
+   }
+   function showSuccess(msg) {
+     const el = document.getElementById("success-banner");
+     el.textContent = msg;
+     el.classList.add("visible");
+     setTimeout(() => el.classList.remove("visible"), 6000);
+   }
+
+   function resetStartButton() {
+     const btn = document.getElementById("btn-start");
+     btn.disabled  = false;
+     btn.className = "btn btn-start";
+     btn.textContent = "🚛 Start Tracking";
+   }
+
+   // Keep screen awake while tracking (Safari 16.4+)
+   var wakeLock = null;
+   document.getElementById("btn-start").addEventListener("click", function() {
+     if ("wakeLock" in navigator) {
+       navigator.wakeLock.request("screen").then(function(wl){ wakeLock=wl; }).catch(function(){});
+     }
+   });
+   document.addEventListener("visibilitychange", function() {
+     if (wakeLock !== null && document.visibilityState === "visible") {
+       navigator.wakeLock.request("screen").then(function(wl){ wakeLock=wl; }).catch(function(){});
+     }
+     // When the driver comes back to the tab while tracking, restart GPS if it dropped
+     if (isTracking && document.visibilityState === "visible" && watchId === null) {
+       startGPS(false);
+     }
+     // Flush any queued locations when coming back online
+     if (document.visibilityState === "visible" && navigator.onLine) {
+       flushOfflineQueue();
+     }
+   });
+
+   // ── Service Worker registration (background sync + keep-alive) ────────────
+   if ('serviceWorker' in navigator) {
+     navigator.serviceWorker.register('driver-tracking-sw.js')
+       .then(function(reg) {
+         console.log('[SW] registered, scope:', reg.scope);
+         // Request background sync when back online
+         window.addEventListener('online', function() {
+           if (reg.sync) {
+             reg.sync.register('cmp-location-sync').catch(function(){});
+           }
+         });
+       })
+       .catch(function(err) {
+         console.warn('[SW] registration failed:', err);
+       });
+
+     // Listen for keep-alive pings from the service worker
+     navigator.serviceWorker.addEventListener('message', function(evt) {
+       if (evt.data && evt.data.type === 'SW_KEEPALIVE') {
+         // Re-request wake lock and restart GPS if it dropped
+         if (wakeLock === null && isTracking && 'wakeLock' in navigator) {
+           navigator.wakeLock.request('screen').then(function(wl){ wakeLock = wl; }).catch(function(){});
+         }
+         if (isTracking && watchId === null && !gpsRestartTimer) {
+           startGPS(false);
+         }
        }
      });
    }
