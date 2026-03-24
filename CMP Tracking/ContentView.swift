@@ -106,7 +106,7 @@ struct DriverWaitingView: View {
             deliveryAddress: "456 Distribution Ave, Dallas, TX 75201",
             pickupDate: Date(),
             deliveryDate: Date().addingTimeInterval(86400),
-            status: .assigned,
+            status: .accepted,
             assignedDriverId: testDriver.id,
             assignedDriverName: testDriver.name,
             assignedDriverEmail: testDriver.email,
