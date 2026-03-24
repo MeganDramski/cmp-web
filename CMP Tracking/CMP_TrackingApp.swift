@@ -44,6 +44,7 @@ struct CMP_TrackingApp: App {
     @StateObject private var authManager = AuthManager()
     @StateObject private var notifDelegate = AppNotificationDelegate()
     @State private var trackingToken: String? = nil
+    @State private var driverDeepLink: DriverDeepLink? = nil
     @State private var driverLink: DriverDeepLink? = nil
 
     // SwiftData container — tries on-disk, self-heals on schema mismatch.
