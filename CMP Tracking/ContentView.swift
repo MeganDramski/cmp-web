@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UserNotifications
 
 // MARK: - Root Content View
 
@@ -32,6 +33,7 @@ struct ContentView: View {
 struct DriverWaitingView: View {
     @Binding var showDispatcherLogin: Bool
     @EnvironmentObject var appState: AppState
+    @State private var notifScheduled = false
 
     var body: some View {
         ZStack {
@@ -61,6 +63,29 @@ struct DriverWaitingView: View {
 
                 Spacer()
 
+                // ── DEBUG: notification tester ────────────────────────────
+                #if DEBUG
+                VStack(spacing: 6) {
+                    Button(action: scheduleTestNotification) {
+                        Label(
+                            notifScheduled ? "Notification sent in 5s ✓" : "Test Notification (5s)",
+                            systemImage: notifScheduled ? "checkmark.circle.fill" : "bell.badge"
+                        )
+                        .font(.caption).fontWeight(.semibold)
+                        .padding(.horizontal, 16).padding(.vertical, 8)
+                        .background(Color.blue.opacity(0.15))
+                        .foregroundColor(notifScheduled ? .green : .blue)
+                        .cornerRadius(10)
+                        .overlay(RoundedRectangle(cornerRadius: 10)
+                            .stroke((notifScheduled ? Color.green : Color.blue).opacity(0.4), lineWidth: 1))
+                    }
+                    .disabled(notifScheduled)
+                    Text("Background the app to see it")
+                        .font(.caption2).foregroundColor(.secondary)
+                }
+                .padding(.bottom, 4)
+                #endif
+
                 // Small unobtrusive dispatcher link at the bottom
                 Button(action: { showDispatcherLogin = true }) {
                     Text("Dispatcher Portal →")
@@ -70,6 +95,29 @@ struct DriverWaitingView: View {
             }
         }
     }
+
+    // MARK: - Debug notification helper
+    #if DEBUG
+    private func scheduleTestNotification() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = "🚛 Test Notification"
+            content.body  = "Routelo notifications are working!"
+            content.sound = .default
+            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+            let request = UNNotificationRequest(
+                identifier: "debug-test-\(UUID().uuidString)",
+                content: content,
+                trigger: trigger
+            )
+            UNUserNotificationCenter.current().add(request) { _ in
+                DispatchQueue.main.async { notifScheduled = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 10) { notifScheduled = false }
+            }
+        }
+    }
+    #endif
 }
 
 // MARK: - Auth View (Dispatcher only)
