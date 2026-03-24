@@ -63,6 +63,9 @@ struct DriverView: View {
                             noLoadCard
                         }
 
+                        // ── Map — always visible once a load exists ───────────
+                        mapPreviewCard
+
                         // ── Live section (accepted or in-transit) ────────────
                         let isActive = assignedLoad.map {
                             $0.status == .accepted || $0.status == .inTransit
@@ -70,7 +73,6 @@ struct DriverView: View {
 
                         if isActive {
                             liveLocationCard
-                            mapPreviewCard
                             trackingButton
 
                             if let load = assignedLoad {
@@ -508,17 +510,60 @@ struct DriverView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "map.fill").foregroundColor(.dkBlue)
-                Text("Live Map")
+                Text("Map")
                     .font(.headline).fontWeight(.semibold)
                     .foregroundColor(.white)
+                Spacer()
+                if locationManager.isTracking {
+                    HStack(spacing: 5) {
+                        Circle().fill(Color.dkGreen).frame(width: 7, height: 7)
+                        Text("Live").font(.caption).foregroundColor(.dkGreen)
+                    }
+                }
             }
             .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 10)
 
             ZStack(alignment: .bottomTrailing) {
-                LiveMapView(region: mapRegion, userLocation: locationManager.currentLocation?.coordinate, trail: locationManager.routeTrail)
+                // Show route map (pickup+delivery pins) when not tracking,
+                // switch to live GPS map when tracking is active
+                if locationManager.isTracking || locationManager.currentLocation != nil {
+                    LiveMapView(
+                        region: mapRegion,
+                        userLocation: locationManager.currentLocation?.coordinate,
+                        trail: locationManager.routeTrail
+                    )
                     .frame(height: 220)
                     .cornerRadius(12)
                     .padding(.horizontal, 12)
+                } else if pickupPin != nil || deliveryPin != nil {
+                    RouteMapView(pickupCoord: pickupPin, deliveryCoord: deliveryPin)
+                        .frame(height: 220)
+                        .cornerRadius(12)
+                        .padding(.horizontal, 12)
+                } else {
+                    // Fallback: plain map centered on US until GPS/geocoding resolves
+                    LiveMapView(
+                        region: MKCoordinateRegion(
+                            center: CLLocationCoordinate2D(latitude: 39.5, longitude: -98.35),
+                            span: MKCoordinateSpan(latitudeDelta: 30, longitudeDelta: 30)
+                        ),
+                        userLocation: nil,
+                        trail: []
+                    )
+                    .frame(height: 220)
+                    .cornerRadius(12)
+                    .padding(.horizontal, 12)
+                    .overlay(
+                        VStack(spacing: 6) {
+                            Image(systemName: "location.slash.fill")
+                                .font(.system(size: 22))
+                                .foregroundColor(.dkMuted)
+                            Text("Waiting for GPS…")
+                                .font(.caption)
+                                .foregroundColor(.dkMuted)
+                        }
+                    )
+                }
 
                 Button(action: recenterDriverMap) {
                     Image(systemName: "location.fill")
