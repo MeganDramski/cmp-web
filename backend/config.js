@@ -4,6 +4,6 @@
 window.CMP_API_BASE = (function(){
   var injected = "__API_BASE__";
   if (injected && injected !== "__API_BASE__") return injected;
-  // Fallback: set this to your API Gateway URL if Amplify env var is not configured
-  return window._CMP_API_OVERRIDE || "";
+  // Fallback: hardcoded API Gateway URL (used when Amplify env var CMP_API_BASE is not set)
+  return window._CMP_API_OVERRIDE || "https://0hn5wgrru8.execute-api.us-east-1.amazonaws.com";
 })();
