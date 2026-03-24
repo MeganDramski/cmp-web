@@ -53,29 +53,22 @@ struct DriverView: View {
                 ScrollView {
                     VStack(spacing: 16) {
 
-                        // ── Header greeting ──────────────────────────────────
-                        headerCard
-
-                        // ── Tracking status pill ─────────────────────────────
+                        // ── Tracking status (prominent top card) ─────────────
                         trackingStatusCard
 
                         // ── Load card ────────────────────────────────────────
                         if let load = assignedLoad {
                             loadInfoCard(load: load)
-
-                            if load.status == .assigned {
-                                acceptLoadCard(load: load)
-                            }
                         } else {
                             noLoadCard
                         }
 
-                        // ── Live section (after accepted) ────────────────────
-                        let isAccepted = assignedLoad.map {
+                        // ── Live section (accepted or in-transit) ────────────
+                        let isActive = assignedLoad.map {
                             $0.status == .accepted || $0.status == .inTransit
                         } ?? false
 
-                        if isAccepted {
+                        if isActive {
                             liveLocationCard
                             mapPreviewCard
                             trackingButton
@@ -233,91 +226,53 @@ struct DriverView: View {
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: showNotificationBanner)
     }
 
-    // MARK: - Header
-
-    private var headerCard: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(Color.dkBlue.opacity(0.18))
-                    .frame(width: 46, height: 46)
-                Image(systemName: "truck.box.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(.dkBlue)
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Driver Dashboard")
-                    .font(.title3).fontWeight(.bold)
-                    .foregroundColor(.white)
-                if let name = appState.currentUser?.name {
-                    Text("Welcome back, \(name)")
-                        .font(.caption)
-                        .foregroundColor(.dkMuted)
-                }
-            }
-            Spacer()
-            if network.wsConnected {
-                HStack(spacing: 5) {
-                    Circle().fill(Color.dkOrange).frame(width: 7, height: 7)
-                    Text("Live").font(.caption).fontWeight(.semibold).foregroundColor(.dkOrange)
-                }
-                .padding(.horizontal, 10).padding(.vertical, 5)
-                .background(Color.dkOrange.opacity(0.12))
-                .cornerRadius(20)
-                .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.dkOrange.opacity(0.3), lineWidth: 1))
-            }
-        }
-        .padding(16)
-        .background(Color.dkSurface)
-        .cornerRadius(16)
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.dkBorder, lineWidth: 1))
-    }
-
     // MARK: - Tracking Status Card
 
     private var trackingStatusCard: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 16) {
+            // Pulsing circle indicator
             ZStack {
                 if locationManager.isTracking {
                     Circle()
-                        .stroke(Color.dkGreen.opacity(0.3), lineWidth: 8)
-                        .frame(width: 28, height: 28)
-                        .scaleEffect(locationManager.isTracking ? 1.4 : 1)
-                        .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true),
+                        .stroke(Color.dkGreen.opacity(0.35), lineWidth: 10)
+                        .frame(width: 46, height: 46)
+                        .scaleEffect(locationManager.isTracking ? 1.35 : 1)
+                        .animation(.easeInOut(duration: 1.3).repeatForever(autoreverses: true),
                                    value: locationManager.isTracking)
                 }
                 Circle()
-                    .fill(locationManager.isTracking ? Color.dkGreen : Color.dkMuted.opacity(0.4))
-                    .frame(width: 14, height: 14)
+                    .fill(locationManager.isTracking ? Color.dkGreen : Color.dkMuted.opacity(0.35))
+                    .frame(width: 22, height: 22)
             }
-            .frame(width: 30)
+            .frame(width: 50, height: 50)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(locationManager.isTracking ? "Tracking Active" : "Tracking Stopped")
-                    .font(.subheadline).fontWeight(.semibold)
+                    .font(.title3).fontWeight(.bold)
                     .foregroundColor(locationManager.isTracking ? .dkGreen : .dkMuted)
                 if !statusMessage.isEmpty {
                     Text(statusMessage)
-                        .font(.caption)
-                        .foregroundColor(.dkMuted)
+                        .font(.subheadline)
+                        .foregroundColor(locationManager.isTracking ? Color.dkGreen.opacity(0.75) : .dkMuted)
                 }
             }
             Spacer()
         }
-        .padding(14)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 18)
         .background(
             locationManager.isTracking
-                ? Color.dkGreen.opacity(0.08)
+                ? Color.dkGreen.opacity(0.10)
                 : Color.dkSurface
         )
-        .cornerRadius(12)
+        .cornerRadius(16)
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 16)
                 .stroke(
                     locationManager.isTracking
-                        ? Color.dkGreen.opacity(0.35)
+                        ? Color.dkGreen.opacity(0.45)
                         : Color.dkBorder,
-                    lineWidth: 1
+                    lineWidth: locationManager.isTracking ? 1.5 : 1
                 )
         )
     }
@@ -376,60 +331,17 @@ struct DriverView: View {
             }
             .padding(.vertical, 8)
 
-            // ── Route map preview ─────────────────────────────────────────────
-            Divider().background(Color.dkBorder).padding(.horizontal, 16)
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    Image(systemName: "map.fill").foregroundColor(.dkBlue).font(.caption)
-                    Text("ROUTE MAP")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.dkMuted)
-                        .kerning(0.8)
-                    Spacer()
-                    HStack(spacing: 8) {
-                        HStack(spacing: 4) {
-                            Circle().fill(Color.dkGreen).frame(width: 8, height: 8)
-                            Text("Pickup").font(.caption2).foregroundColor(.dkMuted)
-                        }
-                        HStack(spacing: 4) {
-                            Circle().fill(Color.dkRed).frame(width: 8, height: 8)
-                            Text("Delivery").font(.caption2).foregroundColor(.dkMuted)
-                        }
-                    }
-                }
-                .padding(.horizontal, 16).padding(.top, 10)
-
-                ZStack {
-                    RouteMapView(pickupCoord: pickupPin, deliveryCoord: deliveryPin)
-                        .frame(height: 180)
-                        .cornerRadius(12)
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 12)
-
-                    // Spinner overlay while geocoding is in progress
-                    if pickupPin == nil && deliveryPin == nil {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.dkSurface2)
-                            .frame(height: 180)
-                            .padding(.horizontal, 12)
-                            .padding(.bottom, 12)
-                            .overlay(
-                                HStack(spacing: 8) {
-                                    ProgressView().tint(.dkMuted).scaleEffect(0.8)
-                                    Text("Loading map…")
-                                        .font(.caption).foregroundColor(.dkMuted)
-                                }
-                            )
-                    }
-                }
+            // ── Accept button (for assigned loads) ────────────────────────────
+            if load.status == .assigned {
+                Divider().background(Color.dkBorder).padding(.horizontal, 16)
+                acceptLoadCard(load: load)
             }
-            .onAppear { geocodeLoadAddresses(load) }
-            .onChange(of: load.id) { geocodeLoadAddresses(load) }
         }
         .background(Color.dkSurface)
         .cornerRadius(16)
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.dkBorder, lineWidth: 1))
+        .onAppear { geocodeLoadAddresses(load) }
+        .onChange(of: load.id) { geocodeLoadAddresses(load) }
     }
 
     // MARK: - No Load Card
@@ -476,31 +388,23 @@ struct DriverView: View {
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.dkBorder, lineWidth: 1))
     }
 
-    // MARK: - Accept Load Card
+    // MARK: - Accept Load Card (inline, shown at bottom of loadInfoCard)
 
     private func acceptLoadCard(load: Load) -> some View {
-        VStack(spacing: 14) {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle().fill(Color.dkPurple.opacity(0.18)).frame(width: 44, height: 44)
+        VStack(spacing: 10) {
+            if let dispatcher = load.dispatcherEmail, !dispatcher.isEmpty {
+                HStack(spacing: 6) {
                     Image(systemName: "bell.badge.fill")
-                        .font(.system(size: 18))
+                        .font(.system(size: 11))
                         .foregroundColor(.dkPurple)
-                }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("New Load Assigned")
-                        .font(.headline).fontWeight(.semibold)
-                        .foregroundColor(.white)
-                    if let dispatcher = load.dispatcherEmail, !dispatcher.isEmpty {
-                        Text("From: \(dispatcher)")
-                            .font(.caption).fontWeight(.medium)
-                            .foregroundColor(.dkPurple)
-                    }
-                    Text("Pickup: \(load.pickupDate.formatted(date: .abbreviated, time: .shortened))")
-                        .font(.caption)
+                    Text("New load from \(dispatcher)")
+                        .font(.caption).fontWeight(.medium)
+                        .foregroundColor(.dkPurple)
+                    Spacer()
+                    Text(load.pickupDate.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption2)
                         .foregroundColor(.dkMuted)
                 }
-                Spacer()
             }
 
             Button(action: { acceptLoad(load) }) {
@@ -514,17 +418,16 @@ struct DriverView: View {
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
+                .padding(.vertical, 13)
                 .background(Color.dkPurple)
                 .foregroundColor(.white)
                 .cornerRadius(12)
             }
             .disabled(isAcceptingLoad)
         }
-        .padding(16)
-        .background(Color.dkPurple.opacity(0.08))
-        .cornerRadius(16)
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.dkPurple.opacity(0.35), lineWidth: 1))
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 16)
     }
 
     // MARK: - Live Location Card
