@@ -285,7 +285,8 @@ struct DriverView: View {
         VStack(alignment: .leading, spacing: 0) {
 
             // ── Dispatcher / company banner ───────────────────────────────────
-            if let dispatcher = load.dispatcherEmail, !dispatcher.isEmpty {
+            let bannerText = load.companyName ?? load.dispatcherEmail
+            if let banner = bannerText, !banner.isEmpty {
                 HStack(spacing: 10) {
                     Image(systemName: "building.2.fill")
                         .font(.system(size: 13))
@@ -295,7 +296,7 @@ struct DriverView: View {
                             .font(.system(size: 9, weight: .bold))
                             .foregroundColor(.dkPurple.opacity(0.8))
                             .kerning(0.8)
-                        Text(dispatcher)
+                        Text(banner)
                             .font(.subheadline).fontWeight(.semibold)
                             .foregroundColor(.white)
                     }

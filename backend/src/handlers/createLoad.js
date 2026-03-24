@@ -45,6 +45,7 @@ exports.handler = async (event) => {
       customerPhone:       body.customerPhone,
       notes:               body.notes          || "",
       dispatcherEmail:     body.dispatcherEmail || user.email,  // always store so startTracking can email them
+      companyName:         user.companyName     || null,        // from JWT — shown on driver card
       notifyCustomer:      body.notifyCustomer  || false,
       createdAt:           new Date().toISOString(),
       createdBy:           user.email,

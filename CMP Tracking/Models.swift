@@ -108,6 +108,7 @@ struct Load: Identifiable, Codable {
     var customerEmail: String
     var customerPhone: String
     var dispatcherEmail: String?    // saved so startTracking Lambda can email them
+    var companyName: String?        // name of the dispatching company — shown on driver card
     var notifyCustomer: Bool        // if true, email customer when driver starts
     var lastLocation: LocationUpdate?
     var notes: String
