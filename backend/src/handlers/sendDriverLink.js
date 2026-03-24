@@ -128,8 +128,7 @@ async function sendDriverSMS(driverPhone, driverName, load, webLink, appLink) {
     "DELIVERY: " + (load.deliveryAddress || "--") + "\n" +
     (pickupStr ? "DATE: " + pickupStr + "\n" : "") +
     (load.notes ? "NOTES: " + load.notes + "\n" : "") +
-    "\n👉 Tap to accept & start tracking:\n" + webLink +
-    "\n\n📱 Have the Routelo app? Open directly:\n" + appLink;
+    "\n👉 Tap to accept & start tracking:\n" + webLink;
 
   await sns.send(new PublishCommand({
     PhoneNumber: to,
@@ -166,8 +165,7 @@ async function sendPingSMS(driverPhone, driverName, load, webLink, appLink) {
   const body =
     "📍 " + (driverName || "Driver") + ", your dispatcher needs a location update for " +
     "Load " + (load.loadNumber || "--") + ".\n\n" +
-    "Reopen the tracking app:\n" + webLink +
-    (appLink ? "\n\nHave the Routelo app?\n" + appLink : "");
+    "Reopen the tracking app:\n" + webLink;
 
   await sns.send(new PublishCommand({
     PhoneNumber: to,
