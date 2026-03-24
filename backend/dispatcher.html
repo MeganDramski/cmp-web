@@ -431,6 +431,20 @@ function fmt(iso){ if(!iso)return '--'; return new Date(iso).toLocaleDateString(
 function bc(s){ return 'badge b'+(s||'Pending').replace(/\s/g,''); }
 function ah(){ var h={'Content-Type':'application/json'}; if(session&&session.token&&session.token!=='local')h['Authorization']='Bearer '+session.token; return h; }
 
+/* Central fetch wrapper — auto-logout on 401 */
+function apiFetch(url, opts){
+  return fetch(url, opts).then(function(r){
+    if(r.status===401){
+      session=null; localStorage.removeItem('cmp_session');
+      clearInterval(_bgPollTimer); _bgPollTimer=null;
+      showAuth();
+      aerr('Your session has expired. Please sign in again.');
+      return Promise.reject(new Error('Session expired'));
+    }
+    return r;
+  });
+}
+
 /* TOAST */
 var _tt;
 function toast(m,d){ var e=document.getElementById('toast'); e.textContent=m; e.classList.add('on'); clearTimeout(_tt); _tt=setTimeout(function(){e.classList.remove('on');},d||3200); }
@@ -2082,7 +2096,33 @@ function makeSamples(){
 /* INIT */
 (function(){
   var s=localStorage.getItem('cmp_session');
-  if(s){try{var p=JSON.parse(s);if(p&&p.user){session=p;enterApp();return;}}catch(e){}}
+  if(s){
+    try{
+      var p=JSON.parse(s);
+      if(p&&p.user){
+        // Validate token before entering app (skip for local/offline session)
+        if(!p.token||p.token==='local'||!API){
+          session=p; enterApp(); return;
+        }
+        // Quick token check — use GET /loads with a limit of 1
+        fetch(API+'/loads',{headers:{'Content-Type':'application/json','Authorization':'Bearer '+p.token}})
+          .then(function(r){
+            if(r.status===401){
+              localStorage.removeItem('cmp_session');
+              showAuth();
+              aerr('Your session has expired. Please sign in again.');
+            } else {
+              session=p; enterApp();
+            }
+          })
+          .catch(function(){
+            // Network error — still enter app, let bg poll handle 401 later
+            session=p; enterApp();
+          });
+        return;
+      }
+    }catch(e){}
+  }
 
   // Handle invite link: ?invite=<tenantId>
   // Switch to Create Account tab and store the tenantId so register uses it.
