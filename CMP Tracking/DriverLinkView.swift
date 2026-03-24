@@ -133,9 +133,21 @@ struct DriverLinkView: View {
 
                 // ── Route ─────────────────────────────────────────────────
                 VStack(spacing: 0) {
-                    routeRow(icon: "circle.fill",        color: .green, label: "PICKUP",   address: load.pickupAddress,   date: load.pickupDate)
+                    routeRow(icon: "circle.fill",        color: .green, label: "PICKUP",   address: load.pickupAddress,   date: "")
                     Rectangle().fill(Color.white.opacity(0.08)).frame(width: 1, height: 20).padding(.leading, 18)
-                    routeRow(icon: "mappin.circle.fill", color: .red,   label: "DELIVERY", address: load.deliveryAddress, date: load.deliveryDate)
+                    routeRow(icon: "mappin.circle.fill", color: .red,   label: "DELIVERY", address: load.deliveryAddress, date: "")
+                }
+
+                // ── Extra details ──────────────────────────────────────────
+                let hasExtras = !load.pickupDate.isEmpty || !load.deliveryDate.isEmpty || !load.weight.isEmpty
+                if hasExtras {
+                    Divider().background(Color.white.opacity(0.08)).padding(.top, 12)
+                    VStack(spacing: 0) {
+                        if !load.pickupDate.isEmpty   { detailRow(icon: "calendar",           label: "PICKUP DATE",   value: load.pickupDate) }
+                        if !load.deliveryDate.isEmpty { detailRow(icon: "calendar.badge.clock", label: "EST. DELIVERY", value: load.deliveryDate) }
+                        if !load.weight.isEmpty       { detailRow(icon: "scalemass.fill",      label: "WEIGHT",        value: load.weight) }
+                    }
+                    .padding(.top, 4)
                 }
 
                 // ── Notes ─────────────────────────────────────────────────
@@ -182,6 +194,26 @@ struct DriverLinkView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func detailRow(icon: String, label: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+                .frame(width: 18)
+                .padding(.top, 1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.secondary).kerning(1)
+                Text(value)
+                    .font(.subheadline).foregroundColor(.white)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 8)
     }
 
     // MARK: - Map Card
@@ -386,6 +418,7 @@ struct LoadData {
     let trackingToken: String
     let companyName: String
     let notes: String
+    let weight: String
 }
 
 // MARK: - ViewModel
@@ -476,7 +509,13 @@ class DriverLinkVM: NSObject, ObservableObject, CLLocationManagerDelegate {
                     status:          json["status"]          as? String ?? "Assigned",
                     trackingToken:   json["trackingToken"]   as? String ?? link.token,
                     companyName:     json["companyName"]     as? String ?? json["dispatcherEmail"] as? String ?? "",
-                    notes:           json["notes"]           as? String ?? ""
+                    notes:           json["notes"]           as? String ?? "",
+                    weight:          {
+                        if let w = json["weight"] as? Double, w > 0 { return "\(Int(w)) lbs" }
+                        if let w = json["weight"] as? Int, w > 0    { return "\(w) lbs" }
+                        if let w = json["weight"] as? String, !w.isEmpty { return "\(w) lbs" }
+                        return ""
+                    }()
                 )
                 // Request Always location permission on load
                 self?.clm.requestAlwaysAuthorization()
