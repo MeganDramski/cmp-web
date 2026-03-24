@@ -82,6 +82,8 @@ exports.handler = async (event) => {
       customerEmail:   load.customerEmail,
       customerPhone:   load.customerPhone,
       assignedDriverName: load.assignedDriverName || null,
+      dispatcherEmail: load.dispatcherEmail || null,
+      companyName:     load.companyName || null,
       notes:           load.notes || "",
       lastLocation,
       locationHistory,
