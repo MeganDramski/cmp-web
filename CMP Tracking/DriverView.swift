@@ -42,6 +42,8 @@ struct DriverView: View {
         span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
     )
     @State private var hasSetInitialRegion = false
+    @State private var pickupPin: CLLocationCoordinate2D? = nil
+    @State private var deliveryPin: CLLocationCoordinate2D? = nil
 
     var body: some View {
         NavigationView {
@@ -180,8 +182,8 @@ struct DriverView: View {
             .onReceive(locationManager.$deliveryReminderTriggered) { triggered in
                 if triggered { showDeliveryReminderAlert = true }
             }
-            .onChange(of: notifDelegate.shouldOpenDriverDashboard) { tapped in
-                guard tapped else { return }
+            .onChange(of: notifDelegate.shouldOpenDriverDashboard) {
+                guard notifDelegate.shouldOpenDriverDashboard else { return }
                 notifDelegate.shouldOpenDriverDashboard = false
                 notificationBannerMessage = "🚛 It's pickup time! Tap Start Tracking to begin."
                 showNotificationBanner = true
@@ -324,7 +326,33 @@ struct DriverView: View {
 
     private func loadInfoCard(load: Load) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header row
+
+            // ── Dispatcher / company banner ───────────────────────────────────
+            if let dispatcher = load.dispatcherEmail, !dispatcher.isEmpty {
+                HStack(spacing: 10) {
+                    Image(systemName: "building.2.fill")
+                        .font(.system(size: 13))
+                        .foregroundColor(.dkPurple)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("ASSIGNED BY")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.dkPurple.opacity(0.8))
+                            .kerning(0.8)
+                        Text(dispatcher)
+                            .font(.subheadline).fontWeight(.semibold)
+                            .foregroundColor(.white)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 14).padding(.vertical, 10)
+                .background(Color.dkPurple.opacity(0.12))
+                .overlay(
+                    Rectangle().frame(height: 1).foregroundColor(Color.dkPurple.opacity(0.3)),
+                    alignment: .bottom
+                )
+            }
+
+            // ── Header row ────────────────────────────────────────────────────
             HStack {
                 Label(load.loadNumber, systemImage: "shippingbox.fill")
                     .font(.headline).fontWeight(.bold)
@@ -332,20 +360,72 @@ struct DriverView: View {
                 Spacer()
                 DarkStatusBadge(status: load.status)
             }
-            .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 12)
+            .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 12)
 
             Divider().background(Color.dkBorder).padding(.horizontal, 16)
 
+            // ── Details ───────────────────────────────────────────────────────
             VStack(spacing: 0) {
-                DarkInfoRow(icon: "arrow.up.circle",      label: "PICKUP",   value: load.pickupAddress)
+                DarkInfoRow(icon: "arrow.up.circle",        label: "PICKUP",   value: load.pickupAddress)
                 DarkInfoRow(icon: "arrow.down.circle.fill", label: "DELIVERY", value: load.deliveryAddress)
-                DarkInfoRow(icon: "scalemass.fill",       label: "WEIGHT",   value: "\(Int(load.weight)) lbs")
-                DarkInfoRow(icon: "person.fill",          label: "CUSTOMER", value: load.customerName)
+                DarkInfoRow(icon: "scalemass.fill",         label: "WEIGHT",   value: "\(Int(load.weight)) lbs")
+                DarkInfoRow(icon: "person.fill",            label: "CUSTOMER", value: load.customerName)
                 if !load.notes.isEmpty {
                     DarkInfoRow(icon: "note.text", label: "NOTES", value: load.notes)
                 }
             }
             .padding(.vertical, 8)
+
+            // ── Route map preview ─────────────────────────────────────────────
+            Divider().background(Color.dkBorder).padding(.horizontal, 16)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: "map.fill").foregroundColor(.dkBlue).font(.caption)
+                    Text("ROUTE MAP")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.dkMuted)
+                        .kerning(0.8)
+                    Spacer()
+                    HStack(spacing: 8) {
+                        HStack(spacing: 4) {
+                            Circle().fill(Color.dkGreen).frame(width: 8, height: 8)
+                            Text("Pickup").font(.caption2).foregroundColor(.dkMuted)
+                        }
+                        HStack(spacing: 4) {
+                            Circle().fill(Color.dkRed).frame(width: 8, height: 8)
+                            Text("Delivery").font(.caption2).foregroundColor(.dkMuted)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16).padding(.top, 10)
+
+                ZStack {
+                    RouteMapView(pickupCoord: pickupPin, deliveryCoord: deliveryPin)
+                        .frame(height: 180)
+                        .cornerRadius(12)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 12)
+
+                    // Spinner overlay while geocoding is in progress
+                    if pickupPin == nil && deliveryPin == nil {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.dkSurface2)
+                            .frame(height: 180)
+                            .padding(.horizontal, 12)
+                            .padding(.bottom, 12)
+                            .overlay(
+                                HStack(spacing: 8) {
+                                    ProgressView().tint(.dkMuted).scaleEffect(0.8)
+                                    Text("Loading map…")
+                                        .font(.caption).foregroundColor(.dkMuted)
+                                }
+                            )
+                    }
+                }
+            }
+            .onAppear { geocodeLoadAddresses(load) }
+            .onChange(of: load.id) { geocodeLoadAddresses(load) }
         }
         .background(Color.dkSurface)
         .cornerRadius(16)
@@ -411,6 +491,11 @@ struct DriverView: View {
                     Text("New Load Assigned")
                         .font(.headline).fontWeight(.semibold)
                         .foregroundColor(.white)
+                    if let dispatcher = load.dispatcherEmail, !dispatcher.isEmpty {
+                        Text("From: \(dispatcher)")
+                            .font(.caption).fontWeight(.medium)
+                            .foregroundColor(.dkPurple)
+                    }
                     Text("Pickup: \(load.pickupDate.formatted(date: .abbreviated, time: .shortened))")
                         .font(.caption)
                         .foregroundColor(.dkMuted)
@@ -527,7 +612,7 @@ struct DriverView: View {
             .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 10)
 
             ZStack(alignment: .bottomTrailing) {
-                Map(coordinateRegion: $mapRegion, showsUserLocation: true)
+                LiveMapView(region: mapRegion, userLocation: locationManager.currentLocation?.coordinate)
                     .frame(height: 220)
                     .cornerRadius(12)
                     .padding(.horizontal, 12)
@@ -583,6 +668,24 @@ struct DriverView: View {
             .cornerRadius(14)
             .shadow(color: (locationManager.isTracking ? Color.dkRed : Color.dkGreen).opacity(0.4),
                     radius: 8, x: 0, y: 4)
+        }
+    }
+
+    // MARK: - Route Map Helpers
+
+    private func geocodeLoadAddresses(_ load: Load) {
+        pickupPin = nil
+        deliveryPin = nil
+        let geocoder = CLGeocoder()
+        geocoder.geocodeAddressString(load.pickupAddress) { placemarks, _ in
+            guard let coord = placemarks?.first?.location?.coordinate else { return }
+            DispatchQueue.main.async { self.pickupPin = coord }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            geocoder.geocodeAddressString(load.deliveryAddress) { placemarks, _ in
+                guard let coord = placemarks?.first?.location?.coordinate else { return }
+                DispatchQueue.main.async { self.deliveryPin = coord }
+            }
         }
     }
 

@@ -75,13 +75,21 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     // MARK: - Public API
 
-    /// Request "Always" authorization so background tracking works
+    /// Request "Always" authorization so background tracking works.
+    /// iOS requires a two-step upgrade: WhenInUse first, then Always.
+    /// Calling requestAlwaysAuthorization() before WhenInUse is granted causes
+    /// iOS to silently downgrade the prompt — hiding the "Always Allow" option.
     func requestPermission() {
-        #if targetEnvironment(simulator)
-        clManager.requestWhenInUseAuthorization()
-        #else
-        clManager.requestAlwaysAuthorization()
-        #endif
+        switch clManager.authorizationStatus {
+        case .notDetermined:
+            // Step 1: request WhenInUse — iOS shows the full dialog with "Always Allow"
+            clManager.requestWhenInUseAuthorization()
+        case .authorizedWhenInUse:
+            // Step 2: upgrade to Always — shows the "Change to Always Allow" banner
+            clManager.requestAlwaysAuthorization()
+        default:
+            break
+        }
     }
 
     /// One-shot location fetch — just centers the map on the user without
@@ -160,15 +168,8 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         ]
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
-        // Background session keeps requests alive when screen is locked on a real device.
-        // The simulator crashes if you create tasks on a background URLSession, so fall
-        // back to URLSession.shared there.
-        #if targetEnvironment(simulator)
-        let session = URLSession.shared
-        #else
-        let session = bgSession
-        #endif
-        session.dataTask(with: req) { _, _, error in
+        // Use background session so iOS delivers the request even when screen is locked
+        bgSession.dataTask(with: req) { _, _, error in
             if let error = error {
                 print("📍 Location post failed: \(error.localizedDescription)")
             } else {
@@ -221,8 +222,13 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         DispatchQueue.main.async {
             self.authorizationStatus = manager.authorizationStatus
-            // As soon as permission is granted, grab current location
-            // so the map centers on the real position immediately
+            // Two-step iOS flow: once WhenInUse is granted, immediately request Always
+            // so iOS presents the "Change to Always Allow" prompt/banner.
+            if manager.authorizationStatus == .authorizedWhenInUse {
+                manager.requestAlwaysAuthorization()
+            }
+            // As soon as any permission is granted, grab current location
+            // so the map centers on the real position immediately.
             if manager.authorizationStatus == .authorizedWhenInUse ||
                manager.authorizationStatus == .authorizedAlways {
                 self.requestCurrentLocation()
