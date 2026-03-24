@@ -29,9 +29,22 @@
         64FBB45D2F6B38430062C6EC /* CMP TrackingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "CMP TrackingUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+        64FBB4FF1F6B38430062C6EC /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+            isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+            membershipExceptions = (
+                AppInfo.plist,
+            );
+            target = 64FBB4442F6B38420062C6EC /* CMP Tracking */;
+        };
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
         64FBB4472F6B38420062C6EC /* CMP Tracking */ = {
             isa = PBXFileSystemSynchronizedRootGroup;
+            exceptions = (
+                64FBB4FF1F6B38430062C6EC /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+            );
             path = "CMP Tracking";
             sourceTree = "<group>";
         };
