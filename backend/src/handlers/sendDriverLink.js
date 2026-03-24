@@ -1,15 +1,39 @@
-//endDriverLink.js – sends driver tracking link via email (SES)
+// sendDriverLink.js – sends driver tracking link via email (SES) and SMS (SNS)
+//
+// ── SNS SMS (AWS Simple Notification Service) ────────────────────────────────
+// SMS sending is GATED behind the SNS_ENABLED environment variable.
+//
+//   SNS_ENABLED=false  (default / sandbox)  → SMS is skipped; email only.
+//   SNS_ENABLED=true   (after AWS prod SMS approval) → SMS fires automatically.
+//
+// AWS SNS SMS requires production access approval from AWS Support before you
+// can send to non-sandboxed phone numbers.  Once approved:
+//   1. Set SNS_ENABLED=true in your Lambda environment variables (or SAM template).
+//   2. Optionally set SNS_SENDER_ID=Routelo (for branded sender — US doesn't support it,
+//      but many international countries do).
+//   3. Deploy — no code change needed.
+//
+// IAM permission required on the Lambda execution role:
+//   sns:Publish  on resource  arn:aws:sns:*:*:*  (or restrict to a specific topic/phone ARN)
+// ─────────────────────────────────────────────────────────────────────────────
 const { DynamoDBClient, GetItemCommand } = require("@aws-sdk/client-dynamodb");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
+const { SNSClient, PublishCommand } = require("@aws-sdk/client-sns");
 const { verifyToken, respond } = require("../utils/auth");
 
 const db  = new DynamoDBClient({ region: "us-east-1" });
 const ses = new SESClient({ region: "us-east-1" });
+const sns = new SNSClient({ region: "us-east-1" });
 
-const LOADS_TABLE = process.env.LOADS_TABLE;
-const FROM_EMAIL  = process.env.SES_FROM_EMAIL;
-const AMPLIFY_URL = process.env.AMPLIFY_BASE_URL || "";
+const LOADS_TABLE  = process.env.LOADS_TABLE;
+const FROM_EMAIL   = process.env.SES_FROM_EMAIL;
+const AMPLIFY_URL  = process.env.AMPLIFY_BASE_URL || "";
+
+// Set SNS_ENABLED=true in Lambda env vars once AWS grants production SMS access.
+const SNS_ENABLED  = (process.env.SNS_ENABLED || "").toLowerCase() === "true";
+// Optional: branded sender ID shown on the driver's phone (not supported in US/CA).
+const SNS_SENDER_ID = process.env.SNS_SENDER_ID || "Routelo";
 
 function buildLinks(event, token, id) {
   const base = AMPLIFY_URL || (function() {
@@ -55,6 +79,106 @@ async function sendDriverEmail(driverEmail, driverName, load, link) {
       },
     },
   }));
+}
+
+// ── SNS SMS helpers ───────────────────────────────────────────────────────────
+// These functions are no-ops when SNS_ENABLED is false so the handler works
+// in sandbox mode without any SNS IAM permissions at all.
+
+/**
+ * Normalise a phone number to E.164 (+1XXXXXXXXXX).
+ * Returns null if the number cannot be cleaned up.
+ */
+function toE164(phone) {
+  if (!phone) return null;
+  const digits = phone.replace(/[^\d]/g, "");
+  if (digits.length === 10) return "+1" + digits;          // US local
+  if (digits.length === 11 && digits[0] === "1") return "+" + digits; // 1XXXXXXXXXX
+  if (digits.length > 7)  return "+" + digits;            // international — trust it
+  return null;
+}
+
+/**
+ * Send load-assignment SMS to the driver.
+ * Gated behind SNS_ENABLED — safe to call unconditionally.
+ */
+async function sendDriverSMS(driverPhone, driverName, load, webLink, appLink) {
+  if (!SNS_ENABLED) {
+    console.log("SNS_ENABLED=false — SMS skipped (enable after AWS production SMS approval).");
+    return;
+  }
+  const to = toE164(driverPhone);
+  if (!to) {
+    console.warn("sendDriverSMS: invalid or missing phone number:", driverPhone);
+    return;
+  }
+
+  const pickupStr = load.pickupDate
+    ? new Date(load.pickupDate).toLocaleDateString("en-US", {
+        month: "short", day: "numeric", year: "numeric",
+        hour: "2-digit", minute: "2-digit",
+      })
+    : "";
+
+  const body =
+    "Hi " + (driverName || "Driver") + ",\n\n" +
+    "You have a new load from CMP Logistics.\n\n" +
+    "LOAD #: " + (load.loadNumber || "--") + "\n" +
+    "PICKUP: " + (load.pickupAddress || "--") + "\n" +
+    "DELIVERY: " + (load.deliveryAddress || "--") + "\n" +
+    (pickupStr ? "DATE: " + pickupStr + "\n" : "") +
+    (load.notes ? "NOTES: " + load.notes + "\n" : "") +
+    "\n👉 Tap to accept & start tracking:\n" + webLink +
+    "\n\n📱 Have the Routelo app? Open directly:\n" + appLink;
+
+  await sns.send(new PublishCommand({
+    PhoneNumber: to,
+    Message: body,
+    MessageAttributes: {
+      "AWS.SNS.SMS.SMSType": {
+        DataType: "String",
+        StringValue: "Transactional",   // higher delivery priority, not charged as promotional
+      },
+      // Sender ID is shown instead of a number on supported carriers/countries.
+      // Has NO effect in the US — safe to include everywhere.
+      "AWS.SNS.SMS.SenderID": {
+        DataType: "String",
+        StringValue: SNS_SENDER_ID,
+      },
+    },
+  }));
+
+  console.log("SNS SMS sent to", to, "for load", load.loadNumber);
+}
+
+/**
+ * Send a short "please reopen" ping SMS to the driver.
+ * Gated behind SNS_ENABLED — safe to call unconditionally.
+ */
+async function sendPingSMS(driverPhone, driverName, load, webLink, appLink) {
+  if (!SNS_ENABLED) {
+    console.log("SNS_ENABLED=false — ping SMS skipped.");
+    return;
+  }
+  const to = toE164(driverPhone);
+  if (!to) return;
+
+  const body =
+    "📍 " + (driverName || "Driver") + ", your dispatcher needs a location update for " +
+    "Load " + (load.loadNumber || "--") + ".\n\n" +
+    "Reopen the tracking app:\n" + webLink +
+    (appLink ? "\n\nHave the Routelo app?\n" + appLink : "");
+
+  await sns.send(new PublishCommand({
+    PhoneNumber: to,
+    Message: body,
+    MessageAttributes: {
+      "AWS.SNS.SMS.SMSType": { DataType: "String", StringValue: "Transactional" },
+      "AWS.SNS.SMS.SenderID": { DataType: "String", StringValue: SNS_SENDER_ID },
+    },
+  }));
+
+  console.log("SNS ping SMS sent to", to, "for load", load.loadNumber);
 }
 
 exports.handler = async (event) => {
@@ -110,6 +234,14 @@ exports.handler = async (event) => {
           console.warn("Ping email failed:", e.message);
         }
       }
+
+      // Ping SMS (fires only when SNS_ENABLED=true)
+      try {
+        await sendPingSMS(load.assignedDriverPhone, load.assignedDriverName, load, webLink, appLink);
+      } catch (e) {
+        console.warn("Ping SMS failed:", e.message);
+      }
+
       return respond(200, { success: true, driverLink: link });
     }
     // ────────────────────────────────────────────────────────────────────────
@@ -121,7 +253,14 @@ exports.handler = async (event) => {
       console.warn("Driver email failed:", e.message);
     }
 
-    // 4. Email dispatcher confirmation with the driver link
+    // 4. Send SMS to driver (fires only when SNS_ENABLED=true)
+    try {
+      await sendDriverSMS(load.assignedDriverPhone, load.assignedDriverName, load, webLink, appLink);
+    } catch (e) {
+      console.warn("Driver SMS failed:", e.message);
+    }
+
+    // 5. Email dispatcher confirmation with the driver link
     if (FROM_EMAIL) {
       try {
         await ses.send(new SendEmailCommand({
@@ -147,7 +286,7 @@ exports.handler = async (event) => {
       }
     }
 
-    // 5. Optionally notify customer
+    // 6. Optionally notify customer
     if (notifyCustomer && load.customerEmail && FROM_EMAIL) {
       try {
         await ses.send(new SendEmailCommand({

@@ -20,6 +20,11 @@ Globals:
         AMPLIFY_BASE_URL:   !Ref AmplifyBaseUrl
         TRACKING_BASE_URL:  !Ref TrackingBaseUrl
         APPROVAL_ADMINS:    !Ref ApprovalAdmins
+        # ── AWS SNS SMS ──────────────────────────────────────────────────────
+        # Set SNS_ENABLED=true in Amplify / Lambda env vars once AWS grants
+        # production SMS access (default: false — email-only mode).
+        SNS_ENABLED:       !Ref SnsEnabled
+        SNS_SENDER_ID:     !Ref SnsSenderId
   HttpApi:
     CorsConfiguration:
       AllowOrigins:
@@ -79,6 +84,23 @@ Parameters:
     Type: String
     Default: ""
     Description: "(unused – Twilio removed)"
+
+  # ── AWS SNS SMS ─────────────────────────────────────────────────────────────
+  # Flip SnsEnabled to "true" (string) once AWS grants production SMS access.
+  SnsEnabled:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: >
+      Enable AWS SNS SMS sending.  Set to "true" after AWS Support approves
+      your account for production SMS (SNS Sandbox → Production upgrade).
+
+  SnsSenderId:
+    Type: String
+    Default: "Routelo"
+    Description: >
+      Branded sender ID shown on driver's phone where supported (not in US/CA).
+      Max 11 alphanumeric characters, no spaces.
 
   # Stripe billing parameters
   StripeSecret:
@@ -203,6 +225,16 @@ Resources:
                   - ses:SendEmail
                   - ses:SendRawEmail
                 Resource: "*"
+        # ── SNS SMS — permission is pre-granted so flipping SNS_ENABLED=true
+        # is the ONLY change needed after AWS production SMS approval. ─────────
+        - PolicyName: SNSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: "*"   # SNS direct-to-phone requires "*"; no topic ARN is used
 
 # ─────────────────────────────────────────────────────────────────
 # Lambda Functions
