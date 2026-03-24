@@ -515,7 +515,7 @@ struct DriverView: View {
             .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 10)
 
             ZStack(alignment: .bottomTrailing) {
-                LiveMapView(region: mapRegion, userLocation: locationManager.currentLocation?.coordinate)
+                LiveMapView(region: mapRegion, userLocation: locationManager.currentLocation?.coordinate, trail: locationManager.routeTrail)
                     .frame(height: 220)
                     .cornerRadius(12)
                     .padding(.horizontal, 12)

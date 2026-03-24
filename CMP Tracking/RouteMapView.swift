@@ -104,8 +104,8 @@ struct RouteMapView: UIViewRepresentable {
 struct LiveMapView: UIViewRepresentable {
     let region: MKCoordinateRegion
     let userLocation: CLLocationCoordinate2D?
+    var trail: [CLLocationCoordinate2D] = []
 
-    /// Returns true when a coordinate is the uninitialized (0, 0) default.
     private static func isZeroCoordinate(_ coord: CLLocationCoordinate2D) -> Bool {
         coord.latitude == 0 && coord.longitude == 0
     }
@@ -127,14 +127,22 @@ struct LiveMapView: UIViewRepresentable {
 
     func updateUIView(_ map: MKMapView, context: Context) {
         // Only move the map when we have a real GPS coordinate
-        guard !Self.isZeroCoordinate(region.center) else { return }
-        map.setRegion(region, animated: true)
+        if !Self.isZeroCoordinate(region.center) {
+            map.setRegion(region, animated: true)
+        }
 
-        // Also place a custom truck pin so it's visible in the simulator
-        // (simulator showsUserLocation blue dot can be unreliable)
+        // Truck pin
         map.removeAnnotations(map.annotations.filter { $0 is DriverPin })
         if let coord = userLocation, !Self.isZeroCoordinate(coord) {
             map.addAnnotation(DriverPin(coordinate: coord))
+        }
+
+        // Route polyline — replace existing trail overlay
+        map.removeOverlays(map.overlays.filter { $0 is MKPolyline })
+        if trail.count >= 2 {
+            var coords = trail
+            let polyline = MKPolyline(coordinates: &coords, count: coords.count)
+            map.addOverlay(polyline, level: .aboveRoads)
         }
     }
 
@@ -151,6 +159,18 @@ struct LiveMapView: UIViewRepresentable {
             view.markerTintColor = UIColor.systemBlue
             view.glyphImage      = UIImage(systemName: "truck.box.fill")
             return view
+        }
+
+        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            guard let polyline = overlay as? MKPolyline else {
+                return MKOverlayRenderer(overlay: overlay)
+            }
+            let renderer = MKPolylineRenderer(polyline: polyline)
+            renderer.strokeColor = UIColor.systemBlue
+            renderer.lineWidth   = 4
+            renderer.lineCap     = .round
+            renderer.lineJoin    = .round
+            return renderer
         }
     }
 }

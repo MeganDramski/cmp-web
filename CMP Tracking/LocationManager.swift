@@ -18,6 +18,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var errorMessage: String?
     @Published var latestUpdate: LocationUpdate?
 
+    /// Accumulates GPS breadcrumbs while isTracking is true — used to draw route polyline on map.
+    @Published var routeTrail: [CLLocationCoordinate2D] = []
+
     /// Fires true when driver appears to have stopped near the delivery address
     @Published var deliveryReminderTriggered: Bool = false
 
@@ -25,15 +28,14 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let clManager = CLLocationManager()
     private var currentLoadId: String?
     private var currentDriverId: String?
-    private var currentTrackingToken: String?          // ← NEW: public endpoint token
+    private var currentTrackingToken: String?
     private var onLocationUpdate: ((LocationUpdate) -> Void)?
 
     // How often to send updates to server (seconds)
-    private var updateInterval: TimeInterval = 10.0    // 10 s is enough for a truck
+    private var updateInterval: TimeInterval = 10.0
     private var lastSentTime: Date = .distantPast
 
-    // Background URLSession — iOS keeps in-flight requests alive even when
-    // the app is backgrounded or the screen is locked.
+    // Background URLSession
     private lazy var bgSession: URLSession = {
         let cfg = URLSessionConfiguration.background(withIdentifier: "com.cmptracking.location")
         cfg.isDiscretionary = false
@@ -42,18 +44,11 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     }()
 
     // MARK: - Geofence / Stillness Detection
-    /// Geocoded coordinate of the current load's delivery address
     private var deliveryCoordinate: CLLocationCoordinate2D?
-    /// How close (meters) the driver must be to the delivery address to start the timer
-    /// ~100 ft = 30 meters
     private let deliveryRadiusMeters: CLLocationDistance = 30
-    /// How long (seconds) the driver must be still near the delivery address
-    private let stillnessThreshold: TimeInterval = 3 * 60   // 3 minutes
-    /// Timer that fires the reminder after stillness threshold
+    private let stillnessThreshold: TimeInterval = 3 * 60
     private var stillnessTimer: Timer?
-    /// Last location used to detect movement
     private var lastMovementLocation: CLLocation?
-    /// Minimum movement (meters) to reset the stillness timer
     private let movementResetDistance: CLLocationDistance = 15
 
     // MARK: - Init
@@ -61,50 +56,34 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         super.init()
         clManager.delegate = self
         clManager.desiredAccuracy = kCLLocationAccuracyBest
-        clManager.distanceFilter = 10  // meters — only wake for meaningful movement
+        clManager.distanceFilter = 10
         clManager.pausesLocationUpdatesAutomatically = false
-        // allowsBackgroundLocationUpdates can only be set to true on a real device
-        // with the background location capability active. Setting it on the simulator
-        // without the entitlement causes a SIGABRT crash.
         #if !targetEnvironment(simulator)
         clManager.allowsBackgroundLocationUpdates = true
-        clManager.showsBackgroundLocationIndicator = true  // blue bar so driver knows it's running
+        clManager.showsBackgroundLocationIndicator = true
         #endif
         authorizationStatus = clManager.authorizationStatus
     }
 
     // MARK: - Public API
 
-    /// Request "Always" authorization so background tracking works.
-    /// iOS requires a two-step upgrade: WhenInUse first, then Always.
-    /// Calling requestAlwaysAuthorization() before WhenInUse is granted causes
-    /// iOS to silently downgrade the prompt — hiding the "Always Allow" option.
     func requestPermission() {
         switch clManager.authorizationStatus {
         case .notDetermined:
-            // Step 1: request WhenInUse — iOS shows the full dialog with "Always Allow"
             clManager.requestWhenInUseAuthorization()
         case .authorizedWhenInUse:
-            // Step 2: upgrade to Always — shows the "Change to Always Allow" banner
             clManager.requestAlwaysAuthorization()
         default:
             break
         }
     }
 
-    /// One-shot location fetch — just centers the map on the user without
-    /// starting continuous tracking or sending data to the server.
     func requestCurrentLocation() {
         guard authorizationStatus == .authorizedAlways ||
               authorizationStatus == .authorizedWhenInUse else { return }
         clManager.requestLocation()
     }
 
-    /// Start tracking for a given load & driver.
-    /// - Parameters:
-    ///   - trackingToken: The load's public tracking token — used to POST to
-    ///                    `/track/{token}/location` without requiring JWT auth.
-    ///                    This is the same token the browser driver page uses.
     func startTracking(loadId: String,
                        driverId: String,
                        trackingToken: String,
@@ -125,6 +104,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         self.deliveryReminderTriggered = false
         self.deliveryCoordinate = nil
         self.lastMovementLocation = nil
+        self.routeTrail = []   // clear trail at start of each new trip
         cancelStillnessTimer()
 
         if !deliveryAddress.isEmpty {
@@ -146,9 +126,10 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         deliveryCoordinate = nil
         lastMovementLocation = nil
         deliveryReminderTriggered = false
+        // routeTrail kept intentionally so the last route stays visible on the map
     }
 
-    // MARK: - Post location to public endpoint (no auth, works in background)
+    // MARK: - Post location to public endpoint
 
     private func postLocationToServer(_ update: LocationUpdate, token: String) {
         let urlString = AWSConfig.baseURL + "/track/\(token)/location"
@@ -168,7 +149,6 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         ]
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
-        // Use background session so iOS delivers the request even when screen is locked
         bgSession.dataTask(with: req) { _, _, error in
             if let error = error {
                 print("📍 Location post failed: \(error.localizedDescription)")
@@ -222,13 +202,6 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         DispatchQueue.main.async {
             self.authorizationStatus = manager.authorizationStatus
-            // Two-step iOS flow: once WhenInUse is granted, immediately request Always
-            // so iOS presents the "Change to Always Allow" prompt/banner.
-            if manager.authorizationStatus == .authorizedWhenInUse {
-                manager.requestAlwaysAuthorization()
-            }
-            // As soon as any permission is granted, grab current location
-            // so the map centers on the real position immediately.
             if manager.authorizationStatus == .authorizedWhenInUse ||
                manager.authorizationStatus == .authorizedAlways {
                 self.requestCurrentLocation()
@@ -244,7 +217,18 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         let captured = location
         DispatchQueue.main.async { self.checkDeliveryStillness(location: captured) }
 
-        // Throttle
+        // Append every raw GPS point to the route trail while tracking
+        // (independent of the server throttle so the polyline is smooth)
+        if isTracking {
+            let coord = location.coordinate
+            DispatchQueue.main.async {
+                if self.routeTrail.last.map({ $0.latitude != coord.latitude || $0.longitude != coord.longitude }) ?? true {
+                    self.routeTrail.append(coord)
+                }
+            }
+        }
+
+        // Throttle server posts
         let now = Date()
         guard now.timeIntervalSince(lastSentTime) >= updateInterval else { return }
         lastSentTime = now
@@ -266,12 +250,10 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
 
         DispatchQueue.main.async { self.latestUpdate = update }
 
-        // ── Post to public token endpoint (no auth, survives background) ──
         if let token = currentTrackingToken {
             postLocationToServer(update, token: token)
         }
 
-        // Also fire the optional callback (used for UI updates / WebSocket)
         onLocationUpdate?(update)
     }
 
