@@ -437,9 +437,11 @@ function apiFetch(url, opts){
     if(r.status===401){
       session=null; localStorage.removeItem('cmp_session');
       clearInterval(_bgPollTimer); _bgPollTimer=null;
+      // Close any open modal first
+      var ov=document.getElementById('modal-ov'); if(ov) ov.classList.remove('on');
       showAuth();
       aerr('Your session has expired. Please sign in again.');
-      return Promise.reject(new Error('Session expired'));
+      return Promise.reject(new Error('__SESSION_EXPIRED__'));
     }
     return r;
   });
@@ -789,7 +791,7 @@ function upgradePlan(){
   if(!isLive()){ toast('Billing is only available on the live portal.'); return; }
   var btn = document.getElementById('nav-plan-badge');
   if(btn) btn.textContent = '⏳ Loading…';
-  fetch(API+'/billing/checkout',{method:'POST',headers:ah(),body:JSON.stringify({plan:'pro'})})
+  apiFetch(API+'/billing/checkout',{method:'POST',headers:ah(),body:JSON.stringify({plan:'pro'})})
     .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
     .then(function(res){
       if(!res.ok) throw new Error(res.d.error||'Could not start checkout.');
@@ -862,7 +864,7 @@ function startBackgroundPoll(){
 
 function bgPollLoads(){
   if(isLive()){
-    fetch(API+'/loads', {headers:ah()})
+    apiFetch(API+'/loads', {headers:ah()})
       .then(function(r){
         if(r.status===401){
           return r.json().then(function(d){
@@ -986,7 +988,7 @@ function loadDrivers(){
     drivers=accs.filter(function(a){return a.role==='driver';});
     return;
   }
-  fetch(API+'/users?role=driver',{headers:ah()})
+  apiFetch(API+'/users?role=driver',{headers:ah()})
     .then(function(r){return r.ok?r.json():[];})
     .then(function(d){drivers=Array.isArray(d)?d:[];})
     .catch(function(){drivers=[];});
@@ -1007,7 +1009,7 @@ function loadData(){
     if(!s.length)localStorage.setItem('cmp_loads',JSON.stringify(loads));
     renderList(); btn.textContent='🔄'; btn.disabled=false; return;
   }
-  fetch(API+'/loads',{headers:ah()})
+  apiFetch(API+'/loads',{headers:ah()})
     .then(function(r){
       if(r.status===401){
         return r.json().then(function(d){
@@ -1527,7 +1529,7 @@ function pingDriver(){
   var btn=document.getElementById('btn-ping-driver');
   if(btn){btn.disabled=true;btn.textContent='Sending…';}
 
-  fetch(API+'/loads/'+load.id+'/send-driver-link',{
+  apiFetch(API+'/loads/'+load.id+'/send-driver-link',{
     method:'POST',
     headers:ah(),
     body:JSON.stringify({
@@ -1566,7 +1568,7 @@ function assignDriver(loadId, driverId, driverName, driverEmail, driverPhone){
     localStorage.setItem('cmp_loads',JSON.stringify(loads));
   } else {
     // Patch driver fields on the load
-    fetch(API+'/loads/'+loadId+'/assign',{method:'PATCH',headers:ah(),body:JSON.stringify({assignedDriverId:driverId,assignedDriverName:driverName,assignedDriverEmail:driverEmail,assignedDriverPhone:driverPhone})})
+    apiFetch(API+'/loads/'+loadId+'/assign',{method:'PATCH',headers:ah(),body:JSON.stringify({assignedDriverId:driverId,assignedDriverName:driverName,assignedDriverEmail:driverEmail,assignedDriverPhone:driverPhone})})
       .catch(function(e){toast('Assign error: '+e.message);});
   }
   renderList();
@@ -1590,7 +1592,7 @@ function updStatus(id,s){
   // Re-render detail panel if this load is currently open
   if(selId===id) renderDetail();
   if(!isLive()){localStorage.setItem('cmp_loads',JSON.stringify(loads));toast('Status: '+s);return;}
-  fetch(API+'/loads/'+id+'/status',{method:'PATCH',headers:ah(),body:JSON.stringify({status:s})})
+  apiFetch(API+'/loads/'+id+'/status',{method:'PATCH',headers:ah(),body:JSON.stringify({status:s})})
     .then(function(r){
       if(!r.ok) return r.json().then(function(d){throw new Error(d.error||r.status);});
       toast('Status: '+s);
@@ -1713,12 +1715,12 @@ function delLoad(id){
   closeDetailPanel();
   renderList();
   if(!isLive()){localStorage.setItem('cmp_loads',JSON.stringify(loads));toast('Deleted');return;}
-  fetch(API+'/loads/'+id,{method:'DELETE',headers:ah()})
+  apiFetch(API+'/loads/'+id,{method:'DELETE',headers:ah()})
     .then(function(r){
       if(!r.ok) return r.json().then(function(d){throw new Error(d.error||r.status);});
       toast('Deleted');
     })
-    .catch(function(e){toast('Failed: '+e.message);});
+    .catch(function(e){if(e&&e.message==='__SESSION_EXPIRED__') return; toast('Failed: '+e.message);});
 }
 
 /* COPY */
@@ -2028,7 +2030,7 @@ function saveLoad(){
   }
 
   if(isEdit){
-    fetch(API+'/loads/'+editingLoadId,{method:'PUT',headers:ah(),body:JSON.stringify(load)})
+    apiFetch(API+'/loads/'+editingLoadId,{method:'PUT',headers:ah(),body:JSON.stringify(load)})
       .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
       .then(function(res){
         if(!res.ok) throw new Error(res.d&&res.d.error ? res.d.error : 'Save failed (HTTP '+res.d.status+')');
@@ -2042,6 +2044,7 @@ function saveLoad(){
         renderList();closeModal();selLoad(updated.id);toast('✅ Load updated');
       })
       .catch(function(e){
+        if(e&&e.message==='__SESSION_EXPIRED__') return;
         // Network error or server unreachable — save locally so changes aren't lost
         var isNetworkErr = !navigator.onLine || (e instanceof TypeError) || (e.message && (e.message.toLowerCase().indexOf('fetch')!==-1||e.message.toLowerCase().indexOf('network')!==-1||e.message.toLowerCase().indexOf('offline')!==-1));
         if(isNetworkErr){
@@ -2058,10 +2061,11 @@ function saveLoad(){
       })
       .finally(function(){btn.disabled=false;btn.textContent='Save Changes';});
   } else {
-    fetch(API+'/loads',{method:'POST',headers:ah(),body:JSON.stringify(load)})
+    apiFetch(API+'/loads',{method:'POST',headers:ah(),body:JSON.stringify(load)})
       .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
       .then(function(res){if(!res.ok)throw new Error(res.d.error||'Save failed');loads.unshift(res.d);localStorage.setItem('cmp_loads',JSON.stringify(loads));renderList();closeModal();selLoad(res.d.id);toast('Load '+load.loadNumber+' created');})
       .catch(function(e){
+        if(e&&e.message==='__SESSION_EXPIRED__') return;
         var isNetworkErr = !navigator.onLine || (e instanceof TypeError) || (e.message && (e.message.toLowerCase().indexOf('fetch')!==-1||e.message.toLowerCase().indexOf('network')!==-1||e.message.toLowerCase().indexOf('offline')!==-1));
         if(isNetworkErr){
           loads.unshift(load);
