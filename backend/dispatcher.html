@@ -443,6 +443,14 @@ function apiFetch(url, opts){
       aerr('Your session has expired. Please sign in again.');
       return Promise.reject(new Error('__SESSION_EXPIRED__'));
     }
+    // Service worker returns 503 + {error:'offline'} when network is unreachable.
+    // Treat it as a real network rejection so .catch handlers handle it as offline.
+    if(r.status===503){
+      return r.json().catch(function(){ return {error:'offline'}; }).then(function(d){
+        if(d && d.error==='offline') return Promise.reject(new Error('__OFFLINE__'));
+        return Promise.reject(new Error(d.error||'Server unavailable'));
+      });
+    }
     return r;
   });
 }
@@ -2046,12 +2054,12 @@ function saveLoad(){
       .catch(function(e){
         if(e&&e.message==='__SESSION_EXPIRED__') return;
         // Network error or server unreachable — save locally so changes aren't lost
-        var isNetworkErr = !navigator.onLine || (e instanceof TypeError) || (e.message && (e.message.toLowerCase().indexOf('fetch')!==-1||e.message.toLowerCase().indexOf('network')!==-1||e.message.toLowerCase().indexOf('offline')!==-1));
+        var isNetworkErr = !navigator.onLine || (e instanceof TypeError) || (e.message==='__OFFLINE__') || (e.message && (e.message.toLowerCase().indexOf('fetch')!==-1||e.message.toLowerCase().indexOf('network')!==-1||e.message.toLowerCase().indexOf('offline')!==-1));
         if(isNetworkErr){
           for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){loads[i]=load;break;}}
           localStorage.setItem('cmp_loads',JSON.stringify(loads));
           renderList();closeModal();selLoad(load.id);
-          toast('✅ Load saved locally (you appear to be offline)');
+          toast('⚠️ Saved locally — server unreachable. Changes will sync when back online.');
           btn.disabled=false;btn.textContent='Save Changes';
           return;
         }
@@ -2066,12 +2074,12 @@ function saveLoad(){
       .then(function(res){if(!res.ok)throw new Error(res.d.error||'Save failed');loads.unshift(res.d);localStorage.setItem('cmp_loads',JSON.stringify(loads));renderList();closeModal();selLoad(res.d.id);toast('Load '+load.loadNumber+' created');})
       .catch(function(e){
         if(e&&e.message==='__SESSION_EXPIRED__') return;
-        var isNetworkErr = !navigator.onLine || (e instanceof TypeError) || (e.message && (e.message.toLowerCase().indexOf('fetch')!==-1||e.message.toLowerCase().indexOf('network')!==-1||e.message.toLowerCase().indexOf('offline')!==-1));
+        var isNetworkErr = !navigator.onLine || (e instanceof TypeError) || (e.message==='__OFFLINE__') || (e.message && (e.message.toLowerCase().indexOf('fetch')!==-1||e.message.toLowerCase().indexOf('network')!==-1||e.message.toLowerCase().indexOf('offline')!==-1));
         if(isNetworkErr){
           loads.unshift(load);
           localStorage.setItem('cmp_loads',JSON.stringify(loads));
           renderList();closeModal();selLoad(load.id);
-          toast('Load '+load.loadNumber+' saved locally (you appear to be offline)');
+          toast('⚠️ Saved locally — server unreachable. Changes will sync when back online.');
           btn.disabled=false;btn.textContent='Save Load';
           return;
         }
