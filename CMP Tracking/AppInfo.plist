@@ -24,6 +24,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>cmptracking</string>
+				<string>routelo</string>
 			</array>
 		</dict>
 		<dict>

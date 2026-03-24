@@ -1,66 +1,62 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
-  <meta http-equiv="Expires" content="0" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#0f0f1a" />
-  <title>Routelo – Load Details</title>
+  <meta charset="UTF-8"/>
+  <meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate"/>
+  <meta http-equiv="Pragma" content="no-cache"/>
+  <meta http-equiv="Expires" content="0"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+  <meta name="theme-color" content="#0f0f1a"/>
+  <title>Routelo - Load Details</title>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --blue:#007AFF;--green:#34C759;--orange:#FF9500;--red:#FF3B30;--purple:#af52de;
-      --bg:#0f0f1a;--card:#1c1c2e;--border:#2c2c3e;--text:#ffffff;--muted:#8e8ea0;
-    }
-    body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); min-height:100dvh; display:flex; flex-direction:column; align-items:center; padding:20px 16px 60px; }
-    .logo-wrap { display:flex; align-items:center; gap:10px; margin-bottom:20px; }
-    .logo-name { font-size:19px; font-weight:600; color:#fff; line-height:1.1; }
-    .logo-sub  { font-size:8px; color:#8e8ea0; letter-spacing:2px; text-transform:uppercase; }
-    .card { width:100%; max-width:420px; background:var(--card); border:1px solid var(--border); border-radius:16px; margin-bottom:14px; overflow:hidden; }
-    .company-banner { display:flex; align-items:center; gap:10px; padding:10px 16px; background:rgba(175,82,222,0.10); border-bottom:1px solid rgba(175,82,222,0.25); }
-    .company-label  { font-size:9px; font-weight:700; color:rgba(175,82,222,0.8); letter-spacing:0.8px; text-transform:uppercase; }
-    .company-name   { font-size:14px; font-weight:600; color:#fff; }
-    .load-header { display:flex; align-items:center; justify-content:space-between; padding:16px 16px 12px; gap:10px; }
-    .load-num-row { display:flex; align-items:center; gap:10px; }
-    .load-num-text { font-size:20px; font-weight:800; color:var(--text); }
-    .divider { height:1px; background:var(--border); margin:0 16px; }
-    .badge { display:inline-flex; align-items:center; gap:5px; padding:5px 12px; border-radius:20px; font-size:13px; font-weight:600; white-space:nowrap; }
-    .badge-pending   { background:rgba(142,142,160,0.15); color:var(--muted); }
-    .badge-assigned  { background:rgba(0,122,255,0.15);   color:var(--blue); }
-    .badge-accepted  { background:rgba(175,82,222,0.15);  color:var(--purple); }
-    .badge-transit   { background:rgba(255,149,0,0.15);   color:var(--orange); }
-    .badge-delivered { background:rgba(52,199,89,0.15);   color:var(--green); }
-    .badge-cancelled { background:rgba(255,59,48,0.15);   color:var(--red); }
-    .info-rows { padding:6px 0 10px; }
-    .info-row  { display:flex; align-items:flex-start; gap:14px; padding:10px 16px; }
-    .info-icon { font-size:15px; width:20px; flex-shrink:0; padding-top:1px; }
-    .info-body { flex:1; }
-    .info-label { font-size:10px; font-weight:700; color:var(--muted); letter-spacing:0.6px; text-transform:uppercase; margin-bottom:3px; }
-    .info-value { font-size:15px; color:var(--text); line-height:1.4; }
-    .info-sub   { font-size:12px; color:var(--muted); margin-top:2px; }
-    .accept-section { border-top:1px solid var(--border); padding:14px 16px 18px; }
-    .accept-from   { font-size:12px; color:var(--purple); margin-bottom:6px; }
-    .accept-pickup { font-size:12px; color:var(--muted); margin-bottom:12px; }
-    .btn-accept { width:100%; padding:15px; background:var(--purple); color:#fff; border:none; border-radius:12px; font-size:17px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; -webkit-tap-highlight-color:transparent; }
-    .btn-accept:active { opacity:0.85; }
-    .btn-accept:disabled { opacity:0.5; }
-    .status-card { width:100%; max-width:420px; border-radius:16px; padding:18px 20px; margin-bottom:14px; display:flex; align-items:center; gap:14px; }
-    .status-card.accepted  { background:rgba(175,82,222,0.10); border:1px solid rgba(175,82,222,0.35); }
-    .status-card.transit   { background:rgba(255,149,0,0.10);  border:1px solid rgba(255,149,0,0.35); }
-    .status-card.delivered { background:rgba(52,199,89,0.10);  border:1px solid rgba(52,199,89,0.35); }
-    .status-card-icon  { font-size:36px; }
-    .status-card-title { font-size:16px; font-weight:700; color:#fff; }
-    .status-card-sub   { font-size:13px; color:var(--muted); margin-top:4px; line-height:1.4; }
-    .app-banner { width:100%; max-width:420px; background:rgba(0,122,255,0.10); border:1px solid rgba(0,122,255,0.3); border-radius:16px; padding:16px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
-    .app-banner-title { font-size:14px; font-weight:600; color:#fff; }
-    .app-banner-sub   { font-size:12px; color:var(--muted); margin-top:3px; }
-    .btn-open-app { background:var(--blue); color:#fff; border:none; border-radius:10px; padding:10px 18px; font-size:14px; font-weight:700; cursor:pointer; white-space:nowrap; flex-shrink:0; }
-    .loading { text-align:center; padding:60px 20px; color:var(--muted); font-size:15px; }
-    .error-card { width:100%; max-width:420px; background:rgba(255,59,48,0.10); border:1px solid rgba(255,59,48,0.3); border-radius:16px; padding:20px; text-align:center; }
-    .spinner { width:20px; height:20px; border:2px solid rgba(255,255,255,0.2); border-top-color:#fff; border-radius:50%; animation:spin 0.7s linear infinite; display:inline-block; vertical-align:middle; margin-right:8px; }
-    @keyframes spin { to { transform:rotate(360deg); } }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--blue:#007AFF;--green:#34C759;--orange:#FF9500;--red:#FF3B30;--purple:#af52de;--bg:#0f0f1a;--card:#1c1c2e;--border:#2c2c3e;--text:#fff;--muted:#8e8ea0}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;display:flex;flex-direction:column;align-items:center;padding:20px 16px 60px}
+    .logo-wrap{display:flex;align-items:center;gap:10px;margin-bottom:20px}
+    .logo-name{font-size:19px;font-weight:600;color:#fff;line-height:1.1}
+    .logo-sub{font-size:8px;color:#8e8ea0;letter-spacing:2px;text-transform:uppercase}
+    .card{width:100%;max-width:420px;background:var(--card);border:1px solid var(--border);border-radius:16px;margin-bottom:14px;overflow:hidden}
+    .company-banner{display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(175,82,222,.10);border-bottom:1px solid rgba(175,82,222,.25)}
+    .company-label{font-size:9px;font-weight:700;color:rgba(175,82,222,.8);letter-spacing:.8px;text-transform:uppercase}
+    .company-name{font-size:14px;font-weight:600;color:#fff}
+    .load-header{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 12px;gap:10px}
+    .load-num-row{display:flex;align-items:center;gap:10px}
+    .load-num-text{font-size:20px;font-weight:800;color:var(--text)}
+    .divider{height:1px;background:var(--border);margin:0 16px}
+    .badge{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;font-size:13px;font-weight:600;white-space:nowrap}
+    .badge-pending{background:rgba(142,142,160,.15);color:var(--muted)}
+    .badge-assigned{background:rgba(0,122,255,.15);color:var(--blue)}
+    .badge-accepted{background:rgba(175,82,222,.15);color:var(--purple)}
+    .badge-transit{background:rgba(255,149,0,.15);color:var(--orange)}
+    .badge-delivered{background:rgba(52,199,89,.15);color:var(--green)}
+    .badge-cancelled{background:rgba(255,59,48,.15);color:var(--red)}
+    .info-rows{padding:6px 0 10px}
+    .info-row{display:flex;align-items:flex-start;gap:14px;padding:10px 16px}
+    .info-icon{font-size:15px;width:20px;flex-shrink:0;padding-top:1px}
+    .info-body{flex:1}
+    .info-label{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;margin-bottom:3px}
+    .info-value{font-size:15px;color:var(--text);line-height:1.4}
+    .info-sub{font-size:12px;color:var(--muted);margin-top:2px}
+    .accept-section{border-top:1px solid var(--border);padding:14px 16px 18px}
+    .accept-from{font-size:12px;color:var(--purple);margin-bottom:6px}
+    .accept-pickup{font-size:12px;color:var(--muted);margin-bottom:12px}
+    .btn{width:100%;padding:15px;border:none;border-radius:12px;font-size:17px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;-webkit-tap-highlight-color:transparent;transition:opacity .15s,transform .1s;margin-bottom:0}
+    .btn:active{opacity:.85;transform:scale(.98)}
+    .btn:disabled{opacity:.5}
+    .btn-accept{background:var(--purple);color:#fff}
+    .btn-app{background:var(--blue);color:#fff}
+    .btn-store{background:var(--green);color:#fff}
+    .status-card{width:100%;max-width:420px;border-radius:16px;padding:18px 20px;margin-bottom:14px;display:flex;align-items:center;gap:14px}
+    .status-card.accepted{background:rgba(175,82,222,.10);border:1px solid rgba(175,82,222,.35)}
+    .status-card.transit{background:rgba(255,149,0,.10);border:1px solid rgba(255,149,0,.35)}
+    .status-card.delivered{background:rgba(52,199,89,.10);border:1px solid rgba(52,199,89,.35)}
+    .status-card-icon{font-size:36px}
+    .status-card-title{font-size:16px;font-weight:700;color:#fff}
+    .status-card-sub{font-size:13px;color:var(--muted);margin-top:4px;line-height:1.4}
+    .loading{text-align:center;padding:60px 20px;color:var(--muted);font-size:15px}
+    .error-card{width:100%;max-width:420px;background:rgba(255,59,48,.10);border:1px solid rgba(255,59,48,.3);border-radius:16px;padding:24px;text-align:center}
+    .spinner{width:20px;height:20px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:8px}
+    @keyframes spin{to{transform:rotate(360deg)}}
   </style>
 </head>
 <body>
@@ -75,100 +71,161 @@
     <div><div class="logo-name">Routelo</div><div class="logo-sub">Live Tracking</div></div>
   </div>
 
-  <div id="root"><div class="loading"><span class="spinner"></span>Loading your load…</div></div>
+  <div id="root"><div class="loading"><span class="spinner"></span>Loading your load...</div></div>
 
-  <script src="config.js"><\/script>
+  <script src="config.js"></script>
   <script>
-    // Unregister any old service worker so stale cached HTML is gone forever
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(regs){
-        regs.forEach(function(r){ r.unregister(); });
+    // Kill any old service worker immediately
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.getRegistrations().then(function(r){
+        r.forEach(function(sw){ sw.unregister(); });
       });
     }
 
-    var params   = new URLSearchParams(location.search);
-    var TOKEN    = params.get('token');
-    var LOAD_ID  = params.get('loadId');
-    var rawBase  = (window.CMP_API_BASE || '').replace(/\/$/, '');
-    var API_BASE = (rawBase && rawBase !== '__API_BASE__') ? rawBase : null;
+    var params  = new URLSearchParams(location.search);
+    var TOKEN   = params.get('token');
+    var LOAD_ID = params.get('loadId');
+    var rawBase = (window.CMP_API_BASE||'').replace(/\/$/,'');
+    var API     = (rawBase && rawBase!=='__API_BASE__') ? rawBase : null;
+    var APP_STORE_URL = 'https://apps.apple.com/us/app/routelo/id6744827691';
 
-    function init() {
-      if (!TOKEN && !LOAD_ID) { showError('Invalid link.'); return; }
-      if (!API_BASE)          { showError('App not configured. Contact your dispatcher.'); return; }
-      fetch(API_BASE + '/track/' + TOKEN)
-        .then(function(r){ return r.ok ? r.json() : r.json().then(function(d){ throw new Error(d.error||'Load not found'); }); })
+    function init(){
+      if(!TOKEN && !LOAD_ID){ showError('Invalid link - no load token found.'); return; }
+      if(!API){ showError('App not configured. Contact your dispatcher.'); return; }
+      fetch(API+'/track/'+TOKEN)
+        .then(function(r){ return r.ok ? r.json() : r.json().then(function(d){throw new Error(d.error||'Load not found');}); })
         .then(function(load){ render(load); })
         .catch(function(e){ showError(e.message||'Could not load details.'); });
     }
 
-    function render(load) {
+    function render(load){
       window._load = load;
       var h = '';
+
+      // Assigned-by banner
       var company = load.companyName || load.dispatcherEmail;
-      if (company) {
+      if(company){
         h += '<div class="card"><div class="company-banner">'
            + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#af52de" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>'
-           + '<div><div class="company-label">Assigned By</div><div class="company-name">' + esc(company) + '</div></div>'
+           + '<div><div class="company-label">Assigned By</div><div class="company-name">'+esc(company)+'</div></div>'
            + '</div></div>';
       }
+
+      // Load card
       h += '<div class="card">';
       h += '<div class="load-header">'
          + '<div class="load-num-row"><span style="font-size:22px">&#x1F4E6;</span>'
-         + '<span class="load-num-text">' + esc(load.loadNumber||'\u2014') + '</span></div>'
-         + '<span class="badge ' + bClass(load.status) + '">' + bLabel(load.status) + '</span>'
+         + '<span class="load-num-text">'+esc(load.loadNumber||'&#x2014;')+'</span></div>'
+         + '<span class="badge '+bClass(load.status)+'">'+bLabel(load.status)+'</span>'
          + '</div><div class="divider"></div>';
       h += '<div class="info-rows">';
-      h += row('\u2B06\uFE0F','PICKUP',   load.pickupAddress,   load.pickupDate   ? fmt(load.pickupDate)   : '');
-      h += row('\u2B07\uFE0F','DELIVERY', load.deliveryAddress, load.deliveryDate ? fmt(load.deliveryDate) : '');
-      if (load.weight)       h += row('\u2696\uFE0F','WEIGHT',   Number(load.weight).toLocaleString()+' lbs','');
-      if (load.customerName) h += row('\u{1F464}','CUSTOMER', load.customerName,'');
-      if (load.notes)        h += row('\u{1F4CB}','NOTES',    load.notes,'');
+      h += row('&#x2B06;&#xFE0F;','PICKUP',   load.pickupAddress,   load.pickupDate   ? fmt(load.pickupDate)   : '');
+      h += row('&#x2B07;&#xFE0F;','DELIVERY', load.deliveryAddress, load.deliveryDate ? fmt(load.deliveryDate) : '');
+      if(load.weight)       h += row('&#x2696;&#xFE0F;','WEIGHT',   Number(load.weight).toLocaleString()+' lbs','');
+      if(load.customerName) h += row('&#x1F464;','CUSTOMER', load.customerName,'');
+      if(load.notes)        h += row('&#x1F4CB;','NOTES', load.notes,'');
       h += '</div>';
-      if (load.status === 'Assigned') {
+
+      // Accept button — only when Assigned
+      if(load.status==='Assigned'){
         h += '<div class="accept-section" id="accept-section">';
-        if (load.dispatcherEmail) h += '<div class="accept-from">&#x1F514; New load from ' + esc(load.dispatcherEmail) + '</div>';
-        if (load.pickupDate)      h += '<div class="accept-pickup">Pickup: ' + fmt(load.pickupDate) + '</div>';
-        h += '<button class="btn-accept" id="btn-accept" onclick="acceptLoad()">&#x2705; Accept Load</button>';
+        if(load.dispatcherEmail) h += '<div class="accept-from">&#x1F514; New load from '+esc(load.dispatcherEmail)+'</div>';
+        if(load.pickupDate)      h += '<div class="accept-pickup">Pickup: '+fmt(load.pickupDate)+'</div>';
+        h += '<button class="btn btn-accept" id="btn-accept" onclick="acceptLoad()">&#x2705; Accept Load</button>';
         h += '</div>';
       }
       h += '</div>';
-      if (load.status==='Accepted') {
-        h += '<div class="status-card accepted"><div class="status-card-icon">&#x2705;</div><div><div class="status-card-title">Load Accepted</div><div class="status-card-sub">Open the Routelo app to start tracking at pickup time.</div></div></div>';
-      } else if (load.status==='In Transit') {
-        h += '<div class="status-card transit"><div class="status-card-icon">&#x1F69B;</div><div><div class="status-card-title">In Transit</div><div class="status-card-sub">GPS tracking is active in the Routelo app.</div></div></div>';
-      } else if (load.status==='Delivered') {
+
+      // Status card
+      if(load.status==='Accepted'){
+        h += '<div class="status-card accepted"><div class="status-card-icon">&#x2705;</div><div><div class="status-card-title">Load Accepted</div><div class="status-card-sub">Open the Routelo app to start tracking.</div></div></div>';
+      } else if(load.status==='In Transit'){
+        h += '<div class="status-card transit"><div class="status-card-icon">&#x1F69B;</div><div><div class="status-card-title">In Transit</div><div class="status-card-sub">GPS tracking is active in the app.</div></div></div>';
+      } else if(load.status==='Delivered'){
         h += '<div class="status-card delivered"><div class="status-card-icon">&#x1F389;</div><div><div class="status-card-title">Delivered!</div><div class="status-card-sub">This load is complete. Great work!</div></div></div>';
       }
-      h += '<div class="app-banner"><div><div class="app-banner-title">&#x1F4F1; Routelo App</div><div class="app-banner-sub">GPS tracking runs in the app, not the browser</div></div><button class="btn-open-app" onclick="openApp()">Open App</button></div>';
+
+      // App buttons
+      h += '<div class="card" style="padding:16px">'
+         + '<div style="font-size:13px;color:var(--muted);margin-bottom:12px;text-align:center">&#x1F4F1; Tracking &amp; maps run in the Routelo app</div>'
+         + '<button class="btn btn-app" onclick="openInApp()" style="margin-bottom:10px">Open in Routelo App</button>'
+         + '<button class="btn btn-store" onclick="goToAppStore()">&#x1F4E5; Download Routelo App</button>'
+         + '</div>';
+
       document.getElementById('root').innerHTML = h;
     }
 
-    function acceptLoad() {
-      var load = window._load; if (!load) return;
+    function acceptLoad(){
+      var load = window._load; if(!load) return;
       var btn = document.getElementById('btn-accept');
-      if (btn) { btn.disabled=true; btn.innerHTML='<span class=\"spinner\"></span>Accepting\u2026'; }
+      if(btn){ btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Accepting...'; }
       var loadId=load.id||LOAD_ID, loadNumber=load.loadNumber||'', driverName=load.assignedDriverName||'Driver';
-      function done() {
+
+      function done(){
         var s=document.getElementById('accept-section');
-        if(s) s.innerHTML='<div style="text-align:center;padding:14px 0;color:#af52de;font-weight:600;font-size:15px">&#x2705; Load accepted! Open the Routelo app to start tracking.</div>';
+        if(s) s.innerHTML='<div style="text-align:center;padding:16px 0;color:#af52de;font-weight:700;font-size:15px">&#x2705; Accepted! Opening app...</div>';
+        setTimeout(function(){ openInApp(); }, 1000);
       }
-      if (API_BASE&&TOKEN) fetch(API_BASE+'/track/'+TOKEN+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'Accepted',loadId:loadId,driverName:driverName})}).catch(function(){});
-      if (API_BASE&&loadId) fetch(API_BASE+'/loads/'+loadId+'/accept',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({loadId:loadId,loadNumber:loadNumber,driverName:driverName,dispatcherEmail:load.dispatcherEmail||''})}).then(done).catch(done);
-      else done();
+
+      var calls = [];
+      if(API && TOKEN) calls.push(
+        fetch(API+'/track/'+TOKEN+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({status:'Accepted',loadId:loadId,driverName:driverName})})
+      );
+      if(API && loadId) calls.push(
+        fetch(API+'/loads/'+loadId+'/accept',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({loadId:loadId,loadNumber:loadNumber,driverName:driverName,dispatcherEmail:load.dispatcherEmail||''})})
+      );
+      Promise.allSettled(calls).then(done);
     }
 
-    function openApp() { window.location.href='cmptracking://track/'+(TOKEN||''); }
+    function openInApp(){
+      // cmptracking://load?token=xxx&loadId=yyy
+      // If app not installed, iOS won't open it and window stays visible.
+      // We detect this via the blur event — if no blur within 1.5s, go to App Store.
+      var t = encodeURIComponent(TOKEN||'');
+      var l = encodeURIComponent(LOAD_ID||'');
+      var deepLink = 'cmptracking://load?token='+t+'&loadId='+l;
+      var appOpened = false;
+      var fallback = setTimeout(function(){
+        if(!appOpened) goToAppStore();
+      }, 1500);
+      window.addEventListener('blur', function onBlur(){
+        appOpened = true;
+        clearTimeout(fallback);
+        window.removeEventListener('blur', onBlur);
+      });
+      window.location.href = deepLink;
+    }
+
+    function goToAppStore(){
+      window.location.href = APP_STORE_URL;
+    }
 
     function row(icon,label,value,sub){
-      return '<div class="info-row"><div class="info-icon">'+icon+'</div><div class="info-body"><div class="info-label">'+label+'</div><div class="info-value">'+esc(value||'\u2014')+'</div>'+(sub?'<div class="info-sub">'+esc(sub)+'</div>':'')+'</div></div>';
+      return '<div class="info-row"><div class="info-icon">'+icon+'</div>'
+           + '<div class="info-body"><div class="info-label">'+label+'</div>'
+           + '<div class="info-value">'+esc(value||'&#x2014;')+'</div>'
+           + (sub?'<div class="info-sub">'+esc(sub)+'</div>':'')
+           + '</div></div>';
     }
-    function fmt(d){ try{return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'});}catch(e){return d;} }
+    function fmt(d){
+      try{ return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+      catch(e){ return d; }
+    }
     function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     function bClass(s){ return {Pending:'badge-pending',Assigned:'badge-assigned',Accepted:'badge-accepted','In Transit':'badge-transit',Delivered:'badge-delivered',Cancelled:'badge-cancelled'}[s]||'badge-pending'; }
     function bLabel(s){ return {Pending:'&#x23F3; Pending',Assigned:'&#x1F464; Assigned',Accepted:'&#x2705; Accepted','In Transit':'&#x1F69B; In Transit',Delivered:'&#x2705; Delivered',Cancelled:'&#x274C; Cancelled'}[s]||s; }
-    function showError(msg){ document.getElementById('root').innerHTML='<div class="error-card"><div style="font-size:36px;margin-bottom:12px">&#x26A0;&#xFE0F;</div><div style="font-size:16px;font-weight:700;color:#fff;margin-bottom:8px">Could not load details</div><div style="font-size:13px;color:var(--muted)">'+esc(msg)+'</div></div>'; }
+    function showError(msg){
+      document.getElementById('root').innerHTML='<div class="error-card">'
+        +'<div style="font-size:36px;margin-bottom:12px">&#x26A0;&#xFE0F;</div>'
+        +'<div style="font-size:16px;font-weight:700;margin-bottom:8px">Could not load details</div>'
+        +'<div style="font-size:13px;color:var(--muted);margin-bottom:16px">'+esc(msg)+'</div>'
+        +'<button class="btn btn-store" onclick="goToAppStore()">&#x1F4E5; Download Routelo App</button>'
+        +'</div>';
+    }
 
     init();
-  <\/script>
+  </script>
 </body>
 </html>
