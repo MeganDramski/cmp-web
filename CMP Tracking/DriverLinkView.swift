@@ -142,12 +142,18 @@ struct DriverLinkView: View {
                 let hasExtras = !load.pickupDate.isEmpty || !load.deliveryDate.isEmpty || !load.weight.isEmpty
                 if hasExtras {
                     Divider().background(Color.white.opacity(0.08)).padding(.top, 12)
-                    VStack(spacing: 0) {
-                        if !load.pickupDate.isEmpty   { detailRow(icon: "calendar",           label: "PICKUP DATE",   value: load.pickupDate) }
-                        if !load.deliveryDate.isEmpty { detailRow(icon: "calendar.badge.clock", label: "EST. DELIVERY", value: load.deliveryDate) }
-                        if !load.weight.isEmpty       { detailRow(icon: "scalemass.fill",      label: "WEIGHT",        value: load.weight) }
+                    VStack(spacing: 2) {
+                        if !load.pickupDate.isEmpty {
+                            detailRow(icon: "calendar",              iconColor: .green,  label: "PICKUP DATE",   value: load.pickupDate)
+                        }
+                        if !load.deliveryDate.isEmpty {
+                            detailRow(icon: "calendar.badge.clock",  iconColor: .orange, label: "EST. DELIVERY", value: load.deliveryDate)
+                        }
+                        if !load.weight.isEmpty {
+                            detailRow(icon: "scalemass.fill",        iconColor: .blue,   label: "WEIGHT",        value: load.weight)
+                        }
                     }
-                    .padding(.top, 4)
+                    .padding(.top, 6)
                 }
 
                 // ── Notes ─────────────────────────────────────────────────
@@ -156,13 +162,14 @@ struct DriverLinkView: View {
                     HStack(alignment: .top, spacing: 12) {
                         Image(systemName: "note.text")
                             .font(.system(size: 13))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.yellow.opacity(0.8))
                             .frame(width: 18)
-                            .padding(.top, 1)
-                        VStack(alignment: .leading, spacing: 2) {
+                            .padding(.top, 2)
+                        VStack(alignment: .leading, spacing: 3) {
                             Text("NOTES")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.secondary).kerning(1)
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.yellow.opacity(0.7))
+                                .kerning(0.8)
                             Text(load.notes)
                                 .font(.subheadline).foregroundColor(.white)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -197,23 +204,23 @@ struct DriverLinkView: View {
     }
 
     @ViewBuilder
-    private func detailRow(icon: String, label: String, value: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+    private func detailRow(icon: String, iconColor: Color = .secondary, label: String, value: String) -> some View {
+        HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 13))
+                .font(.system(size: 14))
+                .foregroundColor(iconColor)
+                .frame(width: 20)
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(.secondary)
-                .frame(width: 18)
-                .padding(.top, 1)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.secondary).kerning(1)
-                Text(value)
-                    .font(.subheadline).foregroundColor(.white)
-            }
+                .kerning(0.5)
             Spacer()
+            Text(value)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.white)
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 9)
+        .padding(.horizontal, 2)
     }
 
     // MARK: - Map Card
