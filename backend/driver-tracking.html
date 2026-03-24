@@ -502,6 +502,12 @@
  <!-- Connection status bar -->
  <div id="conn-bar"></div>
 
+ <!-- Force-update button: clears SW cache and hard-reloads -->
+ <div id="update-bar" style="display:none;width:100%;max-width:420px;background:rgba(0,122,255,0.15);border:1px solid rgba(0,122,255,0.4);border-radius:12px;padding:10px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+   <span style="font-size:13px;color:#fff">🔄 Update available</span>
+   <button onclick="forceUpdate()" style="background:#007AFF;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer">Reload</button>
+ </div>
+
  <!-- Header logo -->
  <div style="text-align:center;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:10px">
    <svg width="36" height="36" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -2171,29 +2177,56 @@
      }).catch(function(){});
    });
 
+   // ── Force update helper — clears ALL caches then hard-reloads ─────────────
+   function forceUpdate() {
+     var btn = document.querySelector('#update-bar button');
+     if (btn) { btn.textContent = '…'; btn.disabled = true; }
+     var clearAll = ('caches' in window)
+       ? caches.keys().then(function(keys) {
+           return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+         })
+       : Promise.resolve();
+     clearAll.then(function() {
+       if ('serviceWorker' in navigator) {
+         navigator.serviceWorker.getRegistrations().then(function(regs) {
+           return Promise.all(regs.map(function(r) { return r.unregister(); }));
+         }).then(function() {
+           window.location.reload(true);
+         });
+       } else {
+         window.location.reload(true);
+       }
+     });
+   }
+
    // ── Service Worker registration ───────────────────────────────────────────
    if ('serviceWorker' in navigator) {
      navigator.serviceWorker.register('driver-tracking-sw.js')
        .then(function(reg) {
          console.log('[SW] registered, scope:', reg.scope);
 
-         // When a new SW version is found, skip waiting and reload the page
-         // so the driver always gets the latest HTML immediately.
+         // When a new SW version is waiting, show the update bar so driver can tap Reload
          reg.addEventListener('updatefound', function() {
            var newSW = reg.installing;
            if (!newSW) return;
            newSW.addEventListener('statechange', function() {
              if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
-               // New SW installed — tell it to take over immediately
+               // Show update bar instead of auto-reloading (safer during active tracking)
+               document.getElementById('update-bar').style.display = 'flex';
                newSW.postMessage({ type: 'SKIP_WAITING' });
              }
            });
          });
 
+         // Also check if there's already a waiting SW right now (page was refreshed)
+         if (reg.waiting) {
+           document.getElementById('update-bar').style.display = 'flex';
+           reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+         }
+
          window.addEventListener('online', function() {
            if (reg.sync) reg.sync.register('cmp-location-sync').catch(function(){});
          });
-         // Register periodic background sync (Android Chrome only, requires HTTPS)
          if (reg.periodicSync) {
            navigator.permissions.query({ name: 'periodic-background-sync' })
              .then(function(status) {
