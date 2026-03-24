@@ -443,14 +443,6 @@ function apiFetch(url, opts){
       aerr('Your session has expired. Please sign in again.');
       return Promise.reject(new Error('__SESSION_EXPIRED__'));
     }
-    // Service worker returns 503 + {error:'offline'} when network is unreachable.
-    // Treat it as a real network rejection so .catch handlers handle it as offline.
-    if(r.status===503){
-      return r.json().catch(function(){ return {error:'offline'}; }).then(function(d){
-        if(d && d.error==='offline') return Promise.reject(new Error('__OFFLINE__'));
-        return Promise.reject(new Error(d.error||'Server unavailable'));
-      });
-    }
     return r;
   });
 }
@@ -1974,7 +1966,29 @@ function saveLoad(){
   var cn=document.getElementById('al-cn').value.trim();
   var ce=document.getElementById('al-ce').value.trim();
   var isEditCheck=!!editingLoadId;
-  if(!pu||!de||(!cn&&!isEditCheck)){var e=document.getElementById('merr');e.textContent='Pickup address, delivery address and customer name are required.';e.style.display='block';return;}
+
+  // Clear previous field highlights
+  ['al-pu','al-de','al-cn'].forEach(function(id){
+    document.getElementById(id).style.borderColor='';
+  });
+
+  if(!pu||!de||(!cn&&!isEditCheck)){
+    var missing=[];
+    if(!pu){missing.push('Pickup Address');document.getElementById('al-pu').style.borderColor='#FF3B30';}
+    if(!de){missing.push('Delivery Address');document.getElementById('al-de').style.borderColor='#FF3B30';}
+    if(!cn&&!isEditCheck){missing.push('Customer Name');document.getElementById('al-cn').style.borderColor='#FF3B30';}
+    var e=document.getElementById('merr');
+    e.textContent='⚠️ Required: '+missing.join(', ');
+    e.style.display='block';
+    // Scroll modal body to top so the error and highlighted fields are visible
+    var mbody=document.querySelector('.modal .mbody');
+    if(mbody) mbody.scrollTop=0;
+    // Focus the first missing field
+    if(!pu) document.getElementById('al-pu').focus();
+    else if(!de) document.getElementById('al-de').focus();
+    else document.getElementById('al-cn').focus();
+    return;
+  }
 
   // Resolve driver from picker or manual fields
   var dId=null,dName=null,dEmail=null,dPhone=null;
@@ -2024,6 +2038,15 @@ function saveLoad(){
   btn.disabled=true;
   btn.innerHTML='<span class="spin"></span> Saving…';
 
+  // Guard: if API is live but no real JWT, show clear message instead of silent 401
+  if(isLive() && (!session || !session.token || session.token === 'local')){
+    btn.disabled=false; btn.textContent=isEdit?'Save Changes':'Save Load';
+    var e=document.getElementById('merr');
+    e.textContent='⚠️ Session expired — please sign out and sign in again.';
+    e.style.display='block';
+    return;
+  }
+
   if(!isLive()){
     if(isEdit){
       for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){loads[i]=load;break;}}
@@ -2054,12 +2077,12 @@ function saveLoad(){
       .catch(function(e){
         if(e&&e.message==='__SESSION_EXPIRED__') return;
         // Network error or server unreachable — save locally so changes aren't lost
-        var isNetworkErr = !navigator.onLine || (e instanceof TypeError) || (e.message==='__OFFLINE__') || (e.message && (e.message.toLowerCase().indexOf('fetch')!==-1||e.message.toLowerCase().indexOf('network')!==-1||e.message.toLowerCase().indexOf('offline')!==-1));
+        var isNetworkErr = !navigator.onLine || (e instanceof TypeError) || (e.message && (e.message.toLowerCase().indexOf('fetch')!==-1||e.message.toLowerCase().indexOf('network')!==-1||e.message.toLowerCase().indexOf('offline')!==-1));
         if(isNetworkErr){
           for(var i=0;i<loads.length;i++){if(loads[i].id===editingLoadId){loads[i]=load;break;}}
           localStorage.setItem('cmp_loads',JSON.stringify(loads));
           renderList();closeModal();selLoad(load.id);
-          toast('⚠️ Saved locally — server unreachable. Changes will sync when back online.');
+          toast('✅ Load saved locally (you appear to be offline)');
           btn.disabled=false;btn.textContent='Save Changes';
           return;
         }
@@ -2074,18 +2097,17 @@ function saveLoad(){
       .then(function(res){if(!res.ok)throw new Error(res.d.error||'Save failed');loads.unshift(res.d);localStorage.setItem('cmp_loads',JSON.stringify(loads));renderList();closeModal();selLoad(res.d.id);toast('Load '+load.loadNumber+' created');})
       .catch(function(e){
         if(e&&e.message==='__SESSION_EXPIRED__') return;
-        var isNetworkErr = !navigator.onLine || (e instanceof TypeError) || (e.message==='__OFFLINE__') || (e.message && (e.message.toLowerCase().indexOf('fetch')!==-1||e.message.toLowerCase().indexOf('network')!==-1||e.message.toLowerCase().indexOf('offline')!==-1));
+        var isNetworkErr = !navigator.onLine || (e instanceof TypeError) || (e.message && (e.message.toLowerCase().indexOf('fetch')!==-1||e.message.toLowerCase().indexOf('network')!==-1||e.message.toLowerCase().indexOf('offline')!==-1));
         if(isNetworkErr){
           loads.unshift(load);
           localStorage.setItem('cmp_loads',JSON.stringify(loads));
           renderList();closeModal();selLoad(load.id);
-          toast('⚠️ Saved locally — server unreachable. Changes will sync when back online.');
+          toast('Load '+load.loadNumber+' saved locally (you appear to be offline)');
           btn.disabled=false;btn.textContent='Save Load';
           return;
         }
         var err=document.getElementById('merr');err.textContent='⚠️ '+(e.message||'Failed to save. Please try again.');err.style.display='block';
-      })
-      .finally(function(){btn.disabled=false;btn.textContent='Save Load';});
+        var mbody=document.querySelector('.modal .mbody');if(mbody)mbody.scrollTop=0;
   }
 }
 
@@ -2121,9 +2143,17 @@ function makeSamples(){
       var p=JSON.parse(s);
       if(p&&p.user){
         // Validate token before entering app (skip for local/offline session)
-        if(!p.token||p.token==='local'||!API){
+        // If token is local but API is live, force re-login so user gets a real JWT
+        if(!p.token||p.token==='local'){
+          if(API){
+            localStorage.removeItem('cmp_session');
+            showAuth();
+            aerr('Please sign in to continue.');
+            return;
+          }
           session=p; enterApp(); return;
         }
+        if(!API){session=p; enterApp(); return;}
 
         // Immediately reject tokens missing tenantId (issued before multi-tenant login was deployed)
         var jwt=decodeJwt(p.token);
