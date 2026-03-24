@@ -2108,6 +2108,8 @@ function saveLoad(){
         }
         var err=document.getElementById('merr');err.textContent='⚠️ '+(e.message||'Failed to save. Please try again.');err.style.display='block';
         var mbody=document.querySelector('.modal .mbody');if(mbody)mbody.scrollTop=0;
+      })
+      .finally(function(){btn.disabled=false;btn.textContent='Save Load';});
   }
 }
 
