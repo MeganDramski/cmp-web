@@ -1394,47 +1394,83 @@ function isRecentPoint(p){
 }
 
 // Snap GPS points to actual roads using OSRM public API (free, no key).
-// Points are subsampled to max 100 to stay within URL length limits.
-// Calls callback(roadCoords) where roadCoords = [[lat,lng], ...]
+// Strategy:
+//   1. Try OSRM /match (map matching — best for recorded GPS traces).
+//   2. If /match returns NoMatch or fails, try OSRM /route between first & last point.
+//   3. If both fail, return null so caller falls back to raw points.
+// Calls callback(roadCoords | null) where roadCoords = [[lat,lng], ...]
 function snapToRoads(history, callback){
-  // Subsample: take at most 100 evenly-spaced points
-  var pts = history;
+  if(!history || history.length < 2){ callback(null); return; }
+
+  // Subsample: OSRM /match hard limit is 100 waypoints
+  var pts = history.slice();
   if(pts.length > 100){
-    var step = pts.length / 100;
+    var step = (pts.length - 1) / 99;
     var sampled = [];
-    for(var i=0;i<100;i++) sampled.push(pts[Math.floor(i*step)]);
-    // Always include the last point
-    sampled[sampled.length-1] = pts[pts.length-1];
+    for(var i = 0; i < 99; i++) sampled.push(pts[Math.round(i * step)]);
+    sampled.push(pts[pts.length - 1]);
     pts = sampled;
   }
 
-  // Build OSRM match URL: coordinates as lng,lat pairs
-  var coords = pts.map(function(p){ return p.longitude+','+p.latitude; }).join(';');
-  var timestamps = pts.map(function(p){
-    return p.timestamp ? Math.floor(new Date(p.timestamp).getTime()/1000) : 0;
+  // Build timestamps array — must be strictly increasing (OSRM requirement).
+  // Fix duplicates by adding 1 second to each tie.
+  var rawTs = pts.map(function(p){
+    return p.timestamp ? Math.floor(new Date(p.timestamp).getTime() / 1000) : 0;
   });
-  // Only include timestamps if all are valid and monotonically increasing
-  var useTs = timestamps.every(function(t){ return t>0; }) &&
-              timestamps.every(function(t,i){ return i===0||t>=timestamps[i-1]; });
+  var allValid = rawTs.every(function(t){ return t > 0; });
+  var monoTs = rawTs.slice();
+  for(var i = 1; i < monoTs.length; i++){
+    if(monoTs[i] <= monoTs[i-1]) monoTs[i] = monoTs[i-1] + 1;
+  }
+  var useTs = allValid;
 
-  var url = 'https://router.project-osrm.org/match/v1/driving/' + coords
-          + '?overview=full&geometries=geojson&steps=false'
-          + (useTs ? '&timestamps='+timestamps.join(';') : '');
+  var coordStr  = pts.map(function(p){ return p.longitude+','+p.latitude; }).join(';');
+  var radiusStr = pts.map(function(){ return '25'; }).join(';'); // 25 m GPS tolerance per point
 
-  fetch(url)
+  var matchUrl = 'https://router.project-osrm.org/match/v1/driving/' + coordStr
+    + '?overview=full&geometries=geojson&steps=false'
+    + '&radiuses=' + radiusStr
+    + '&tidy=true'   // remove impossible jumps / GPS noise
+    + (useTs ? '&timestamps=' + monoTs.join(';') : '');
+
+  fetch(matchUrl)
     .then(function(r){ return r.ok ? r.json() : null; })
     .then(function(data){
-      if(!data || !data.matchings || !data.matchings.length){
-        callback(null); return;
-      }
-      // Combine all matching segments into one coordinate array
-      var roadCoords = [];
-      data.matchings.forEach(function(m){
-        m.geometry.coordinates.forEach(function(c){
-          roadCoords.push([c[1], c[0]]); // GeoJSON is [lng,lat], Leaflet wants [lat,lng]
+      if(data && data.matchings && data.matchings.length){
+        // /match succeeded — merge all matching segments
+        var roadCoords = [];
+        data.matchings.forEach(function(m){
+          m.geometry.coordinates.forEach(function(c){
+            roadCoords.push([c[1], c[0]]); // GeoJSON [lng,lat] → Leaflet [lat,lng]
+          });
         });
-      });
-      callback(roadCoords);
+        if(roadCoords.length >= 2){ callback(roadCoords); return; }
+      }
+      // /match failed or returned no geometry — fall back to /route (start → end)
+      return routeFallback(pts, callback);
+    })
+    .catch(function(){ routeFallback(pts, callback); });
+}
+
+// OSRM /route fallback: routes from first to last GPS point following roads.
+// Much simpler than /match but still road-snapped.
+function routeFallback(pts, callback){
+  var first = pts[0], last = pts[pts.length - 1];
+  var routeUrl = 'https://router.project-osrm.org/route/v1/driving/'
+    + first.longitude+','+first.latitude + ';' + last.longitude+','+last.latitude
+    + '?overview=full&geometries=geojson&steps=false';
+
+  fetch(routeUrl)
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(data){
+      if(data && data.routes && data.routes.length && data.routes[0].geometry){
+        var roadCoords = data.routes[0].geometry.coordinates.map(function(c){
+          return [c[1], c[0]];
+        });
+        callback(roadCoords.length >= 2 ? roadCoords : null);
+      } else {
+        callback(null);
+      }
     })
     .catch(function(){ callback(null); });
 }

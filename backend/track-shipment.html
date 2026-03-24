@@ -227,35 +227,65 @@
     }
 
     function snapToRoads(history, callback){
-  if(!history || history.length < 2){ callback(null); return; }
+      if(!history || history.length < 2){ callback(null); return; }
 
-  // Subsample: at most 25 points (OSRM /route waypoint limit)
-  var pts = history;
-  if(pts.length > 25){
-    var step = (pts.length - 1) / 24;
-    var sampled = [];
-    for(var i = 0; i < 24; i++) sampled.push(pts[Math.round(i * step)]);
-    sampled.push(pts[pts.length - 1]);
-    pts = sampled;
-  }
-
-  var coords = pts.map(function(p){ return p.longitude + ',' + p.latitude; }).join(';');
-  var url = 'https://router.project-osrm.org/route/v1/driving/' + coords
-          + '?overview=full&geometries=geojson&steps=false';
-
-  fetch(url)
-    .then(function(r){ return r.json().catch(function(){ return null; }); })
-    .then(function(data){
-      if(!data || data.code !== 'Ok' || !data.routes || !data.routes.length){
-        callback(null); return;
+      // Subsample to OSRM /match limit of 100 waypoints
+      var pts = history.slice();
+      if(pts.length > 100){
+        var step = (pts.length - 1) / 99;
+        var sampled = [];
+        for(var i = 0; i < 99; i++) sampled.push(pts[Math.round(i * step)]);
+        sampled.push(pts[pts.length - 1]);
+        pts = sampled;
       }
-      var roadCoords = data.routes[0].geometry.coordinates.map(function(c){
-        return [c[1], c[0]]; // GeoJSON [lng,lat] → Leaflet [lat,lng]
+
+      // Build strictly-increasing timestamps (OSRM requirement — fix duplicates)
+      var rawTs = pts.map(function(p){
+        return p.timestamp ? Math.floor(new Date(p.timestamp).getTime() / 1000) : 0;
       });
-      callback(roadCoords.length >= 2 ? roadCoords : null);
-    })
-    .catch(function(){ callback(null); });
-}
+      var allValid = rawTs.every(function(t){ return t > 0; });
+      var monoTs = rawTs.slice();
+      for(var i = 1; i < monoTs.length; i++){
+        if(monoTs[i] <= monoTs[i-1]) monoTs[i] = monoTs[i-1] + 1;
+      }
+
+      var coordStr  = pts.map(function(p){ return p.longitude+','+p.latitude; }).join(';');
+      var radiusStr = pts.map(function(){ return '25'; }).join(';');
+
+      var matchUrl = 'https://router.project-osrm.org/match/v1/driving/' + coordStr
+        + '?overview=full&geometries=geojson&steps=false'
+        + '&radiuses=' + radiusStr
+        + '&tidy=true'
+        + (allValid ? '&timestamps=' + monoTs.join(';') : '');
+
+      fetch(matchUrl)
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(data){
+          if(data && data.matchings && data.matchings.length){
+            var roadCoords = [];
+            data.matchings.forEach(function(m){
+              m.geometry.coordinates.forEach(function(c){
+                roadCoords.push([c[1], c[0]]);
+              });
+            });
+            if(roadCoords.length >= 2){ callback(roadCoords); return; }
+          }
+          // /match failed — fall back to /route (start → end)
+          var first = pts[0], last = pts[pts.length - 1];
+          var routeUrl = 'https://router.project-osrm.org/route/v1/driving/'
+            + first.longitude+','+first.latitude + ';' + last.longitude+','+last.latitude
+            + '?overview=full&geometries=geojson&steps=false';
+          return fetch(routeUrl)
+            .then(function(r){ return r.ok ? r.json() : null; })
+            .then(function(d){
+              if(d && d.routes && d.routes.length){
+                var rc = d.routes[0].geometry.coordinates.map(function(c){ return [c[1],c[0]]; });
+                callback(rc.length >= 2 ? rc : null);
+              } else { callback(null); }
+            });
+        })
+        .catch(function(){ callback(null); });
+    }
 
     async function fetchAndRender() {
       try {
