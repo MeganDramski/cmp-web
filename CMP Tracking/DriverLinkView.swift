@@ -82,41 +82,88 @@ struct DriverLinkView: View {
     @ViewBuilder
     private func loadCard(_ load: LoadData) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Status badge
-            HStack {
-                Text("LOAD #\(load.loadNumber)")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.secondary)
-                    .kerning(1)
-                Spacer()
-                Text(load.status)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(statusColor(load.status).opacity(0.25))
-                    .overlay(Capsule().stroke(statusColor(load.status).opacity(0.5), lineWidth: 1))
-                    .clipShape(Capsule())
-            }
-            .padding(.bottom, 14)
 
-            if !load.description.isEmpty {
-                Text(load.description)
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.7))
-                    .padding(.bottom, 14)
+            // ── Company banner ────────────────────────────────────────────
+            if !load.companyName.isEmpty {
+                HStack(spacing: 10) {
+                    Image(systemName: "building.2.fill")
+                        .font(.system(size: 13))
+                        .foregroundColor(.purple)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("ASSIGNED BY")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.purple.opacity(0.8))
+                            .kerning(0.8)
+                        Text(load.companyName)
+                            .font(.subheadline).fontWeight(.semibold)
+                            .foregroundColor(.white)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 18).padding(.vertical, 12)
+                .background(Color.purple.opacity(0.12))
+                .overlay(Rectangle().frame(height: 1).foregroundColor(Color.purple.opacity(0.25)), alignment: .bottom)
             }
 
-            // Route
-            VStack(spacing: 0) {
-                routeRow(icon: "circle.fill", color: .green,  label: "PICKUP",   address: load.pickupAddress,   date: load.pickupDate)
-                Rectangle().fill(Color.white.opacity(0.08)).frame(width: 1, height: 20).padding(.leading, 18)
-                routeRow(icon: "mappin.circle.fill", color: .red, label: "DELIVERY", address: load.deliveryAddress, date: load.deliveryDate)
+            VStack(alignment: .leading, spacing: 0) {
+                // ── Status row ────────────────────────────────────────────
+                HStack {
+                    Text("LOAD #\(load.loadNumber)")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .kerning(1)
+                    Spacer()
+                    Text(load.status)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(statusColor(load.status).opacity(0.25))
+                        .overlay(Capsule().stroke(statusColor(load.status).opacity(0.5), lineWidth: 1))
+                        .clipShape(Capsule())
+                }
+                .padding(.bottom, 14)
+
+                if !load.description.isEmpty {
+                    Text(load.description)
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.7))
+                        .padding(.bottom, 14)
+                }
+
+                // ── Route ─────────────────────────────────────────────────
+                VStack(spacing: 0) {
+                    routeRow(icon: "circle.fill",        color: .green, label: "PICKUP",   address: load.pickupAddress,   date: load.pickupDate)
+                    Rectangle().fill(Color.white.opacity(0.08)).frame(width: 1, height: 20).padding(.leading, 18)
+                    routeRow(icon: "mappin.circle.fill", color: .red,   label: "DELIVERY", address: load.deliveryAddress, date: load.deliveryDate)
+                }
+
+                // ── Notes ─────────────────────────────────────────────────
+                if !load.notes.isEmpty {
+                    Divider().background(Color.white.opacity(0.08)).padding(.top, 12)
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: "note.text")
+                            .font(.system(size: 13))
+                            .foregroundColor(.secondary)
+                            .frame(width: 18)
+                            .padding(.top, 1)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("NOTES")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.secondary).kerning(1)
+                            Text(load.notes)
+                                .font(.subheadline).foregroundColor(.white)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(.top, 12)
+                }
             }
+            .padding(18)
         }
-        .padding(18)
         .background(Color.white.opacity(0.05))
         .cornerRadius(16)
+        .clipped()
     }
 
     @ViewBuilder
@@ -337,6 +384,8 @@ struct LoadData {
     let deliveryDate: String
     var status: String
     let trackingToken: String
+    let companyName: String
+    let notes: String
 }
 
 // MARK: - ViewModel
@@ -425,7 +474,9 @@ class DriverLinkVM: NSObject, ObservableObject, CLLocationManagerDelegate {
                     pickupDate:      Self.formatDate(json["pickupDate"] as? String),
                     deliveryDate:    Self.formatDate(json["deliveryDate"] as? String),
                     status:          json["status"]          as? String ?? "Assigned",
-                    trackingToken:   json["trackingToken"]   as? String ?? link.token
+                    trackingToken:   json["trackingToken"]   as? String ?? link.token,
+                    companyName:     json["companyName"]     as? String ?? json["dispatcherEmail"] as? String ?? "",
+                    notes:           json["notes"]           as? String ?? ""
                 )
                 // Request Always location permission on load
                 self?.clm.requestAlwaysAuthorization()
