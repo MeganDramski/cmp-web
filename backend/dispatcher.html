@@ -2099,6 +2099,14 @@ function makeSamples(){
 
 /* INIT */
 (function(){
+  // Decode JWT payload without verifying signature (client-side only)
+  function decodeJwt(token){
+    try{
+      var payload=token.split('.')[1];
+      return JSON.parse(atob(payload.replace(/-/g,'+').replace(/_/g,'/')));
+    }catch(e){return null;}
+  }
+
   var s=localStorage.getItem('cmp_session');
   if(s){
     try{
@@ -2108,21 +2116,25 @@ function makeSamples(){
         if(!p.token||p.token==='local'||!API){
           session=p; enterApp(); return;
         }
-        // Quick token check — use GET /loads with a limit of 1
-        fetch(API+'/loads',{headers:{'Content-Type':'application/json','Authorization':'Bearer '+p.token}})
-          .then(function(r){
-            if(r.status===401){
-              localStorage.removeItem('cmp_session');
-              showAuth();
-              aerr('Your session has expired. Please sign in again.');
-            } else {
-              session=p; enterApp();
-            }
-          })
-          .catch(function(){
-            // Network error — still enter app, let bg poll handle 401 later
-            session=p; enterApp();
-          });
+
+        // Immediately reject tokens missing tenantId (issued before multi-tenant login was deployed)
+        var jwt=decodeJwt(p.token);
+        if(!jwt||!jwt.tenantId){
+          localStorage.removeItem('cmp_session');
+          showAuth();
+          aerr('Your session has expired. Please sign in again.');
+          return;
+        }
+
+        // Also reject expired tokens
+        if(jwt.exp && jwt.exp < Math.floor(Date.now()/1000)){
+          localStorage.removeItem('cmp_session');
+          showAuth();
+          aerr('Your session has expired. Please sign in again.');
+          return;
+        }
+
+        session=p; enterApp();
         return;
       }
     }catch(e){}
