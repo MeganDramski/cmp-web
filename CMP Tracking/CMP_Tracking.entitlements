@@ -2,11 +2,5 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Background location updates — required for driver tracking while app is backgrounded -->
-    <key>com.apple.developer.location.background</key>
-    <true/>
-    <!-- Push notifications (development) -->
-    <key>aps-environment</key>
-    <string>development</string>
 </dict>
 </plist>
