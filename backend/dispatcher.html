@@ -1163,9 +1163,9 @@ function renderDetail(){
   if(!load)return;
   document.getElementById('dph').style.display='none';
   var el=document.getElementById('dc'); el.style.display='block';
-  var base=isLive()?API:window.location.origin;
-  var dURL=base+'/driver-tracking.html?token='+esc(load.trackingToken)+'&loadId='+esc(load.id);
-  var cURL=base+'/track-shipment.html?token='+esc(load.trackingToken);
+  var base=window.location.origin+window.location.pathname.replace('dispatcher.html','');
+  var dURL=base+'driver-tracking.html?token='+esc(load.trackingToken)+'&loadId='+esc(load.id);
+  var cURL=base+'track-shipment.html?token='+esc(load.trackingToken);
   var sopts=['Pending','Assigned','Accepted','In Transit','Delivered','Cancelled'].map(function(s){return '<option value="'+s+'"'+(s===load.status?' selected':'')+'>'+s+'</option>';}).join('');
 
   // Driver assign section — dropdown of known drivers
@@ -1569,7 +1569,7 @@ function pingDriver(){
     method:'POST',
     headers:ah(),
     body:JSON.stringify({
-      dispatcherEmail: currentUser&&currentUser.email ? currentUser.email : (load.createdBy||''),
+      dispatcherEmail: session&&session.user&&session.user.email ? session.user.email : (load.createdBy||''),
       pingOnly: true,   // tells Lambda to use a short "reopen app" message
     }),
   })
@@ -1644,8 +1644,8 @@ function sendLink(id){
   var dp=(load.assignedDriverPhone||'').replace(/[^\d+]/g,'');
   var companyName = (session && session.user && session.user.companyName)
                     ? session.user.companyName
-                    : (currentUser && currentUser.companyName) || 'Routelo';
-  var dispEmail   = (currentUser && currentUser.email) ? currentUser.email : (load.createdBy||'');
+                    : 'Routelo';
+  var dispEmail   = (session && session.user && session.user.email) ? session.user.email : (load.createdBy||'');
 
   var modalBody = document.getElementById('send-modal-body');
 
