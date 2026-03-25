@@ -92,7 +92,7 @@ exports.handler = async (event) => {
       <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Delivery</td><td style="padding:8px 0;">${load.deliveryAddress}</td></tr>
       <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Delivered At</td><td style="padding:8px 0;font-weight:600;color:#34C759;">${deliveredTime}</td></tr>
     </table>
-    <p style="font-size:12px;color:#aaa;margin-top:20px;text-align:center;">\u2013 CMP Logistics Tracking</p>
+    <p style="font-size:12px;color:#aaa;margin-top:20px;text-align:center;">— Routelo</p>
   </div>
 </div></body></html>`,
                     },
@@ -125,7 +125,7 @@ exports.handler = async (event) => {
       <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Delivered At</td><td style="padding:8px 0;font-weight:600;color:#34C759;">${deliveredTime}</td></tr>
       <tr style="border-top:1px solid #f0f0f0;"><td style="padding:8px 0;color:#888;">Delivery Address</td><td style="padding:8px 0;">${load.deliveryAddress}</td></tr>
     </table>
-    <p style="font-size:12px;color:#aaa;margin-top:20px;text-align:center;">Thank you for choosing CMP Logistics \u2013</p>
+    <p style="font-size:12px;color:#aaa;margin-top:20px;text-align:center;">Thank you for choosing Routelo —</p>
   </div>
 </div></body></html>`,
                     },

@@ -32,8 +32,8 @@ const AMPLIFY_URL  = process.env.AMPLIFY_BASE_URL || "";
 
 // Set SNS_ENABLED=true in Lambda env vars once AWS grants production SMS access.
 const SNS_ENABLED  = (process.env.SNS_ENABLED || "").toLowerCase() === "true";
-// Optional: branded sender ID shown on the driver's phone (not supported in US/CA).
 const SNS_SENDER_ID = process.env.SNS_SENDER_ID || "Routelo";
+const SNS_ORIGINATION_NUMBER = process.env.SNS_ORIGINATION_NUMBER || "";
 
 function buildLinks(event, token, id) {
   const base = AMPLIFY_URL || (function() {
@@ -60,12 +60,12 @@ async function sendDriverEmail(driverEmail, driverName, load, link) {
     Source: FROM_EMAIL,
     Destination: { ToAddresses: [driverEmail] },
     Message: {
-      Subject: { Data: "CMP Logistics – Load " + load.loadNumber + " assigned to you" },
+      Subject: { Data: "Routelo – Load " + load.loadNumber + " assigned to you" },
       Body: {
         Html: {
           Data:
             "<p>Hi <strong>" + (driverName || "Driver") + "</strong>,</p>" +
-            "<p>You have a new load assigned by CMP Logistics.</p>" +
+            "<p>You have a new load assigned via Routelo.</p>" +
             "<table style='font-family:sans-serif;font-size:14px;'>" +
             "<tr><td><strong>Load #:</strong></td><td>" + load.loadNumber + "</td></tr>" +
             "<tr><td><strong>Pickup:</strong></td><td>" + load.pickupAddress + "</td></tr>" +
@@ -122,7 +122,7 @@ async function sendDriverSMS(driverPhone, driverName, load, webLink, appLink) {
 
   const body =
     "Hi " + (driverName || "Driver") + ",\n\n" +
-    "You have a new load from CMP Logistics.\n\n" +
+    "You have a new load via Routelo.\n\n" +
     "LOAD #: " + (load.loadNumber || "--") + "\n" +
     "PICKUP: " + (load.pickupAddress || "--") + "\n" +
     "DELIVERY: " + (load.deliveryAddress || "--") + "\n" +
@@ -136,14 +136,18 @@ async function sendDriverSMS(driverPhone, driverName, load, webLink, appLink) {
     MessageAttributes: {
       "AWS.SNS.SMS.SMSType": {
         DataType: "String",
-        StringValue: "Transactional",   // higher delivery priority, not charged as promotional
+        StringValue: "Transactional",
       },
-      // Sender ID is shown instead of a number on supported carriers/countries.
-      // Has NO effect in the US — safe to include everywhere.
       "AWS.SNS.SMS.SenderID": {
         DataType: "String",
         StringValue: SNS_SENDER_ID,
       },
+      ...(SNS_ORIGINATION_NUMBER && {
+        "AWS.MM.SMS.OriginationNumber": {
+          DataType: "String",
+          StringValue: SNS_ORIGINATION_NUMBER,
+        },
+      }),
     },
   }));
 
@@ -173,6 +177,12 @@ async function sendPingSMS(driverPhone, driverName, load, webLink, appLink) {
     MessageAttributes: {
       "AWS.SNS.SMS.SMSType": { DataType: "String", StringValue: "Transactional" },
       "AWS.SNS.SMS.SenderID": { DataType: "String", StringValue: SNS_SENDER_ID },
+      ...(SNS_ORIGINATION_NUMBER && {
+        "AWS.MM.SMS.OriginationNumber": {
+          DataType: "String",
+          StringValue: SNS_ORIGINATION_NUMBER,
+        },
+      }),
     },
   }));
 
@@ -213,7 +223,7 @@ exports.handler = async (event) => {
             Source: FROM_EMAIL,
             Destination: { ToAddresses: [load.assignedDriverEmail] },
             Message: {
-              Subject: { Data: "Action needed – CMP Logistics Load " + load.loadNumber },
+              Subject: { Data: "Action needed – Routelo Load " + load.loadNumber },
               Body: {
                 Html: {
                   Data:
@@ -298,7 +308,7 @@ exports.handler = async (event) => {
                   "<p>Hello <strong>" + load.customerName + "</strong>,</p>" +
                   "<p>Your shipment <strong>" + load.loadNumber + "</strong> has been assigned a driver. " +
                   "You will receive a live tracking link once the driver starts the trip.</p>" +
-                  "<p style='color:#888;font-size:12px;'>- CMP Logistics</p>",
+                  "<p style='color:#888;font-size:12px;'>— Routelo</p>",
               },
             },
           },
