@@ -102,7 +102,7 @@ class NetworkManager: NSObject, ObservableObject {
             "loadId":          load.id,
             "loadNumber":      load.loadNumber,
             "trackingToken":   load.trackingToken,
-            "trackingURL":     load.trackingURL,
+            "trackingURL":     load.customerTrackingURL,   // web link — customers don't have the app
             "driverName":      driverName,
             "customerName":    load.customerName,
             "customerEmail":   load.customerEmail,

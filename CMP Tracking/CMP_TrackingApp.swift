@@ -143,6 +143,14 @@ struct CMP_TrackingApp: App {
             return
         }
 
+        // ── Stripe billing callback ───────────────────────────────────────
+        // https://...amplifyapp.com/dispatcher.html?billing=success
+        // https://...amplifyapp.com/dispatcher.html?billing=cancelled
+        if comps?.queryItems?.contains(where: { $0.name == "billing" }) == true {
+            NotificationCenter.default.post(name: .billingCallback, object: url)
+            return
+        }
+
         // ── Fallback: any token/loadId query params on either scheme ──────
         if !qToken.isEmpty || !qLoadId.isEmpty {
             DispatchQueue.main.async {

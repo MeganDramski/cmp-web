@@ -23,6 +23,13 @@ struct DispatcherView: View {
                 .tabItem {
                     Label("History", systemImage: "clock.arrow.circlepath")
                 }
+
+            NavigationView {
+                BillingView()
+            }
+            .tabItem {
+                Label("Billing", systemImage: "creditcard.fill")
+            }
         }
     }
 }

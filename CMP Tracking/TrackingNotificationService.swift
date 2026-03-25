@@ -1,6 +1,6 @@
 //
 //  TrackingNotificationService.swift
-//  Routelo
+//  CMP Tracking
 //
 //  Handles sending the tracking link directly to the customer (email + SMS)
 //  and dispatcher (email) using the device's built-in Mail and Messages apps.
@@ -215,7 +215,7 @@ struct SendTrackingView: View {
         <p>Your shipment <strong>\(load.loadNumber)</strong> is now on its way!</p>
         <p>Track your delivery in real time by clicking the link below:</p>
         <p style="margin:20px 0;">
-          <a href="\(load.trackingURL)" style="background:#007AFF;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
+          <a href="\(load.customerTrackingURL)" style="background:#007AFF;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
             📍 Track My Shipment
           </a>
         </p>
@@ -240,7 +240,7 @@ struct SendTrackingView: View {
     }
 
     private var smsBody: String {
-        "📦 Routelo: Your shipment \(load.loadNumber) is on its way! Track live: \(load.trackingURL)"
+        "📦 Routelo: Your shipment \(load.loadNumber) is on its way! Track live: \(load.customerTrackingURL)"
     }
 
     // MARK: Body
@@ -309,7 +309,7 @@ struct SendTrackingView: View {
         if emailResult == .sent { parts.append("email to \(load.customerEmail)") }
         if smsSent              { parts.append("SMS to \(load.customerPhone)") }
         if parts.isEmpty {
-            UIPasteboard.general.string = load.trackingURL
+            UIPasteboard.general.string = load.customerTrackingURL
             onSent("📋 Tracking link copied to clipboard")
         } else {
             onSent("✅ Tracking link sent via \(parts.joined(separator: " & "))")
@@ -404,7 +404,7 @@ struct SimulatorTrackingTestView: View {
         VStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
                 Label("Tracking URL", systemImage: "link").font(.headline)
-                Text(load.trackingURL)
+                Text(load.customerTrackingURL)
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .padding(10)
@@ -425,7 +425,7 @@ struct SimulatorTrackingTestView: View {
             }
 
             Button {
-                UIPasteboard.general.string = load.trackingURL
+                UIPasteboard.general.string = load.customerTrackingURL
                 copied = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copied = false }
             } label: {
