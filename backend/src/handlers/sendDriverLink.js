@@ -56,16 +56,17 @@ function buildLinks(event, token, id) {
 
 async function sendDriverEmail(driverEmail, driverName, load, link) {
   if (!driverEmail || !FROM_EMAIL) return;
+  const company = load.companyName || "Routelo";
   await ses.send(new SendEmailCommand({
     Source: FROM_EMAIL,
     Destination: { ToAddresses: [driverEmail] },
     Message: {
-      Subject: { Data: "Routelo – Load " + load.loadNumber + " assigned to you" },
+      Subject: { Data: "Routelo – Load " + load.loadNumber + " assigned by " + company },
       Body: {
         Html: {
           Data:
             "<p>Hi <strong>" + (driverName || "Driver") + "</strong>,</p>" +
-            "<p>You have a new load assigned via Routelo.</p>" +
+            "<p>You have a new load assigned via Routelo by <strong>" + company + "</strong>.</p>" +
             "<table style='font-family:sans-serif;font-size:14px;'>" +
             "<tr><td><strong>Load #:</strong></td><td>" + load.loadNumber + "</td></tr>" +
             "<tr><td><strong>Pickup:</strong></td><td>" + load.pickupAddress + "</td></tr>" +
@@ -113,6 +114,8 @@ async function sendDriverSMS(driverPhone, driverName, load, webLink, appLink) {
     return;
   }
 
+  const company = load.companyName || "Routelo";
+
   const pickupStr = load.pickupDate
     ? new Date(load.pickupDate).toLocaleDateString("en-US", {
         month: "short", day: "numeric", year: "numeric",
@@ -122,7 +125,8 @@ async function sendDriverSMS(driverPhone, driverName, load, webLink, appLink) {
 
   const body =
     "Hi " + (driverName || "Driver") + ",\n\n" +
-    "You have a new load via Routelo.\n\n" +
+    "You have a new load via Routelo.\n" +
+    "Assigned by: " + company + "\n\n" +
     "LOAD #: " + (load.loadNumber || "--") + "\n" +
     "PICKUP: " + (load.pickupAddress || "--") + "\n" +
     "DELIVERY: " + (load.deliveryAddress || "--") + "\n" +
@@ -223,12 +227,12 @@ exports.handler = async (event) => {
             Source: FROM_EMAIL,
             Destination: { ToAddresses: [load.assignedDriverEmail] },
             Message: {
-              Subject: { Data: "Action needed – Routelo Load " + load.loadNumber },
+              Subject: { Data: "Action needed – Routelo Load " + load.loadNumber + " (" + (load.companyName || "Routelo") + ")" },
               Body: {
                 Html: {
                   Data:
                     "<p>Hi <strong>" + (load.assignedDriverName || "Driver") + "</strong>,</p>" +
-                    "<p>Your dispatcher is requesting an updated location for Load <strong>" +
+                    "<p>Your dispatcher at <strong>" + (load.companyName || "Routelo") + "</strong> is requesting an updated location for Load <strong>" +
                     load.loadNumber + "</strong>. Please reopen the tracking app:</p>" +
                     "<p style='margin-top:16px;'>" +
                     "<a href='" + link + "' style='background:#FF9500;color:#fff;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;'>Reopen Tracking App</a>" +
