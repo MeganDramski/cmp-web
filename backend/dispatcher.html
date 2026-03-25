@@ -1642,94 +1642,72 @@ function sendLink(id){
   if(!load){ alert('Load not found.'); return; }
 
   var dp=(load.assignedDriverPhone||'').replace(/[^\d+]/g,'');
-  var base=window.location.origin;
+  var companyName = (session && session.user && session.user.companyName)
+                    ? session.user.companyName
+                    : (currentUser && currentUser.companyName) || 'Routelo';
+  var dispEmail   = (currentUser && currentUser.email) ? currentUser.email : (load.createdBy||'');
 
-  // Safely encode load data into URL (unicode-safe btoa)
-  var dURL = base + '/driver-tracking.html?token=' + encodeURIComponent(load.trackingToken||'')
-           + '&loadId=' + encodeURIComponent(load.id||'');
+  var modalBody = document.getElementById('send-modal-body');
 
-  var pickupStr=load.pickupDate?new Date(load.pickupDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
-  var companyName = (session && session.user && session.user.companyName) ? session.user.companyName : 'Routelo';
+  // ── Driver info card ────────────────────────────────────────────────────
+  var driverInfo = load.assignedDriverName
+    ? '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">'
+      +'<div style="width:40px;height:40px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:18px">🚛</div>'
+      +'<div><div style="font-weight:700;font-size:15px">'+esc(load.assignedDriverName)+'</div>'
+      +(dp?'<div style="font-size:12px;color:var(--muted)">'+esc(dp)+'</div>':'<div style="font-size:12px;color:#FF9500">⚠️ No phone number on file</div>')
+      +'</div></div>'
+    : '<div style="font-size:13px;color:#FF9500;margin-bottom:14px">⚠️ No driver assigned to this load yet.</div>';
 
-  var msgText='Hi '+(load.assignedDriverName||'Driver')+',\n\n'
-    +'You have a new load from '+companyName+'.\n\n'
-    +'LOAD #: '+(load.loadNumber||'--')+'\n'
-    +'PICKUP: '+(load.pickupAddress||'--')+'\n'
-    +'DELIVERY: '+(load.deliveryAddress||'--')+'\n'
-    +(pickupStr?'DATE: '+pickupStr+'\n':'')
-    +(load.notes?'NOTES: '+load.notes+'\n':'')
-    +'\n👉 Tap to accept & start tracking:\n'
-    +dURL;
-
-  var smsLink=(dp?'sms:+'+dp.replace(/^\+/,''):'sms:')+('?body='+encodeURIComponent(msgText));
-  var emailLink='mailto:'+(load.assignedDriverEmail||'')
-               +'?subject='+encodeURIComponent('New Load #'+(load.loadNumber||'')+' — '+companyName)
-               +'&body='+encodeURIComponent(msgText);
-  var waLink=dp?'https://wa.me/'+dp.replace(/[^0-9]/g,'')+'?text='+encodeURIComponent(msgText):'';
-
-  var modalBody=document.getElementById('send-modal-body');
-  modalBody.innerHTML=''
-    // ── Primary: SMS tracking link ───────────────────────────────────────
-    +'<div style="background:rgba(0,122,255,.10);border:2px solid rgba(0,122,255,.4);border-radius:13px;padding:14px;margin-bottom:12px">'
-    +'<div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">📲 Send Load Link to Driver</div>'
-    +'<div style="font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.5">'
-    +'Driver taps the link → accepts the load → taps <strong style="color:var(--text)">"Add to Home Screen"</strong> → gets an app icon on their phone. <strong style="color:var(--text)">No App Store. No account. Works on iPhone &amp; Android.</strong></div>'
-    +(dp
-      ?'<button id="sm-send-sms" style="width:100%;margin-bottom:8px;background:var(--blue);color:#fff;font-size:15px;font-weight:700;padding:13px;border:none;border-radius:11px;cursor:pointer">📱 Text Link to '+esc(dp)+'</button>'
-      :'<div style="background:var(--s2);border-radius:9px;padding:10px 12px;font-size:13px;color:var(--muted);margin-bottom:8px">⚠️ No phone number on file. Add driver phone to enable SMS.</div>'
-    )
-    +(waLink?'<button id="sm-send-wa" style="width:100%;margin-bottom:8px;background:#25D366;color:#fff;font-size:15px;font-weight:600;padding:12px;border:none;border-radius:11px;cursor:pointer">💬 Send via WhatsApp</button>':'')
-    +'<a class="btn btn-full" href="'+esc(emailLink)+'" style="margin-bottom:8px;display:flex;align-items:center;justify-content:center;font-size:14px;padding:12px;text-decoration:none">✉️ Send via Email</a>'
-    +'<button class="btn btn-full" id="sm-copy-link" style="font-size:14px;padding:11px">📋 Copy Link</button>'
-    +'</div>'
-    // ── Simulator shortcut (debug) ───────────────────────────────────────
-    +'<div style="background:rgba(255,149,0,.08);border:1px solid rgba(255,149,0,.3);border-radius:12px;padding:12px 14px;margin-bottom:12px">'
-    +'<div style="font-size:11px;font-weight:700;color:#FF9500;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🛠 Simulator Testing</div>'
-    +'<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Opens the driver link in a new tab — paste it into the iOS Simulator\'s Safari to test the full accept → track flow without a real phone.</div>'
-    +'<button id="sm-open-sim" style="width:100%;background:rgba(255,149,0,.18);color:#FF9500;border:1px solid rgba(255,149,0,.5);font-size:14px;font-weight:700;padding:11px;border-radius:10px;cursor:pointer">🖥 Open in Simulator Browser</button>'
-    +'</div>'
-    // ── Link preview ────────────────────────────────────────────────────
-    +'<div style="background:var(--s2);border-radius:10px;padding:10px 12px;font-family:monospace;font-size:11px;color:var(--muted);word-break:break-all;line-height:1.5;margin-bottom:12px">'+esc(dURL)+'</div>'
-    // ── How it works tip ────────────────────────────────────────────────
-    +'<div style="background:rgba(255,255,255,.04);border-radius:10px;padding:12px 14px">'
-    +'<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">How it works</div>'
-    +'<div style="font-size:12px;color:var(--muted);line-height:1.7">'
-    +'1️⃣ Driver taps SMS link → opens in browser<br>'
-    +'2️⃣ Taps <strong style="color:var(--text)">Accept Load</strong><br>'
-    +'3️⃣ Prompted to <strong style="color:var(--text)">Add to Home Screen</strong> (one tap on Android, 2 taps on iPhone)<br>'
-    +'4️⃣ Opens the 🚛 icon → taps <strong style="color:var(--text)">Start Tracking</strong><br>'
-    +'5️⃣ GPS streams live to your dispatcher map — works in background'
-    +'</div></div>';
+  modalBody.innerHTML = driverInfo
+    + '<div id="sm-result"></div>'
+    + (dp
+      ? '<button id="sm-send-btn" style="width:100%;background:var(--blue);color:#fff;font-size:16px;font-weight:700;padding:15px;border:none;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">'
+        +'<span>📱</span><span>Send SMS to Driver</span>'
+        +'</button>'
+        +'<div style="font-size:11px;color:var(--muted);text-align:center;margin-top:10px">Sent from +14504857586 via Routelo · '+esc(companyName)+'</div>'
+      : '<div style="background:var(--s2);border-radius:10px;padding:12px;font-size:13px;color:var(--muted);text-align:center">'
+        +'Add a driver phone number to this load to enable SMS.</div>'
+    );
 
   document.getElementById('send-modal-ov').classList.add('on');
 
-  if(dp){
-    document.getElementById('sm-send-sms').addEventListener('click',function(){
-      window.open(smsLink,'_blank');
-      this.textContent='✅ SMS Opened';
-      var self=this; setTimeout(function(){ self.textContent='📱 Text Link to '+dp; },4000);
+  if(!dp) return;
+
+  document.getElementById('sm-send-btn').addEventListener('click', function(){
+    var btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<span style="display:inline-block;width:18px;height:18px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></span><span>Sending…</span>';
+
+    var result = document.getElementById('sm-result');
+    result.innerHTML = '';
+
+    apiFetch(API+'/loads/'+load.id+'/send-driver-link', {
+      method: 'POST',
+      headers: ah(),
+      body: JSON.stringify({
+        dispatcherEmail: dispEmail,
+        notifyCustomer: load.notifyCustomer || false,
+        pingOnly: false
+      })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.success || d.driverLink){
+        result.innerHTML = '<div style="background:rgba(52,199,89,.12);border:1px solid rgba(52,199,89,.4);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:14px;color:#34C759;font-weight:600">✅ SMS sent to '+esc(dp)+'</div>';
+        btn.innerHTML = '✅ Sent';
+        btn.style.background = '#34C759';
+        setTimeout(function(){
+          document.getElementById('send-modal-ov').classList.remove('on');
+        }, 1800);
+      } else {
+        throw new Error(d.error || 'SMS failed');
+      }
+    })
+    .catch(function(e){
+      result.innerHTML = '<div style="background:rgba(255,59,48,.1);border:1px solid rgba(255,59,48,.3);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#FF3B30">❌ '+esc(e.message)+'</div>';
+      btn.disabled = false;
+      btn.innerHTML = '<span>📱</span><span>Retry Send SMS</span>';
     });
-  }
-
-  if(waLink){
-    document.getElementById('sm-send-wa').addEventListener('click',function(){
-      window.open(waLink,'_blank');
-      this.textContent='✅ WhatsApp Opened';
-      var self=this; setTimeout(function(){ self.textContent='💬 Send via WhatsApp'; },4000);
-    });
-  }
-
-  document.getElementById('sm-copy-link').addEventListener('click',function(){
-    copyText(dURL);
-    this.textContent='✅ Copied!';
-    var self=this; setTimeout(function(){self.textContent='📋 Copy Link';},2500);
-  });
-
-  document.getElementById('sm-open-sim').addEventListener('click',function(){
-    window.open(dURL, '_blank');
-    copyText(dURL);
-    this.textContent='✅ Opened + Link Copied!';
-    var self=this; setTimeout(function(){self.textContent='🖥 Open in Simulator Browser';},3500);
   });
 
 }
