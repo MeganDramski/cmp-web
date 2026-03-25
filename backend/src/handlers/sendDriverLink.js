@@ -1,39 +1,58 @@
-// sendDriverLink.js – sends driver tracking link via email (SES) and SMS (SNS)
-//
-// ── SNS SMS (AWS Simple Notification Service) ────────────────────────────────
-// SMS sending is GATED behind the SNS_ENABLED environment variable.
-//
-//   SNS_ENABLED=false  (default / sandbox)  → SMS is skipped; email only.
-//   SNS_ENABLED=true   (after AWS prod SMS approval) → SMS fires automatically.
-//
-// AWS SNS SMS requires production access approval from AWS Support before you
-// can send to non-sandboxed phone numbers.  Once approved:
-//   1. Set SNS_ENABLED=true in your Lambda environment variables (or SAM template).
-//   2. Optionally set SNS_SENDER_ID=Routelo (for branded sender — US doesn't support it,
-//      but many international countries do).
-//   3. Deploy — no code change needed.
-//
-// IAM permission required on the Lambda execution role:
-//   sns:Publish  on resource  arn:aws:sns:*:*:*  (or restrict to a specific topic/phone ARN)
-// ─────────────────────────────────────────────────────────────────────────────
+// sendDriverLink.js – sends driver tracking link via SES email + Pinpoint SMS V2
 const { DynamoDBClient, GetItemCommand } = require("@aws-sdk/client-dynamodb");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
-const { SNSClient, PublishCommand } = require("@aws-sdk/client-sns");
+const { PinpointSMSVoiceV2Client, SendTextMessageCommand } = require("@aws-sdk/client-pinpoint-sms-voice-v2");
 const { verifyToken, respond } = require("../utils/auth");
 
-const db  = new DynamoDBClient({ region: "us-east-1" });
-const ses = new SESClient({ region: "us-east-1" });
-const sns = new SNSClient({ region: "us-east-1" });
+const db       = new DynamoDBClient({ region: "us-east-1" });
+const ses      = new SESClient({ region: "us-east-1" });
+const pinpoint = new PinpointSMSVoiceV2Client({ region: "us-east-1" });
 
 const LOADS_TABLE  = process.env.LOADS_TABLE;
 const FROM_EMAIL   = process.env.SES_FROM_EMAIL;
 const AMPLIFY_URL  = process.env.AMPLIFY_BASE_URL || "";
 
-// Set SNS_ENABLED=true in Lambda env vars once AWS grants production SMS access.
-const SNS_ENABLED  = (process.env.SNS_ENABLED || "").toLowerCase() === "true";
-const SNS_SENDER_ID = process.env.SNS_SENDER_ID || "Routelo";
-const SNS_ORIGINATION_NUMBER = process.env.SNS_ORIGINATION_NUMBER || "";
+const SNS_ENABLED = (process.env.SNS_ENABLED || "").toLowerCase() === "true";
+
+// ── Phone number routing ──────────────────────────────────────────────────────
+// CA drivers → Canadian long code, US drivers → US toll-free
+// Both numbers can send to their respective countries
+const PHONE_CA = process.env.SMS_ORIGIN_CA || "+14504857586";  // CA long code
+const PHONE_US = process.env.SMS_ORIGIN_US || "+18446233665";  // US toll-free
+
+/**
+ * Normalise a phone number to E.164.
+ * Returns null if invalid.
+ */
+function toE164(phone) {
+  if (!phone) return null;
+  const digits = phone.replace(/[^\d]/g, "");
+  if (digits.length === 10) return "+1" + digits;
+  if (digits.length === 11 && digits[0] === "1") return "+" + digits;
+  if (digits.length > 7) return "+" + digits;
+  return null;
+}
+
+/**
+ * Pick the right origination number based on the destination.
+ * Canadian numbers start with +1 followed by area codes:
+ * 204,226,236,249,250,289,306,343,365,367,368,382,403,416,418,
+ * 431,437,438,450,506,514,519,548,579,581,587,604,613,639,647,
+ * 672,705,709,742,778,780,782,807,819,825,867,873,902,905
+ */
+const CA_AREA_CODES = new Set([
+  204,226,236,249,250,289,306,343,365,367,368,382,
+  403,416,418,431,437,438,450,506,514,519,548,579,
+  581,587,604,613,639,647,672,705,709,742,778,780,
+  782,807,819,825,867,873,902,905
+]);
+
+function pickOriginNumber(e164) {
+  if (!e164 || !e164.startsWith("+1")) return PHONE_US; // non-NANP → use toll-free
+  const areaCode = parseInt(e164.slice(2, 5), 10);
+  return CA_AREA_CODES.has(areaCode) ? PHONE_CA : PHONE_US;
+}
 
 function buildLinks(event, token, id) {
   const base = AMPLIFY_URL || (function() {
@@ -41,16 +60,10 @@ function buildLinks(event, token, id) {
     const s = event.requestContext && event.requestContext.stage;
     return d ? ("https://" + d + (s && s !== "$default" ? "/" + s : "")) : "";
   })();
-
-  const webLink = base
-    + "/driver-tracking.html?token=" + encodeURIComponent(token)
-    + "&loadId=" + encodeURIComponent(id);
-
-  // Deep link opens the native Routelo app directly — no sign-in needed.
-  // Falls back to web link for drivers who haven't installed the app.
+  const webLink = base + "/driver-tracking.html?token=" + encodeURIComponent(token)
+                + "&loadId=" + encodeURIComponent(id);
   const appLink = "routelo://driver?token=" + encodeURIComponent(token)
-    + "&loadId=" + encodeURIComponent(id);
-
+                + "&loadId=" + encodeURIComponent(id);
   return { webLink, appLink };
 }
 
@@ -82,40 +95,18 @@ async function sendDriverEmail(driverEmail, driverName, load, link) {
   }));
 }
 
-// ── SNS SMS helpers ───────────────────────────────────────────────────────────
-// These functions are no-ops when SNS_ENABLED is false so the handler works
-// in sandbox mode without any SNS IAM permissions at all.
+// ── Pinpoint SMS helpers ──────────────────────────────────────────────────────
 
-/**
- * Normalise a phone number to E.164 (+1XXXXXXXXXX).
- * Returns null if the number cannot be cleaned up.
- */
-function toE164(phone) {
-  if (!phone) return null;
-  const digits = phone.replace(/[^\d]/g, "");
-  if (digits.length === 10) return "+1" + digits;          // US local
-  if (digits.length === 11 && digits[0] === "1") return "+" + digits; // 1XXXXXXXXXX
-  if (digits.length > 7)  return "+" + digits;            // international — trust it
-  return null;
-}
-
-/**
- * Send load-assignment SMS to the driver.
- * Gated behind SNS_ENABLED — safe to call unconditionally.
- */
-async function sendDriverSMS(driverPhone, driverName, load, webLink, appLink) {
+async function sendDriverSMS(driverPhone, driverName, load, webLink) {
   if (!SNS_ENABLED) {
-    console.log("SNS_ENABLED=false — SMS skipped (enable after AWS production SMS approval).");
+    console.log("SNS_ENABLED=false — SMS skipped.");
     return;
   }
   const to = toE164(driverPhone);
-  if (!to) {
-    console.warn("sendDriverSMS: invalid or missing phone number:", driverPhone);
-    return;
-  }
+  if (!to) { console.warn("sendDriverSMS: invalid phone:", driverPhone); return; }
 
+  const origin  = pickOriginNumber(to);
   const company = load.companyName || "Routelo";
-
   const pickupStr = load.pickupDate
     ? new Date(load.pickupDate).toLocaleDateString("en-US", {
         month: "short", day: "numeric", year: "numeric",
@@ -123,7 +114,7 @@ async function sendDriverSMS(driverPhone, driverName, load, webLink, appLink) {
       })
     : "";
 
-  const body =
+  const message =
     "Hi " + (driverName || "Driver") + ",\n\n" +
     "You have a new load via Routelo.\n" +
     "Assigned by: " + company + "\n\n" +
@@ -134,63 +125,34 @@ async function sendDriverSMS(driverPhone, driverName, load, webLink, appLink) {
     (load.notes ? "NOTES: " + load.notes + "\n" : "") +
     "\n👉 Tap to accept & start tracking:\n" + webLink;
 
-  await sns.send(new PublishCommand({
-    PhoneNumber: to,
-    Message: body,
-    MessageAttributes: {
-      "AWS.SNS.SMS.SMSType": {
-        DataType: "String",
-        StringValue: "Transactional",
-      },
-      "AWS.SNS.SMS.SenderID": {
-        DataType: "String",
-        StringValue: SNS_SENDER_ID,
-      },
-      ...(SNS_ORIGINATION_NUMBER && {
-        "AWS.MM.SMS.OriginationNumber": {
-          DataType: "String",
-          StringValue: SNS_ORIGINATION_NUMBER,
-        },
-      }),
-    },
+  await pinpoint.send(new SendTextMessageCommand({
+    DestinationPhoneNumber: to,
+    OriginationIdentity: origin,
+    MessageBody: message,
+    MessageType: "TRANSACTIONAL",
   }));
 
-  console.log("SNS SMS sent to", to, "for load", load.loadNumber);
+  console.log("Pinpoint SMS sent to", to, "from", origin, "for load", load.loadNumber);
 }
 
-/**
- * Send a short "please reopen" ping SMS to the driver.
- * Gated behind SNS_ENABLED — safe to call unconditionally.
- */
-async function sendPingSMS(driverPhone, driverName, load, webLink, appLink) {
-  if (!SNS_ENABLED) {
-    console.log("SNS_ENABLED=false — ping SMS skipped.");
-    return;
-  }
+async function sendPingSMS(driverPhone, driverName, load, webLink) {
+  if (!SNS_ENABLED) { console.log("SNS_ENABLED=false — ping SMS skipped."); return; }
   const to = toE164(driverPhone);
   if (!to) return;
 
-  const body =
+  const origin = pickOriginNumber(to);
+  const message =
     "📍 " + (driverName || "Driver") + ", your dispatcher needs a location update for " +
-    "Load " + (load.loadNumber || "--") + ".\n\n" +
-    "Reopen the tracking app:\n" + webLink;
+    "Load " + (load.loadNumber || "--") + ".\n\nReopen the tracking app:\n" + webLink;
 
-  await sns.send(new PublishCommand({
-    PhoneNumber: to,
-    Message: body,
-    MessageAttributes: {
-      "AWS.SNS.SMS.SMSType": { DataType: "String", StringValue: "Transactional" },
-      "AWS.SNS.SMS.SenderID": { DataType: "String", StringValue: SNS_SENDER_ID },
-      ...(SNS_ORIGINATION_NUMBER && {
-        "AWS.MM.SMS.OriginationNumber": {
-          DataType: "String",
-          StringValue: SNS_ORIGINATION_NUMBER,
-        },
-      }),
-    },
+  await pinpoint.send(new SendTextMessageCommand({
+    DestinationPhoneNumber: to,
+    OriginationIdentity: origin,
+    MessageBody: message,
+    MessageType: "TRANSACTIONAL",
   }));
 
-  console.log("SNS ping SMS sent to", to, "for load", load.loadNumber);
+  console.log("Pinpoint ping SMS sent to", to, "from", origin);
 }
 
 exports.handler = async (event) => {
