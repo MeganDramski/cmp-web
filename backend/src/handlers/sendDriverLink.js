@@ -50,11 +50,11 @@ const CA_AREA_CODES = new Set([
 ]);
 
 function pickOriginNumber(e164) {
-  // TODO: restore proper routing once +18446233665 toll-free is approved
-  // if (!e164 || !e164.startsWith("+1")) return PHONE_US;
-  // const areaCode = parseInt(e164.slice(2, 5), 10);
-  // return CA_AREA_CODES.has(areaCode) ? PHONE_CA : PHONE_US;
-  return PHONE_CA; // temporary: CA long code for all SMS while US toll-free pending
+  if (!e164 || !e164.startsWith("+1")) return PHONE_CA; // non-NANP: use CA as default
+  const areaCode = parseInt(e164.slice(2, 5), 10);
+  if (CA_AREA_CODES.has(areaCode)) return PHONE_CA;   // Canadian number → CA long code
+  // US number → use US long code (voice-only fallback until toll-free approved)
+  return PHONE_US_LC;
 }
 
 function buildLinks(event, token, id) {
@@ -160,10 +160,13 @@ async function sendDriverSMS(driverPhone, driverName, load, webLink, appLink) {
     console.log("SNS_ENABLED=false — SMS skipped.");
     return;
   }
+  console.log("sendDriverSMS: raw phone input:", JSON.stringify(driverPhone));
   const to = toE164(driverPhone);
+  console.log("sendDriverSMS: e164 resolved to:", to);
   if (!to) { console.warn("sendDriverSMS: invalid phone:", driverPhone); return; }
 
   const origin  = pickOriginNumber(to);
+  console.log("sendDriverSMS: using origin:", origin, "-> destination:", to);
   const company = load.companyName || "Routelo";
   const pickupStr = load.pickupDate
     ? new Date(load.pickupDate).toLocaleDateString("en-US", {
