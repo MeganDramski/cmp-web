@@ -26,6 +26,7 @@ struct DriverView: View {
     @EnvironmentObject var notifDelegate: AppNotificationDelegate
     @StateObject private var locationManager = LocationManager()
     @StateObject private var network = NetworkManager.shared
+    @StateObject private var wallet = LoadWallet.shared
 
     @State private var assignedLoad: Load? = nil
     @State private var showLoadPicker = false
@@ -56,8 +57,26 @@ struct DriverView: View {
                         // ── Tracking status (prominent top card) ─────────────
                         trackingStatusCard
 
-                        // ── Load card ────────────────────────────────────────
-                        if let load = assignedLoad {
+                        // ── Load card / Wallet stack ──────────────────────────
+                        let activeLoads = wallet.cards.filter { !$0.isComplete }
+                        if activeLoads.count > 1 {
+                            // Multiple loads → show Apple Wallet stack
+                            WalletCardStack(
+                                wallet: wallet,
+                                onTrack: { entry in
+                                    // Sync wallet tracking action with locationManager
+                                    if locationManager.isTracking &&
+                                       assignedLoad?.trackingToken == entry.token {
+                                        stopTrackingCurrent()
+                                    } else {
+                                        startTrackingEntry(entry)
+                                    }
+                                },
+                                onAccept: { entry in
+                                    acceptWalletEntry(entry)
+                                }
+                            )
+                        } else if let load = assignedLoad {
                             loadInfoCard(load: load)
                         } else {
                             noLoadCard
@@ -685,7 +704,9 @@ struct DriverView: View {
         let driverName  = driver.name.lowercased().trimmingCharacters(in: .whitespaces)
         let allLoads = LoadStore.shared.load()
         let activeStatuses: Set<LoadStatus> = [.assigned, .accepted, .inTransit]
-        let match = allLoads.first(where: {
+
+        // Find ALL matching loads (not just first) to populate wallet
+        let matches = allLoads.filter {
             guard activeStatuses.contains($0.status) else { return false }
             let phoneMatch = !driverPhone.isEmpty &&
                 ($0.assignedDriverPhone?.filter { $0.isNumber } == driverPhone ||
@@ -695,9 +716,27 @@ struct DriverView: View {
             let nameMatch = !driverName.isEmpty &&
                 ($0.assignedDriverName?.lowercased().trimmingCharacters(in: .whitespaces) == driverName)
             return phoneMatch || emailMatch || nameMatch
-        })
-        assignedLoad = match
-        if let load = match { PickupReminderService.schedule(load: load) }
+        }
+
+        // Sync into wallet
+        for load in matches {
+            let entry = WalletEntry(
+                id: load.id, token: load.trackingToken,
+                loadNumber: load.loadNumber, description: load.description,
+                pickupAddress: load.pickupAddress, deliveryAddress: load.deliveryAddress,
+                pickupDate: load.pickupDate.formatted(date: .abbreviated, time: .shortened),
+                deliveryDate: load.deliveryDate.formatted(date: .abbreviated, time: .shortened),
+                status: load.status.rawValue,
+                companyName: load.companyName ?? load.dispatcherEmail ?? "",
+                notes: load.notes,
+                weight: load.weight > 0 ? "\(Int(load.weight)) lbs" : "",
+                addedAt: Date()
+            )
+            LoadWallet.shared.add(entry: entry)
+        }
+
+        assignedLoad = matches.first
+        if let load = matches.first { PickupReminderService.schedule(load: load) }
     }
 
     private func acceptLoad(_ load: Load) {
@@ -743,6 +782,55 @@ struct DriverView: View {
             showNotificationBanner = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 5) { showNotificationBanner = false }
         }
+    }
+
+    // MARK: - Wallet Helpers
+
+    private func stopTrackingCurrent() {
+        locationManager.stopTracking()
+        network.disconnectWebSocket()
+        statusMessage = "Stopped at \(Date().formatted(date: .omitted, time: .shortened))"
+        if let id = wallet.activeId {
+            wallet.updateStatus(id: id, status: "Accepted")
+        }
+    }
+
+    private func startTrackingEntry(_ entry: WalletEntry) {
+        guard let driver = appState.currentUser else { return }
+        // Stop any current tracking first
+        if locationManager.isTracking {
+            locationManager.stopTracking()
+            network.disconnectWebSocket()
+        }
+        wallet.updateStatus(id: entry.id, status: "In Transit")
+        wallet.activate(id: entry.id)
+        AWSManager.shared.updateStatusByToken(token: entry.token, loadId: entry.id, status: .inTransit)
+        locationManager.startTracking(
+            loadId: entry.id, driverId: driver.id,
+            trackingToken: entry.token,
+            deliveryAddress: entry.deliveryAddress, interval: 10
+        ) { update in
+            DispatchQueue.main.async {
+                self.statusMessage = "Sent at \(update.timestamp.formatted(date: .omitted, time: .shortened))"
+            }
+        }
+        statusMessage = "Tracking started"
+        notificationBannerMessage = "🚛 Tracking \(entry.loadNumber) — dispatcher can see your location"
+        showNotificationBanner = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { showNotificationBanner = false }
+    }
+
+    private func acceptWalletEntry(_ entry: WalletEntry) {
+        guard let driver = appState.currentUser else { return }
+        wallet.updateStatus(id: entry.id, status: "Accepted")
+        network.updateLoadStatus(loadId: entry.id, status: .accepted)
+        // Notify dispatcher
+        if let load = LoadStore.shared.load().first(where: { $0.id == entry.id }) {
+            network.notifyDispatcherLoadAccepted(load: load, driverName: driver.name) { _ in }
+        }
+        notificationBannerMessage = "✅ \(entry.loadNumber) accepted!"
+        showNotificationBanner = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { showNotificationBanner = false }
     }
 }
 

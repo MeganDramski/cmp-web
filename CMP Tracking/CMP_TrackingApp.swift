@@ -38,6 +38,29 @@ final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate,
     }
 }
 
+// MARK: - DeepLinkFetcher
+// Lightweight helper: fetches a load by token and upserts it into LoadWallet.
+// Used when a new driver link arrives while the app is already in the driver flow.
+final class DeepLinkFetcher {
+    private let link: DriverDeepLink
+
+    init(link: DriverDeepLink) { self.link = link }
+
+    func fetch() {
+        let base = AWSConfig.baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !base.isEmpty, !base.contains("REPLACE"),
+              let url = URL(string: "\(base)/track/\(link.token)") else { return }
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+            guard let self, let data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+            let entry = LoadWallet.entry(from: json, link: self.link)
+            DispatchQueue.main.async {
+                LoadWallet.shared.add(entry: entry)
+            }
+        }.resume()
+    }
+}
+
 @main
 struct CMP_TrackingApp: App {
     @StateObject private var appState    = AppState.shared
@@ -85,6 +108,10 @@ struct CMP_TrackingApp: App {
                 if let link = driverLink {
                     // Driver tapped SMS link — skip all auth, go straight to tracking
                     DriverLinkView(link: link)
+                } else if !LoadWallet.shared.cards.isEmpty && !(appState.isLoggedIn && appState.userRole == .driver) {
+                    // Wallet has persisted cards from a previous session (unauthenticated driver flow)
+                    DriverLinkView(link: DriverDeepLink(token: LoadWallet.shared.cards.first?.token ?? "",
+                                                        loadId: LoadWallet.shared.cards.first?.id ?? ""))
                 } else if let token = trackingToken {
                     CustomerTrackingView(trackingToken: token)
                 } else {
@@ -119,22 +146,29 @@ struct CMP_TrackingApp: App {
         let qLoadId = comps?.queryItems?.first(where: { $0.name == "loadId" })?.value ?? ""
 
         // ── Driver deep links ─────────────────────────────────────────────
-        // cmptracking://load?token=xxx&loadId=yyy   (from browser Accept button)
-        // routelo://driver?token=xxx&loadId=yyy     (legacy / direct)
         let isDriverLink = (scheme == "cmptracking" && url.host == "load")
-                        || (scheme == "cmptracking")          // any cmptracking path
+                        || (scheme == "cmptracking")
                         || (scheme == "routelo" && url.host == "driver")
                         || (scheme == "routelo" && url.host == "load")
 
         if isDriverLink && (!qToken.isEmpty || !qLoadId.isEmpty) {
+            let newLink = DriverDeepLink(token: qToken, loadId: qLoadId)
             DispatchQueue.main.async {
-                self.driverLink = DriverDeepLink(token: qToken, loadId: qLoadId)
+                if self.driverLink != nil || !LoadWallet.shared.cards.isEmpty {
+                    // Already in driver wallet flow — fetch and add the new load to wallet
+                    // Create a temporary VM just to fetch and upsert the new entry
+                    let fetcher = DeepLinkFetcher(link: newLink)
+                    fetcher.fetch()
+                    // Hold reference so it isn't deallocated before fetch completes
+                    self._pendingFetchers.append(fetcher)
+                } else {
+                    self.driverLink = newLink
+                }
             }
             return
         }
 
         // ── Customer shipment tracking link ───────────────────────────────
-        // routelo://track/xxx  or  cmptracking://track/xxx
         let pathComponents = url.pathComponents
         if let trackIndex = pathComponents.firstIndex(of: "track"),
            trackIndex + 1 < pathComponents.count {
@@ -144,18 +178,26 @@ struct CMP_TrackingApp: App {
         }
 
         // ── Stripe billing callback ───────────────────────────────────────
-        // https://...amplifyapp.com/dispatcher.html?billing=success
-        // https://...amplifyapp.com/dispatcher.html?billing=cancelled
         if comps?.queryItems?.contains(where: { $0.name == "billing" }) == true {
             NotificationCenter.default.post(name: .billingCallback, object: url)
             return
         }
 
-        // ── Fallback: any token/loadId query params on either scheme ──────
+        // ── Fallback ──────────────────────────────────────────────────────
         if !qToken.isEmpty || !qLoadId.isEmpty {
+            let newLink = DriverDeepLink(token: qToken, loadId: qLoadId)
             DispatchQueue.main.async {
-                self.driverLink = DriverDeepLink(token: qToken, loadId: qLoadId)
+                if self.driverLink != nil || !LoadWallet.shared.cards.isEmpty {
+                    let fetcher = DeepLinkFetcher(link: newLink)
+                    fetcher.fetch()
+                    self._pendingFetchers.append(fetcher)
+                } else {
+                    self.driverLink = newLink
+                }
             }
         }
     }
+
+    // Temporary storage for in-flight fetchers so ARC doesn't kill them
+    private var _pendingFetchers: [DeepLinkFetcher] = []
 }
