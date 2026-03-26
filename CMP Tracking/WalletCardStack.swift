@@ -1,10 +1,13 @@
 // WalletCardStack.swift
 // Apple Wallet-style stacked load cards.
-// Active card expands fully; background cards show as tappable collapsed rows below.
+// Active card is fully expanded on top; background cards fan out beneath it,
+// each peeking PEEK points below the previous card.
 
 import SwiftUI
 
-private let CORNER: CGFloat = 20
+private let CORNER: CGFloat  = 20
+private let PEEK:   CGFloat  = 54    // how many pts each background card peeks out
+private let SCALE:  CGFloat  = 0.03  // scale-down per depth level
 
 // MARK: - WalletCardStack
 
@@ -13,22 +16,46 @@ struct WalletCardStack: View {
     var onTrack:  (WalletEntry) -> Void
     var onAccept: (WalletEntry) -> Void
 
+    /// Measured height of the active (top) card
+    @State private var activeCardHeight: CGFloat = 420
+
     var body: some View {
         let cards = wallet.cards
         guard !cards.isEmpty else { return AnyView(EmptyView()) }
 
         let activeId = wallet.activeId ?? cards.first!.id
 
-        // Active card first, rest in order
         let sorted: [WalletEntry] = {
             var r = cards.filter { $0.id == activeId }
             r += cards.filter { $0.id != activeId }
             return r
         }()
 
+        let bgCount  = max(sorted.count - 1, 0)
+        // Total height = active card + each background card peeking PEEK pts below
+        let totalH   = activeCardHeight + CGFloat(bgCount) * PEEK
+
         return AnyView(
-            VStack(spacing: 8) {
-                // Active card — fully expanded
+            ZStack(alignment: .top) {
+                // ── Background cards (rendered first = visually behind) ──────
+                ForEach(Array(sorted.dropFirst().enumerated()), id: \.element.id) { i, entry in
+                    let depth = i + 1
+                    let yOff  = activeCardHeight - 20 + CGFloat(i) * PEEK
+                    let sc    = 1.0 - CGFloat(depth) * SCALE
+
+                    WalletCard(
+                        entry: entry, isActive: false, depth: depth,
+                        onTap:     { withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) { wallet.activate(id: entry.id) } },
+                        onDismiss: { withAnimation(.spring()) { wallet.remove(id: entry.id) } },
+                        onTrack:   { onTrack(entry) },
+                        onAccept:  { onAccept(entry) }
+                    )
+                    .scaleEffect(x: sc, anchor: .top)
+                    .offset(y: yOff)
+                    .zIndex(Double(-depth))
+                }
+
+                // ── Active card (on top) ─────────────────────────────────────
                 if let active = sorted.first {
                     WalletCard(
                         entry: active, isActive: true, depth: 0,
@@ -37,22 +64,22 @@ struct WalletCardStack: View {
                         onTrack:   { onTrack(active) },
                         onAccept:  { onAccept(active) }
                     )
-                }
-
-                // Background cards — collapsed peek rows, tappable to bring to front
-                ForEach(Array(sorted.dropFirst().enumerated()), id: \.element.id) { i, entry in
-                    let depth = i + 1
-                    WalletCard(
-                        entry: entry, isActive: false, depth: depth,
-                        onTap:     { withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) { wallet.activate(id: entry.id) } },
-                        onDismiss: { withAnimation(.spring()) { wallet.remove(id: entry.id) } },
-                        onTrack:   { onTrack(entry) },
-                        onAccept:  { onAccept(entry) }
+                    // Measure the active card's rendered height
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear
+                                .onAppear            { activeCardHeight = geo.size.height }
+                                .onChange(of: geo.size.height) { _, h in activeCardHeight = h }
+                        }
                     )
+                    .zIndex(1)
                 }
             }
+            // Give the ZStack an explicit height so ScrollView can measure it
+            .frame(height: totalH, alignment: .top)
             .padding(.horizontal, 16)
             .animation(.spring(response: 0.4, dampingFraction: 0.78), value: activeId)
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: activeCardHeight)
         )
     }
 }
