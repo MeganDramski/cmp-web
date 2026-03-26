@@ -1,4 +1,4 @@
-// sendDriverLink.js – sends driver tracking link via SES email + Pinpoint SMS V2
+sed// sendDriverLink.js – sends driver tracking link via SES email + Pinpoint SMS V2
 const { DynamoDBClient, GetItemCommand } = require("@aws-sdk/client-dynamodb");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
@@ -70,7 +70,7 @@ function buildLinks(event, token, id) {
   return { webLink, appLink };
 }
 
-async function sendDriverEmail(driverEmail, driverName, load, link) {
+async function sendDriverEmail(driverEmail, driverName, load, webLink, appLink) {
   if (!driverEmail || !FROM_EMAIL) return;
   const company = load.companyName || "Routelo";
   await ses.send(new SendEmailCommand({
@@ -89,9 +89,11 @@ async function sendDriverEmail(driverEmail, driverName, load, link) {
             "<tr><td><strong>Delivery:</strong></td><td>" + load.deliveryAddress + "</td></tr>" +
             "</table>" +
             "<p style='margin-top:20px;'>" +
-            "<a href='" + link + "' style='background:#007AFF;color:#fff;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;'>Open Tracking Link</a>" +
+            "<a href='" + appLink + "' style='background:#007AFF;color:#fff;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;display:inline-block;'>📱 Open in App</a>" +
             "</p>" +
-            "<p style='color:#888;font-size:12px;margin-top:20px;'>No app needed – works in any browser.</p>",
+            "<p style='margin-top:12px;font-size:13px;color:#555;'>" +
+            "Don't have the app? <a href='" + webLink + "' style='color:#007AFF;'>Open in browser instead</a>" +
+            "</p>",
         },
       },
     },
@@ -200,9 +202,11 @@ exports.handler = async (event) => {
                     "<p>Your dispatcher at <strong>" + (load.companyName || "Routelo") + "</strong> is requesting an updated location for Load <strong>" +
                     load.loadNumber + "</strong>. Please reopen the tracking app:</p>" +
                     "<p style='margin-top:16px;'>" +
-                    "<a href='" + link + "' style='background:#FF9500;color:#fff;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;'>Reopen Tracking App</a>" +
+                    "<a href='" + appLink + "' style='background:#FF9500;color:#fff;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;display:inline-block;'>📱 Reopen in App</a>" +
                     "</p>" +
-                    "<p style='color:#888;font-size:12px;margin-top:20px;'>No app needed – works in any browser.</p>",
+                    "<p style='margin-top:12px;font-size:13px;color:#555;'>" +
+                    "Don't have the app? <a href='" + link + "' style='color:#FF9500;'>Open in browser instead</a>" +
+                    "</p>",
                 },
               },
             },
@@ -225,7 +229,7 @@ exports.handler = async (event) => {
 
     // 3. Send email to driver (if email on file)
     try {
-      await sendDriverEmail(load.assignedDriverEmail, load.assignedDriverName, load, link);
+      await sendDriverEmail(load.assignedDriverEmail, load.assignedDriverName, load, webLink, appLink);
     } catch (e) {
       console.warn("Driver email failed:", e.message);
     }
