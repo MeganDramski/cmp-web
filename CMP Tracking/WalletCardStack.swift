@@ -6,9 +6,9 @@
 
 import SwiftUI
 
+private let PEEK:  CGFloat = 62   // pts each bg card peeks below the active card
+private let SCALE: CGFloat = 0.03 // scale shrink per depth level
 private let CORNER: CGFloat = 20
-private let PEEK:   CGFloat = 60    // how many pts each background card peeks below the one above
-private let SCALE:  CGFloat = 0.03  // scale-down per depth level
 
 // MARK: - WalletCardStack
 
@@ -17,81 +17,65 @@ struct WalletCardStack: View {
     var onTrack:  (WalletEntry) -> Void
     var onAccept: (WalletEntry) -> Void
 
+    @State private var activeH: CGFloat = 420
+
     var body: some View {
-        let cards = wallet.cards
+        let cards    = wallet.cards
         guard !cards.isEmpty else { return AnyView(EmptyView()) }
 
         let activeId = wallet.activeId ?? cards.first!.id
-
         let sorted: [WalletEntry] = {
             var r = cards.filter { $0.id == activeId }
             r += cards.filter { $0.id != activeId }
             return r
         }()
 
+        let bgCount = sorted.count - 1
+        let totalH  = activeH + CGFloat(bgCount) * PEEK
+
         return AnyView(
-            // VStack with negative spacing creates the fan overlap.
-            // Each card's layout frame is at the correct Y → taps work.
-            _VariadicVStack(sorted: sorted, activeId: activeId, wallet: wallet, onTrack: onTrack, onAccept: onAccept)
-                .padding(.horizontal, 16)
-                .animation(.spring(response: 0.4, dampingFraction: 0.78), value: activeId)
-        )
-    }
-}
-
-// Helper view that builds the overlapping VStack with correct negative spacing.
-private struct _VariadicVStack: View {
-    let sorted:   [WalletEntry]
-    let activeId: String
-    let wallet:   LoadWallet
-    var onTrack:  (WalletEntry) -> Void
-    var onAccept: (WalletEntry) -> Void
-
-    /// Measured height of the active card — drives the negative spacing for all bg cards
-    @State private var activeCardHeight: CGFloat = 420
-
-    var body: some View {
-        // The active card sits at the top.
-        // Each bg card is pulled up by (activeCardHeight - PEEK) so only PEEK pts show.
-        // zIndex keeps the active card visually on top.
-        VStack(spacing: 0) {
-            if let active = sorted.first {
-                WalletCard(
-                    entry: active, isActive: true, depth: 0,
-                    onTap:     { },
-                    onDismiss: { withAnimation(.spring()) { wallet.remove(id: active.id) } },
-                    onTrack:   { onTrack(active) },
-                    onAccept:  { onAccept(active) }
-                )
-                .background(
-                    GeometryReader { geo in
+            ZStack(alignment: .top) {
+                // ── Active card — rendered last so it's visually on top ──────
+                if let active = sorted.first {
+                    WalletCard(
+                        entry: active, isActive: true, depth: 0,
+                        onTap:     { },
+                        onDismiss: { withAnimation(.spring()) { wallet.remove(id: active.id) } },
+                        onTrack:   { onTrack(active) },
+                        onAccept:  { onAccept(active) }
+                    )
+                    .background(GeometryReader { g in
                         Color.clear
-                            .onAppear            { activeCardHeight = geo.size.height }
-                            .onChange(of: geo.size.height) { _, h in activeCardHeight = h }
-                    }
-                )
-                .zIndex(Double(sorted.count))
-            }
+                            .onAppear { activeH = g.size.height }
+                            .onChange(of: g.size.height) { _, h in activeH = h }
+                    })
+                    .zIndex(Double(sorted.count))
+                }
 
-            ForEach(Array(sorted.dropFirst().enumerated()), id: \.element.id) { i, entry in
-                let depth   = i + 1
-                let scale   = 1.0 - CGFloat(depth) * SCALE
-                // Pull the card up so only PEEK pts are visible below the card above it
-                let pullUp  = activeCardHeight - PEEK - CGFloat(i) * PEEK
+                // ── Background cards — each shifted down by (activeH + i*PEEK) ──
+                ForEach(Array(sorted.dropFirst().enumerated()), id: \.element.id) { i, entry in
+                    let depth = i + 1
+                    let yPos  = activeH - 16 + CGFloat(i) * PEEK
+                    let sc    = 1.0 - CGFloat(depth) * SCALE
 
-                WalletCard(
-                    entry: entry, isActive: false, depth: depth,
-                    onTap:     { withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) { wallet.activate(id: entry.id) } },
-                    onDismiss: { withAnimation(.spring()) { wallet.remove(id: entry.id) } },
-                    onTrack:   { onTrack(entry) },
-                    onAccept:  { onAccept(entry) }
-                )
-                .scaleEffect(x: scale, anchor: .top)
-                // Negative top padding pulls this card up under the one above it
-                .padding(.top, -pullUp)
-                .zIndex(Double(sorted.count - depth))
+                    WalletCard(
+                        entry: entry, isActive: false, depth: depth,
+                        onTap:     { withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) { wallet.activate(id: entry.id) } },
+                        onDismiss: { withAnimation(.spring()) { wallet.remove(id: entry.id) } },
+                        onTrack:   { onTrack(entry) },
+                        onAccept:  { onAccept(entry) }
+                    )
+                    .scaleEffect(x: sc, anchor: .top)
+                    // alignmentGuide moves the layout frame (not just visual) to yPos
+                    .alignmentGuide(.top) { _ in -yPos }
+                    .zIndex(Double(sorted.count - depth))
+                }
             }
-        }
+            .frame(height: totalH, alignment: .top)
+            .padding(.horizontal, 16)
+            .animation(.spring(response: 0.4, dampingFraction: 0.78), value: activeId)
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: activeH)
+        )
     }
 }
 
