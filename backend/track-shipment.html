@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#1a1a2e" />
-  <title>CMP Logistics – Track Your Shipment</title>
+  <title>Routelo – Track Your Shipment</title>
   <link rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -75,6 +75,12 @@
     }
     .stat-val  { font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; }
     .stat-unit { font-size:11px; color:var(--muted); margin-top:2px; }
+    .location-row {
+      display:flex; align-items:flex-start; gap:10px; margin-top:4px;
+    }
+    .location-icon { font-size:20px; flex-shrink:0; margin-top:2px; }
+    .location-addr { font-size:15px; font-weight:600; line-height:1.4; }
+    .location-coords { font-size:11px; color:var(--muted); margin-top:2px; }
 
     .pulse {
       display:inline-block; width:8px; height:8px;
@@ -101,7 +107,7 @@
 </head>
 <body>
 
-  <p class="logo">CMP Logistics</p>
+  <p class="logo">Routelo</p>
 
   <div id="error-banner" class="error-banner"></div>
 
@@ -138,7 +144,14 @@
   <!-- ── Live Stats ────────────────────────────────────────────────────── -->
   <div class="card">
     <p class="card-title">Live Location</p>
-    <div class="stat-grid">
+    <div class="location-row">
+      <div class="location-icon">📍</div>
+      <div>
+        <div class="location-addr" id="stat-address">Locating driver…</div>
+        <div class="location-coords" id="stat-coords"></div>
+      </div>
+    </div>
+    <div class="stat-grid" style="margin-top:16px">
       <div>
         <div class="stat-val" id="stat-speed">—</div>
         <div class="stat-unit">mph</div>
@@ -146,14 +159,6 @@
       <div>
         <div class="stat-val" id="stat-updated">—</div>
         <div class="stat-unit">Last update</div>
-      </div>
-      <div>
-        <div class="stat-val" id="stat-lat">—</div>
-        <div class="stat-unit">Latitude</div>
-      </div>
-      <div>
-        <div class="stat-val" id="stat-lng">—</div>
-        <div class="stat-unit">Longitude</div>
       </div>
     </div>
     <p class="refresh-note">📡 Updates every 30 seconds</p>
@@ -190,6 +195,30 @@
       : null;
 
     let map, driverMarker, trailPolyline;
+    let lastGeocodedLatLng = null;
+
+    async function reverseGeocode(lat, lng) {
+      // Only re-geocode if moved more than ~50m
+      if (lastGeocodedLatLng) {
+        const d = Math.abs(lat - lastGeocodedLatLng[0]) + Math.abs(lng - lastGeocodedLatLng[1]);
+        if (d < 0.0005) return null; // no change needed
+      }
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+        if (!r.ok) return null;
+        const d = await r.json();
+        lastGeocodedLatLng = [lat, lng];
+        const a = d.address || {};
+        // Build a clean human-readable string
+        const parts = [
+          a.road || a.pedestrian || a.path,
+          a.suburb || a.neighbourhood || a.city_district,
+          a.city || a.town || a.village,
+          a.state
+        ].filter(Boolean);
+        return parts.length ? parts.join(', ') : (d.display_name || null);
+      } catch(e) { return null; }
+    }
 
     function filterRecentLocations(history) {
       if (!history || !history.length) return [];
@@ -318,12 +347,18 @@
           const lng = loc.longitude;
 
           // Update stats
-          document.getElementById("stat-lat").textContent   = lat.toFixed(5);
-          document.getElementById("stat-lng").textContent   = lng.toFixed(5);
           document.getElementById("stat-speed").textContent =
             loc.speed != null ? Math.round(loc.speed) : "0";
           document.getElementById("stat-updated").textContent =
             loc.timestamp ? new Date(loc.timestamp).toLocaleTimeString() : "—";
+          // Show coords as subtle secondary info
+          document.getElementById("stat-coords").textContent =
+            `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+          // Reverse geocode for human-readable address
+          reverseGeocode(lat, lng).then(addr => {
+            if (addr) document.getElementById("stat-address").textContent = addr;
+            else document.getElementById("stat-address").textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+          });
 
           // Draw trail snapped to roads using OSRM (falls back to straight line)
           const recentHistory = filterRecentLocations(data.locationHistory);
