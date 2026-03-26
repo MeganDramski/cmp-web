@@ -1588,40 +1588,69 @@ function renderDispatcherMapLocation(loc, history){
       var lat=loc.latitude, lng=loc.longitude;
 
       if(!_dispMap){
-        el.innerHTML='<div id="disp-map"></div>';
-        _dispMap=L.map('disp-map',{zoomControl:true,attributionControl:false}).setView([lat,lng],13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(_dispMap);
-        var truckIcon=L.divIcon({html:'<div style="font-size:26px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">🚛</div>',className:'',iconSize:[32,32],iconAnchor:[16,16]});
-        _dispMarker=L.marker([lat,lng],{icon:truckIcon}).addTo(_dispMap);
-        _dispTrail=L.polyline([],{color:'#007AFF',weight:4,opacity:.85,lineJoin:'round',lineCap:'round'}).addTo(_dispMap);
+        el.innerHTML='<div id="disp-map" style="width:100%;height:260px"></div>';
+        // Use setTimeout so the div is in the DOM and has dimensions before Leaflet init
+        setTimeout(function(){
+          var mapEl = document.getElementById('disp-map');
+          if(!mapEl) return;
+          _dispMap=L.map('disp-map',{zoomControl:true,attributionControl:false}).setView([lat,lng],13);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(_dispMap);
+          var truckIcon=L.divIcon({html:'<div style="font-size:26px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">🚛</div>',className:'',iconSize:[32,32],iconAnchor:[16,16]});
+          _dispMarker=L.marker([lat,lng],{icon:truckIcon}).addTo(_dispMap);
+          _dispTrail=L.polyline([],{color:'#007AFF',weight:4,opacity:.85,lineJoin:'round',lineCap:'round'}).addTo(_dispMap);
+          // Force Leaflet to recalculate size after DOM is painted
+          setTimeout(function(){ if(_dispMap) _dispMap.invalidateSize(); }, 100);
+
+          // Update stats immediately after map init
+          var statsEl=document.getElementById('disp-map-stats');
+          if(statsEl){
+            statsEl.style.display='flex';
+            document.getElementById('dms-speed').textContent=loc.speed!=null?Math.round(loc.speed):'0';
+            document.getElementById('dms-lat').textContent=lat.toFixed(5);
+            document.getElementById('dms-lng').textContent=lng.toFixed(5);
+            _lastGpsTimestamp=Date.now();
+            _lastLocTimestamp=Date.now();
+            updateLastSeenLabel();
+            checkStaleSignal();
+          }
+
+          // Draw trail after map is ready
+          if(history && history.length>=2){
+            snapToRoads(history, function(roadPts){
+              if(!_dispTrail) return;
+              if(roadPts && roadPts.length>=2){
+                _dispTrail.setLatLngs(roadPts);
+              } else {
+                _dispTrail.setLatLngs(history.map(function(p){return[p.latitude,p.longitude];}));
+              }
+            });
+          }
+        }, 50);
+        return; // stats/trail handled inside setTimeout above
       } else {
         _dispMarker.setLatLng([lat,lng]);
         _dispMap.panTo([lat,lng]);
-      }
 
-      if(history && history.length>=2){
-        snapToRoads(history, function(roadPts){
-          if(roadPts && roadPts.length>=2){
-            _dispTrail.setLatLngs(roadPts);
-          } else {
-            _dispTrail.setLatLngs(history.map(function(p){return[p.latitude,p.longitude];}));
-          }
-        });
-      } else {
-        if(_dispTrail) _dispTrail.setLatLngs([]);
-      }
+        // Update trail
+        if(history && history.length>=2){
+          snapToRoads(history, function(roadPts){
+            if(!_dispTrail) return;
+            _dispTrail.setLatLngs(roadPts && roadPts.length>=2 ? roadPts : history.map(function(p){return[p.latitude,p.longitude];}));
+          });
+        }
 
-      var statsEl=document.getElementById('disp-map-stats');
-      if(statsEl){
-        statsEl.style.display='flex';
-        document.getElementById('dms-speed').textContent=loc.speed!=null?Math.round(loc.speed):'0';
-        document.getElementById('dms-lat').textContent=lat.toFixed(5);
-        document.getElementById('dms-lng').textContent=lng.toFixed(5);
-        var receiveTime = Date.now();
-        _lastGpsTimestamp = receiveTime;
-        _lastLocTimestamp = receiveTime;
-        updateLastSeenLabel();
-        checkStaleSignal();
+        // Update stats
+        var statsEl=document.getElementById('disp-map-stats');
+        if(statsEl){
+          statsEl.style.display='flex';
+          document.getElementById('dms-speed').textContent=loc.speed!=null?Math.round(loc.speed):'0';
+          document.getElementById('dms-lat').textContent=lat.toFixed(5);
+          document.getElementById('dms-lng').textContent=lng.toFixed(5);
+          _lastGpsTimestamp=Date.now();
+          _lastLocTimestamp=Date.now();
+          updateLastSeenLabel();
+          checkStaleSignal();
+        }
       }
 }
 
@@ -1629,7 +1658,7 @@ function renderDispatcherMapLocation(loc, history){
 // Re-sends the driver tracking link (email + SMS) so driver gets a push
 // notification that brings them back to the tracking page.
 function pingDriver(){
-  var load=loads.find(function(l){return l.id===selectedLoadId;});
+  var load=loads.find(function(l){return l.id===selId;});
   if(!load){toast('No load selected');return;}
   if(!load.assignedDriverPhone && !load.assignedDriverEmail){
     toast('No driver phone or email on file — edit the load to add contact info.');
