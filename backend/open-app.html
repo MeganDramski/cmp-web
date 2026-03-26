@@ -119,34 +119,39 @@
     // Desktop — just show the desktop card
     document.getElementById('card-desktop').style.display = 'block';
   } else {
-    // Mobile — show "trying" card and attempt deep link
+    // Mobile — show "trying" card then attempt deep link
     document.getElementById('card-trying').style.display = 'block';
 
-    var appOpened = false;
-    var startTime = Date.now();
+    // On iOS, window.location.href = customScheme is the ONLY reliable way.
+    // We track whether the page goes to background (app launched) vs stays
+    // visible (app not installed). We use a timestamp guard so the fallback
+    // timer doesn't fire if the OS switches apps.
+    var launchTime = Date.now();
+    var appLaunched = false;
 
-    // Listen for page hide/blur — means the app opened
-    function onVisibilityChange() {
-      if (document.hidden || document.visibilityState === 'hidden') {
-        appOpened = true;
-      }
-    }
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('pagehide', function() { appOpened = true; });
-    window.addEventListener('blur',     function() { appOpened = true; });
+    function markLaunched() { appLaunched = true; }
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden) markLaunched();
+    });
+    window.addEventListener('pagehide', markLaunched);
+    window.addEventListener('blur', markLaunched);
 
-    // Attempt to open the app
+    // Delay slightly so the page renders before we redirect
     setTimeout(function() {
       window.location.href = appScheme;
-    }, 300);
+    }, 250);
 
-    // After 2.5 seconds, if still here, assume app not installed
+    // After 2.2 s: if the page is still visible AND very little time has
+    // passed (the OS didn't switch away), the app is not installed.
     setTimeout(function() {
-      if (!appOpened && (Date.now() - startTime) < 4000) {
+      var elapsed = Date.now() - launchTime;
+      // If the tab was hidden (app opened) or a long time passed (device was
+      // slow), do nothing — the user is already in the app or coming back.
+      if (!appLaunched && elapsed < 3500) {
         document.getElementById('card-trying').style.display = 'none';
         document.getElementById('card-no-app').style.display = 'block';
       }
-    }, 2500);
+    }, 2200);
   }
 </script>
 </body>
