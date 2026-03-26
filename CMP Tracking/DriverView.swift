@@ -76,6 +76,17 @@ struct DriverView: View {
                                     acceptWalletEntry(entry)
                                 }
                             )
+                            .onAppear {
+                                // Geocode active wallet entry for the map
+                                if let activeEntry = wallet.cards.first(where: { $0.id == (wallet.activeId ?? wallet.cards.first?.id) }) {
+                                    geocodeAddresses(pickup: activeEntry.pickupAddress, delivery: activeEntry.deliveryAddress)
+                                }
+                            }
+                            .onChange(of: wallet.activeId) { _, _ in
+                                if let activeEntry = wallet.cards.first(where: { $0.id == (wallet.activeId ?? wallet.cards.first?.id) }) {
+                                    geocodeAddresses(pickup: activeEntry.pickupAddress, delivery: activeEntry.deliveryAddress)
+                                }
+                            }
                         } else if let load = assignedLoad {
                             loadInfoCard(load: load)
                         } else {
@@ -204,6 +215,10 @@ struct DriverView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
                     showNotificationBanner = false
                 }
+            }
+            .onChange(of: assignedLoad?.id) { _, newId in
+                guard let load = assignedLoad, load.id == newId else { return }
+                geocodeAddresses(pickup: load.pickupAddress, delivery: load.deliveryAddress)
             }
             .alert("Delivery Reminder", isPresented: $showDeliveryReminderAlert) {
                 Button("Mark as Delivered") {
@@ -544,9 +559,12 @@ struct DriverView: View {
             .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 10)
 
             ZStack(alignment: .bottomTrailing) {
-                // Show route map (pickup+delivery pins) when not tracking,
-                // switch to live GPS map when tracking is active
-                if locationManager.isTracking || locationManager.currentLocation != nil {
+                // Priority:
+                // 1. Actively tracking → LiveMapView with GPS trail
+                // 2. Route pins geocoded → RouteMapView showing pickup/delivery
+                // 3. GPS fix available but no pins yet → LiveMapView centered on driver
+                // 4. Nothing yet → placeholder
+                if locationManager.isTracking {
                     LiveMapView(
                         region: mapRegion,
                         userLocation: locationManager.currentLocation?.coordinate,
@@ -560,6 +578,18 @@ struct DriverView: View {
                         .frame(height: 220)
                         .cornerRadius(12)
                         .padding(.horizontal, 12)
+                } else if let loc = locationManager.currentLocation {
+                    LiveMapView(
+                        region: MKCoordinateRegion(
+                            center: loc.coordinate,
+                            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                        ),
+                        userLocation: loc.coordinate,
+                        trail: []
+                    )
+                    .frame(height: 220)
+                    .cornerRadius(12)
+                    .padding(.horizontal, 12)
                 } else {
                     // Fallback: plain map centered on US until GPS/geocoding resolves
                     LiveMapView(
@@ -642,15 +672,19 @@ struct DriverView: View {
     // MARK: - Route Map Helpers
 
     private func geocodeLoadAddresses(_ load: Load) {
+        geocodeAddresses(pickup: load.pickupAddress, delivery: load.deliveryAddress)
+    }
+
+    private func geocodeAddresses(pickup: String, delivery: String) {
         pickupPin = nil
         deliveryPin = nil
         let geocoder = CLGeocoder()
-        geocoder.geocodeAddressString(load.pickupAddress) { placemarks, _ in
+        geocoder.geocodeAddressString(pickup) { placemarks, _ in
             guard let coord = placemarks?.first?.location?.coordinate else { return }
             DispatchQueue.main.async { self.pickupPin = coord }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            geocoder.geocodeAddressString(load.deliveryAddress) { placemarks, _ in
+            geocoder.geocodeAddressString(delivery) { placemarks, _ in
                 guard let coord = placemarks?.first?.location?.coordinate else { return }
                 DispatchQueue.main.async { self.deliveryPin = coord }
             }
@@ -736,7 +770,10 @@ struct DriverView: View {
         }
 
         assignedLoad = matches.first
-        if let load = matches.first { PickupReminderService.schedule(load: load) }
+        if let load = matches.first {
+            PickupReminderService.schedule(load: load)
+            geocodeAddresses(pickup: load.pickupAddress, delivery: load.deliveryAddress)
+        }
     }
 
     private func acceptLoad(_ load: Load) {
