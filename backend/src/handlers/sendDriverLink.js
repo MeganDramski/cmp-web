@@ -100,7 +100,7 @@ async function sendDriverEmail(driverEmail, driverName, load, link) {
 
 // ── Pinpoint SMS helpers ──────────────────────────────────────────────────────
 
-async function sendDriverSMS(driverPhone, driverName, load, webLink) {
+async function sendDriverSMS(driverPhone, driverName, load, webLink, appLink) {
   if (!SNS_ENABLED) {
     console.log("SNS_ENABLED=false — SMS skipped.");
     return;
@@ -126,7 +126,7 @@ async function sendDriverSMS(driverPhone, driverName, load, webLink) {
     "DELIVERY: " + (load.deliveryAddress || "--") + "\n" +
     (pickupStr ? "DATE: " + pickupStr + "\n" : "") +
     (load.notes ? "NOTES: " + load.notes + "\n" : "") +
-    "\n👉 Tap to accept & start tracking:\n" + webLink;
+    "\n👉 Tap to accept & start tracking:\n" + appLink + "\n\nNo app? Use this link:\n" + webLink;
 
   await pinpoint.send(new SendTextMessageCommand({
     DestinationPhoneNumber: to,
