@@ -49,9 +49,11 @@ const CA_AREA_CODES = new Set([
 ]);
 
 function pickOriginNumber(e164) {
-  if (!e164 || !e164.startsWith("+1")) return PHONE_US; // non-NANP → use toll-free
-  const areaCode = parseInt(e164.slice(2, 5), 10);
-  return CA_AREA_CODES.has(areaCode) ? PHONE_CA : PHONE_US;
+  // TODO: restore US toll-free routing once +18446233665 is approved
+  // if (!e164 || !e164.startsWith("+1")) return PHONE_US;
+  // const areaCode = parseInt(e164.slice(2, 5), 10);
+  // return CA_AREA_CODES.has(areaCode) ? PHONE_CA : PHONE_US;
+  return PHONE_CA; // temporary: use CA long code for all SMS while US toll-free is pending
 }
 
 function buildLinks(event, token, id) {
