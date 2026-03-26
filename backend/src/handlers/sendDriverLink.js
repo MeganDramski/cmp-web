@@ -19,7 +19,8 @@ const SNS_ENABLED = (process.env.SNS_ENABLED || "").toLowerCase() === "true";
 // CA drivers → Canadian long code, US drivers → US toll-free
 // Both numbers can send to their respective countries
 const PHONE_CA = process.env.SMS_ORIGIN_CA || "+14504857586";  // CA long code
-const PHONE_US = process.env.SMS_ORIGIN_US || "+18446233665";  // US toll-free
+const PHONE_US = process.env.SMS_ORIGIN_US || "+18446233665";  // US toll-free (pending)
+const PHONE_US_LC = process.env.SMS_ORIGIN_US_LC || "+13185318751"; // US long code - VOICE ONLY, needs SMS long code
 
 /**
  * Normalise a phone number to E.164.
@@ -49,11 +50,11 @@ const CA_AREA_CODES = new Set([
 ]);
 
 function pickOriginNumber(e164) {
-  // TODO: restore US toll-free routing once +18446233665 is approved
+  // TODO: restore proper routing once +18446233665 toll-free is approved
   // if (!e164 || !e164.startsWith("+1")) return PHONE_US;
   // const areaCode = parseInt(e164.slice(2, 5), 10);
   // return CA_AREA_CODES.has(areaCode) ? PHONE_CA : PHONE_US;
-  return PHONE_CA; // temporary: use CA long code for all SMS while US toll-free is pending
+  return PHONE_CA; // temporary: CA long code for all SMS while US toll-free pending
 }
 
 function buildLinks(event, token, id) {
