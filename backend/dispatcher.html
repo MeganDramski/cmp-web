@@ -294,8 +294,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <!-- APP -->
 <div id="app-screen">
   <nav class="nav">
-    <div class="brand" style="display:flex;align-items:center;gap:8px">
-      <span id="nav-company">Routelo</span><span id="nav-platform-tag" style="display:none;font-size:10px;font-weight:500;color:var(--muted);margin-left:6px;padding:2px 7px;background:rgba(255,255,255,.06);border-radius:20px;border:1px solid var(--border)">via Routelo</span>
+    <div class="brand" style="display:flex;align-items:center;gap:10px">
+      <span id="nav-company" style="font-size:15px;font-weight:700;letter-spacing:-0.2px">Routelo</span>
+      <!-- via Routelo pill with logo -->
+      <span id="nav-platform-tag" style="display:none;align-items:center;gap:7px;padding:4px 10px 4px 7px;background:rgba(83,74,183,.13);border-radius:20px;border:1px solid rgba(127,119,221,.25);font-size:11px;font-weight:600;color:#a09be8;white-space:nowrap">
+        <!-- Routelo GPS Signal SVG icon -->
+        <svg width="18" height="18" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">
+          <!-- Outer ring -->
+          <circle cx="16" cy="16" r="14.5" stroke="#7F77DD" stroke-width="0.8" opacity="0.25"/>
+          <!-- Mid ring -->
+          <circle cx="16" cy="16" r="11" stroke="#7F77DD" stroke-width="0.9" opacity="0.45"/>
+          <!-- Inner ring -->
+          <circle cx="16" cy="16" r="7.5" stroke="#7F77DD" stroke-width="1" opacity="0.7"/>
+          <!-- Filled center dot -->
+          <circle cx="16" cy="16" r="4" fill="#534AB7"/>
+          <!-- White inner dot -->
+          <circle cx="16" cy="16" r="1.6" fill="white"/>
+        </svg>
+        via Routelo
+      </span>
     </div>
     <div class="spacer"></div>
     <span id="nav-plan-badge" style="display:none;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:rgba(255,149,0,.15);color:#FF9500;border:1px solid rgba(255,149,0,.3);cursor:pointer" title="Upgrade plan" onclick="upgradePlan()"></span>
@@ -726,7 +743,7 @@ function enterApp(){
   // Show company name in nav brand
   if(u.companyName){
     document.getElementById('nav-company').textContent = u.companyName;
-    document.getElementById('nav-platform-tag').style.display = '';
+    document.getElementById('nav-platform-tag').style.display = 'flex';
     // Also update auth screen subtitle so it shows the company on next load
     var sub = document.getElementById('auth-subtitle');
     if(sub) sub.textContent = u.companyName + ' · Routelo';
