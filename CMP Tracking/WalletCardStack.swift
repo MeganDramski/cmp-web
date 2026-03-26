@@ -1,13 +1,14 @@
 // WalletCardStack.swift
 // Apple Wallet-style stacked load cards.
-// Active card is fully expanded on top; background cards fan out beneath it,
-// each peeking PEEK points below the previous card.
+// Active card fully expanded; background cards fan beneath it with negative
+// spacing so they overlap — but their layout frames sit at the correct Y
+// positions, meaning tap targets work without any offset tricks.
 
 import SwiftUI
 
-private let CORNER: CGFloat  = 20
-private let PEEK:   CGFloat  = 54    // how many pts each background card peeks out
-private let SCALE:  CGFloat  = 0.03  // scale-down per depth level
+private let CORNER: CGFloat = 20
+private let PEEK:   CGFloat = 60    // how many pts each background card peeks below the one above
+private let SCALE:  CGFloat = 0.03  // scale-down per depth level
 
 // MARK: - WalletCardStack
 
@@ -15,9 +16,6 @@ struct WalletCardStack: View {
     @ObservedObject var wallet: LoadWallet
     var onTrack:  (WalletEntry) -> Void
     var onAccept: (WalletEntry) -> Void
-
-    /// Measured height of the active (top) card
-    @State private var activeCardHeight: CGFloat = 420
 
     var body: some View {
         let cards = wallet.cards
@@ -31,56 +29,69 @@ struct WalletCardStack: View {
             return r
         }()
 
-        let bgCount  = max(sorted.count - 1, 0)
-        // Total height = active card + each background card peeking PEEK pts below
-        let totalH   = activeCardHeight + CGFloat(bgCount) * PEEK
-
         return AnyView(
-            ZStack(alignment: .top) {
-                // ── Background cards (rendered first = visually behind) ──────
-                ForEach(Array(sorted.dropFirst().enumerated()), id: \.element.id) { i, entry in
-                    let depth = i + 1
-                    let yOff  = activeCardHeight - 20 + CGFloat(i) * PEEK
-                    let sc    = 1.0 - CGFloat(depth) * SCALE
-
-                    WalletCard(
-                        entry: entry, isActive: false, depth: depth,
-                        onTap:     { withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) { wallet.activate(id: entry.id) } },
-                        onDismiss: { withAnimation(.spring()) { wallet.remove(id: entry.id) } },
-                        onTrack:   { onTrack(entry) },
-                        onAccept:  { onAccept(entry) }
-                    )
-                    .scaleEffect(x: sc, anchor: .top)
-                    .offset(y: yOff)
-                    .zIndex(Double(-depth))
-                }
-
-                // ── Active card (on top) ─────────────────────────────────────
-                if let active = sorted.first {
-                    WalletCard(
-                        entry: active, isActive: true, depth: 0,
-                        onTap:     { },
-                        onDismiss: { withAnimation(.spring()) { wallet.remove(id: active.id) } },
-                        onTrack:   { onTrack(active) },
-                        onAccept:  { onAccept(active) }
-                    )
-                    // Measure the active card's rendered height
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear
-                                .onAppear            { activeCardHeight = geo.size.height }
-                                .onChange(of: geo.size.height) { _, h in activeCardHeight = h }
-                        }
-                    )
-                    .zIndex(1)
-                }
-            }
-            // Give the ZStack an explicit height so ScrollView can measure it
-            .frame(height: totalH, alignment: .top)
-            .padding(.horizontal, 16)
-            .animation(.spring(response: 0.4, dampingFraction: 0.78), value: activeId)
-            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: activeCardHeight)
+            // VStack with negative spacing creates the fan overlap.
+            // Each card's layout frame is at the correct Y → taps work.
+            _VariadicVStack(sorted: sorted, activeId: activeId, wallet: wallet, onTrack: onTrack, onAccept: onAccept)
+                .padding(.horizontal, 16)
+                .animation(.spring(response: 0.4, dampingFraction: 0.78), value: activeId)
         )
+    }
+}
+
+// Helper view that builds the overlapping VStack with correct negative spacing.
+private struct _VariadicVStack: View {
+    let sorted:   [WalletEntry]
+    let activeId: String
+    let wallet:   LoadWallet
+    var onTrack:  (WalletEntry) -> Void
+    var onAccept: (WalletEntry) -> Void
+
+    /// Measured height of the active card — drives the negative spacing for all bg cards
+    @State private var activeCardHeight: CGFloat = 420
+
+    var body: some View {
+        // The active card sits at the top.
+        // Each bg card is pulled up by (activeCardHeight - PEEK) so only PEEK pts show.
+        // zIndex keeps the active card visually on top.
+        VStack(spacing: 0) {
+            if let active = sorted.first {
+                WalletCard(
+                    entry: active, isActive: true, depth: 0,
+                    onTap:     { },
+                    onDismiss: { withAnimation(.spring()) { wallet.remove(id: active.id) } },
+                    onTrack:   { onTrack(active) },
+                    onAccept:  { onAccept(active) }
+                )
+                .background(
+                    GeometryReader { geo in
+                        Color.clear
+                            .onAppear            { activeCardHeight = geo.size.height }
+                            .onChange(of: geo.size.height) { _, h in activeCardHeight = h }
+                    }
+                )
+                .zIndex(Double(sorted.count))
+            }
+
+            ForEach(Array(sorted.dropFirst().enumerated()), id: \.element.id) { i, entry in
+                let depth   = i + 1
+                let scale   = 1.0 - CGFloat(depth) * SCALE
+                // Pull the card up so only PEEK pts are visible below the card above it
+                let pullUp  = activeCardHeight - PEEK - CGFloat(i) * PEEK
+
+                WalletCard(
+                    entry: entry, isActive: false, depth: depth,
+                    onTap:     { withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) { wallet.activate(id: entry.id) } },
+                    onDismiss: { withAnimation(.spring()) { wallet.remove(id: entry.id) } },
+                    onTrack:   { onTrack(entry) },
+                    onAccept:  { onAccept(entry) }
+                )
+                .scaleEffect(x: scale, anchor: .top)
+                // Negative top padding pulls this card up under the one above it
+                .padding(.top, -pullUp)
+                .zIndex(Double(sorted.count - depth))
+            }
+        }
     }
 }
 
@@ -105,11 +116,19 @@ struct WalletCard: View {
     }
 
     var body: some View {
-        content
-            .offset(y: dragY)
-            .opacity(hiding ? 0 : 1)
-            .gesture(dismissGesture)
-            .onTapGesture { if !isActive { onTap() } }
+        if isActive {
+            content
+                .offset(y: dragY)
+                .opacity(hiding ? 0 : 1)
+                .gesture(dismissGesture)
+        } else {
+            // Inactive/collapsed card — wrap in a Button for reliable tap,
+            // no drag gesture needed (nothing to dismiss or drag).
+            Button(action: onTap) {
+                content
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private var dismissGesture: some Gesture {
