@@ -6,8 +6,8 @@
 
 import SwiftUI
 
-private let PEEK:  CGFloat = 62   // pts each bg card peeks below the active card
-private let SCALE: CGFloat = 0.03 // scale shrink per depth level
+private let PEEK:   CGFloat = 64
+private let SCALE:  CGFloat = 0.03
 private let CORNER: CGFloat = 20
 
 // MARK: - WalletCardStack
@@ -20,7 +20,7 @@ struct WalletCardStack: View {
     @State private var activeH: CGFloat = 420
 
     var body: some View {
-        let cards    = wallet.cards
+        let cards = wallet.cards
         guard !cards.isEmpty else { return AnyView(EmptyView()) }
 
         let activeId = wallet.activeId ?? cards.first!.id
@@ -34,8 +34,40 @@ struct WalletCardStack: View {
         let totalH  = activeH + CGFloat(bgCount) * PEEK
 
         return AnyView(
-            ZStack(alignment: .top) {
-                // ── Active card — rendered last so it's visually on top ──────
+            ZStack(alignment: .topLeading) {
+
+                // ── Background cards ─────────────────────────────────────────
+                // Each is placed inside a VStack whose top spacer pushes it to
+                // exactly the right Y — so the layout frame (and thus hit-test)
+                // is at the visible position, not at y=0.
+                ForEach(Array(sorted.dropFirst().enumerated()), id: \.element.id) { i, entry in
+                    let depth  = i + 1
+                    let topGap = activeH - 24 + CGFloat(i) * PEEK
+                    let sc     = 1.0 - CGFloat(depth) * SCALE
+
+                    VStack(spacing: 0) {
+                        Color.clear.frame(height: topGap)   // pushes card to correct Y
+                        Button {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) {
+                                wallet.activate(id: entry.id)
+                            }
+                        } label: {
+                            WalletCard(
+                                entry: entry, isActive: false, depth: depth,
+                                onTap:     { },
+                                onDismiss: { withAnimation(.spring()) { wallet.remove(id: entry.id) } },
+                                onTrack:   { onTrack(entry) },
+                                onAccept:  { onAccept(entry) }
+                            )
+                            .scaleEffect(x: sc, anchor: .top)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .top)
+                    .zIndex(Double(bgCount - i))
+                }
+
+                // ── Active card (on top) ──────────────────────────────────────
                 if let active = sorted.first {
                     WalletCard(
                         entry: active, isActive: true, depth: 0,
@@ -46,32 +78,13 @@ struct WalletCardStack: View {
                     )
                     .background(GeometryReader { g in
                         Color.clear
-                            .onAppear { activeH = g.size.height }
+                            .onAppear            { activeH = g.size.height }
                             .onChange(of: g.size.height) { _, h in activeH = h }
                     })
                     .zIndex(Double(sorted.count))
                 }
-
-                // ── Background cards — each shifted down by (activeH + i*PEEK) ──
-                ForEach(Array(sorted.dropFirst().enumerated()), id: \.element.id) { i, entry in
-                    let depth = i + 1
-                    let yPos  = activeH - 16 + CGFloat(i) * PEEK
-                    let sc    = 1.0 - CGFloat(depth) * SCALE
-
-                    WalletCard(
-                        entry: entry, isActive: false, depth: depth,
-                        onTap:     { withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) { wallet.activate(id: entry.id) } },
-                        onDismiss: { withAnimation(.spring()) { wallet.remove(id: entry.id) } },
-                        onTrack:   { onTrack(entry) },
-                        onAccept:  { onAccept(entry) }
-                    )
-                    .scaleEffect(x: sc, anchor: .top)
-                    // alignmentGuide moves the layout frame (not just visual) to yPos
-                    .alignmentGuide(.top) { _ in -yPos }
-                    .zIndex(Double(sorted.count - depth))
-                }
             }
-            .frame(height: totalH, alignment: .top)
+            .frame(maxWidth: .infinity, minHeight: totalH, alignment: .top)
             .padding(.horizontal, 16)
             .animation(.spring(response: 0.4, dampingFraction: 0.78), value: activeId)
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: activeH)

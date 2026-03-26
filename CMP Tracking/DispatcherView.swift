@@ -610,24 +610,40 @@ struct LoadDetailView: View {
 
             // ── Map ──────────────────────────────────────────────────────────
             Section {
-                if let location = load.lastLocation {
-                    // Live location available — show live tracking map
-                    TrackingMapView(
-                        loadId: load.id,
-                        initialLocation: location,
-                        loadNumber: load.loadNumber
-                    )
-                    .frame(height: 220)
-                    .cornerRadius(10)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                    .listRowBackground(Color.clear)
-                } else {
-                    RouteMapView(pickupCoord: pickupPin, deliveryCoord: deliveryPin)
+                Group {
+                    if let location = load.lastLocation {
+                        // Live location — show driver position
+                        let region = MKCoordinateRegion(
+                            center: location.coordinate,
+                            span: MKCoordinateSpan(latitudeDelta: 0.04, longitudeDelta: 0.04)
+                        )
+                        RoadSnappingMapView(
+                            annotations: [TrackAnnotation(location: location)],
+                            rawTrail: [],
+                            destinationCoordinate: deliveryPin,
+                            region: .constant(region)
+                        )
                         .frame(height: 220)
                         .cornerRadius(10)
-                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                        .listRowBackground(Color.clear)
+                        .overlay(alignment: .topTrailing) {
+                            Button { showMap = true } label: {
+                                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .padding(8)
+                                    .background(.ultraThinMaterial)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .padding(8)
+                            }
+                        }
+                    } else {
+                        // No live location — show pickup/delivery route
+                        RouteMapView(pickupCoord: pickupPin, deliveryCoord: deliveryPin)
+                            .frame(height: 220)
+                            .cornerRadius(10)
+                    }
                 }
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .listRowBackground(Color.clear)
             } header: {
                 Text(load.lastLocation != nil ? "Live Location" : "Route")
             }
