@@ -300,7 +300,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     <div class="spacer"></div>
     <span id="nav-plan-badge" style="display:none;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:rgba(255,149,0,.15);color:#FF9500;border:1px solid rgba(255,149,0,.3);cursor:pointer" title="Upgrade plan" onclick="upgradePlan()"></span>
     <div class="uchip"><span>👤</span><strong id="nav-name">Dispatcher</strong></div>
-    <button class="btn btn-sm" id="btn-invite" title="Copy driver invite link" style="display:none" onclick="copyInviteLink()">🔗 Invite Driver</button>
     <button class="btn btn-sm" id="btn-notif" title="Enable notifications" style="display:none">🔔</button>
     <button class="btn btn-sm" id="btn-out">Sign Out</button>
     <button class="btn btn-p btn-sm" id="btn-new">+ New Load</button>
@@ -368,6 +367,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
           <div class="fg"><label>Driver Name</label><input type="text" id="al-dn" placeholder="John Smith"/></div>
           <div class="fg"><label>Driver Cell</label><input type="tel" id="al-dp" placeholder="+1 312 555 0101"/></div>
         </div>
+        <div class="fg" style="margin-top:8px"><label>Driver Email</label><input type="email" id="al-de-driver" placeholder="driver@example.com"/></div>
+      </div>
+      <div class="sec" style="margin-top:8px;margin-bottom:0">
+        <div class="togrow" style="border-bottom:none">
+          <div class="togl">📧 Send driver an app link by email<small>Driver gets a tracking link by email (optional).</small></div>
+          <label class="tog"><input type="checkbox" id="al-driver-nfy"/><span class="togs"></span></label>
+        </div>
       </div>
       <p class="fnote">📱 Driver receives an SMS with a browser tracking link — no app needed.</p>
 
@@ -418,7 +424,7 @@ var API = (function(){
   if (fromCfg && fromCfg !== '__API_BASE__') return fromCfg.replace(/\/$/, '');
   return '';
 })();
-var loads=[], drivers=[], session=null, selId=null, filt=null, notifyOn=true;
+var loads=[], drivers=[], session=null, selId=null, filt=null, notifyOn=false;
 var selectedDriverId=null; // for modal driver picker
 
 function isLive(){ return !!API; }
@@ -749,11 +755,6 @@ function enterApp(){
     planBadge.style.display = '';
   }
 
-  // Show invite driver button for multi-tenant companies
-  if(u.tenantId){
-    document.getElementById('btn-invite').style.display = '';
-  }
-
   showApp();
   loadDrivers();
   loadData();
@@ -769,19 +770,6 @@ function enterApp(){
     toast('Checkout cancelled — you have not been charged.');
     window.history.replaceState({}, '', window.location.pathname);
   }
-}
-
-/* INVITE DRIVER — copies a pre-filled registration link with tenantId */
-function copyInviteLink(){
-  var tenantId = session && session.user && session.user.tenantId;
-  if(!tenantId){ toast('No company associated with your account.'); return; }
-  var base = window.location.origin + window.location.pathname.replace('dispatcher.html','');
-  var link = base + 'dispatcher.html?invite=' + encodeURIComponent(tenantId);
-  navigator.clipboard.writeText(link).then(function(){
-    toast('📋 Driver invite link copied! Share it with your drivers so they can register.');
-  }).catch(function(){
-    prompt('Copy this invite link:', link);
-  });
 }
 
 /* UPGRADE PLAN — redirect to Stripe Checkout */
@@ -1883,6 +1871,7 @@ function editLoad(id){
   document.getElementById('al-cp').value=load.customerPhone||'';
   document.getElementById('al-notes').value=load.notes||'';
   document.getElementById('al-nfy').checked=!!load.notifyCustomer;
+  document.getElementById('al-driver-nfy').checked=!!load.notifyDriver;
   document.getElementById('merr').style.display='none';
   document.getElementById('modal-offline-warn').style.display = (!navigator.onLine) ? 'block' : 'none';
 
@@ -1906,12 +1895,15 @@ function editLoad(id){
     } else {
       // Driver was manually entered - show manual name field
       document.getElementById('al-dn').value=load.assignedDriverName||'';
+      document.getElementById('al-de-driver').value=load.assignedDriverEmail||'';
     }
   }
   // Always show the phone field and fill it with the current phone — editable regardless of driver source
   document.getElementById('manual-driver').style.display='block';
   document.getElementById('toggle-manual').textContent='- Use driver picker instead';
   document.getElementById('al-dp').value=load.assignedDriverPhone||'';
+  // Pre-fill driver email for picker-selected drivers too
+  if(load.assignedDriverEmail) document.getElementById('al-de-driver').value=load.assignedDriverEmail||'';
 
   document.getElementById('modal-ov').classList.add('on');
 }
@@ -1924,8 +1916,9 @@ function openModal(){
   var tl=function(d){var off=d.getTimezoneOffset()*60000;return new Date(d.getTime()-off).toISOString().slice(0,16);};
   document.getElementById('al-pd').value=tl(now);
   document.getElementById('al-dd').value=tl(tom);
-  ['al-num','al-wt','al-desc','al-pu','al-de','al-dn','al-dp','al-cn','al-ce','al-cp','al-notes'].forEach(function(id){document.getElementById(id).value='';});
-  document.getElementById('al-nfy').checked=true;
+  ['al-num','al-wt','al-desc','al-pu','al-de','al-dn','al-dp','al-de-driver','al-cn','al-ce','al-cp','al-notes'].forEach(function(id){document.getElementById(id).value='';});
+  document.getElementById('al-nfy').checked=false;
+  document.getElementById('al-driver-nfy').checked=false;
   document.getElementById('merr').style.display='none';
   document.getElementById('modal-offline-warn').style.display = (!navigator.onLine) ? 'block' : 'none';
   document.getElementById('manual-driver').style.display='none';
@@ -2003,12 +1996,15 @@ function saveLoad(){
   var dId=null,dName=null,dEmail=null,dPhone=null;
   // Always read the phone from the input field first — it may have been edited
   var phoneFieldVal = document.getElementById('al-dp').value.trim() || null;
+  var notifyDriver = document.getElementById('al-driver-nfy').checked;
   if(selectedDriverId){
     var dr=drivers.find(function(d){return d.email===selectedDriverId;});
-    if(dr){dId=dr.email;dName=dr.name;dEmail=dr.email;dPhone=phoneFieldVal||dr.phone||null;}
+    if(dr){dId=dr.email;dName=dr.name;dEmail=notifyDriver?dr.email:null;dPhone=phoneFieldVal||dr.phone||null;}
   } else {
     dName=document.getElementById('al-dn').value.trim()||null;
     dPhone=phoneFieldVal;
+    var manualDriverEmail=document.getElementById('al-de-driver').value.trim()||null;
+    dEmail=notifyDriver?manualDriverEmail:null;
     if(dName){
       // On edit, preserve the existing driver ID rather than generating a new random one
       var existingForDriver=null;
@@ -2032,7 +2028,7 @@ function saveLoad(){
     pickupDate:document.getElementById('al-pd').value?new Date(document.getElementById('al-pd').value).toISOString():new Date().toISOString(),
     deliveryDate:document.getElementById('al-dd').value?new Date(document.getElementById('al-dd').value).toISOString():new Date(Date.now()+86400000).toISOString(),
     status: isEdit ? (existing?existing.status:'Pending') : (dId?'Assigned':'Pending'),
-    assignedDriverId:dId,assignedDriverName:dName,assignedDriverEmail:dEmail,assignedDriverPhone:dPhone,
+    assignedDriverId:dId,assignedDriverName:dName,assignedDriverEmail:dEmail,assignedDriverPhone:dPhone,notifyDriver:notifyDriver,
     trackingToken: isEdit && existing ? existing.trackingToken : uid(),
     customerName:cn||(isEdit&&existing?existing.customerName||'':''),customerEmail:ce,
     customerPhone:document.getElementById('al-cp').value.trim(),
