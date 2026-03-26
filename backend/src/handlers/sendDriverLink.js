@@ -1,4 +1,4 @@
-sed// sendDriverLink.js – sends driver tracking link via SES email + Pinpoint SMS V2
+// sendDriverLink.js – sends driver tracking link via SES email + Pinpoint SMS V2
 const { DynamoDBClient, GetItemCommand } = require("@aws-sdk/client-dynamodb");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
