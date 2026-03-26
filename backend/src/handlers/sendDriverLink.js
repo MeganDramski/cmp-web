@@ -65,37 +65,90 @@ function buildLinks(event, token, id) {
   })();
   const webLink = base + "/driver-tracking.html?token=" + encodeURIComponent(token)
                 + "&loadId=" + encodeURIComponent(id);
-  const appLink = "routelo://driver?token=" + encodeURIComponent(token)
+  // cmptracking:// is the registered iOS URL scheme in AppInfo.plist
+  const appLink = "cmptracking://load?token=" + encodeURIComponent(token)
                 + "&loadId=" + encodeURIComponent(id);
-  return { webLink, appLink };
+  // Smart redirect page: tries to open the app, falls back to browser, handles desktop
+  const webEncoded = Buffer.from(webLink).toString("base64");
+  const openAppUrl = base + "/open-app.html?token=" + encodeURIComponent(token)
+                   + "&loadId=" + encodeURIComponent(id)
+                   + "&web=" + encodeURIComponent(webEncoded);
+  return { webLink, appLink, openAppUrl };
 }
 
-async function sendDriverEmail(driverEmail, driverName, load, webLink, appLink) {
+async function sendDriverEmail(driverEmail, driverName, load, webLink, appLink, openAppUrl) {
   if (!driverEmail || !FROM_EMAIL) return;
-  const company = load.companyName || "Routelo";
+  const company  = load.companyName || "Routelo";
+  const pickup   = load.pickupAddress  || "—";
+  const delivery = load.deliveryAddress || "—";
+  const pickupDate = load.pickupDate
+    ? new Date(load.pickupDate).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" })
+    : "—";
+  const notes = load.notes ? "<tr><td style='padding:6px 0;color:#8e8ea0;font-size:13px;width:90px'>Notes</td><td style='padding:6px 0;font-size:13px;color:#fff'>" + load.notes + "</td></tr>" : "";
+
+  const html =
+    "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'/></head>" +
+    "<body style='margin:0;padding:0;background:#0f0f1a;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;'>" +
+    "<div style='max-width:480px;margin:0 auto;padding:32px 20px;'>" +
+
+    // Logo
+    "<div style='text-align:center;margin-bottom:28px'>" +
+    "<div style='font-size:26px;font-weight:700;color:#fff;letter-spacing:-0.5px'>Routelo</div>" +
+    "<div style='font-size:9px;color:#8e8ea0;letter-spacing:2.5px;text-transform:uppercase;margin-top:3px'>LIVE TRACKING</div>" +
+    "</div>" +
+
+    // Greeting
+    "<p style='font-size:16px;color:#fff;margin:0 0 6px'>Hi <strong>" + (driverName || "Driver") + "</strong>,</p>" +
+    "<p style='font-size:14px;color:#8e8ea0;margin:0 0 24px'>You have a new load assigned by <strong style='color:#fff'>" + company + "</strong>.</p>" +
+
+    // Load card
+    "<div style='background:#1c1c2e;border:1px solid #2c2c3e;border-radius:16px;overflow:hidden;margin-bottom:20px'>" +
+    // Company banner
+    "<div style='background:rgba(175,82,222,.10);border-bottom:1px solid rgba(175,82,222,.2);padding:10px 18px'>" +
+    "<div style='font-size:9px;font-weight:700;color:rgba(175,82,222,.8);letter-spacing:.8px;text-transform:uppercase'>Dispatched by</div>" +
+    "<div style='font-size:14px;font-weight:600;color:#fff;margin-top:2px'>" + company + "</div>" +
+    "</div>" +
+    // Load number
+    "<div style='padding:16px 18px 12px;border-bottom:1px solid #2c2c3e'>" +
+    "<div style='font-size:11px;color:#8e8ea0;letter-spacing:.6px;text-transform:uppercase;margin-bottom:4px'>Load Number</div>" +
+    "<div style='font-size:22px;font-weight:800;color:#fff'>" + (load.loadNumber || "—") + "</div>" +
+    "</div>" +
+    // Details table
+    "<table style='width:100%;border-collapse:collapse;padding:6px 18px;display:block'><tbody style='display:block;padding:10px 18px'>" +
+    "<tr><td style='padding:6px 0;color:#8e8ea0;font-size:13px;width:90px'>Pickup</td><td style='padding:6px 0;font-size:13px;color:#fff'>" + pickup + "</td></tr>" +
+    "<tr><td style='padding:6px 0;color:#8e8ea0;font-size:13px'>Delivery</td><td style='padding:6px 0;font-size:13px;color:#fff'>" + delivery + "</td></tr>" +
+    "<tr><td style='padding:6px 0;color:#8e8ea0;font-size:13px'>Pickup Date</td><td style='padding:6px 0;font-size:13px;color:#fff'>" + pickupDate + "</td></tr>" +
+    (load.weight ? "<tr><td style='padding:6px 0;color:#8e8ea0;font-size:13px'>Weight</td><td style='padding:6px 0;font-size:13px;color:#fff'>" + load.weight.toLocaleString() + " lbs</td></tr>" : "") +
+    notes +
+    "</tbody></table>" +
+    "</div>" +
+
+    // CTA button — goes to open-app.html which handles all 3 scenarios
+    "<a href='" + openAppUrl + "' style='display:block;background:#007AFF;color:#fff;text-align:center;padding:17px;border-radius:14px;font-size:17px;font-weight:700;text-decoration:none;margin-bottom:12px'>📱 Open Load in App</a>" +
+
+    // Instructions
+    "<div style='background:#1c1c2e;border:1px solid #2c2c3e;border-radius:12px;padding:16px 18px;margin-bottom:20px'>" +
+    "<div style='font-size:12px;font-weight:700;color:#8e8ea0;letter-spacing:.6px;text-transform:uppercase;margin-bottom:10px'>How it works</div>" +
+    "<div style='font-size:13px;color:#8e8ea0;line-height:1.7'>" +
+    "1️⃣ &nbsp;Tap <strong style='color:#fff'>Open Load in App</strong> on your phone<br/>" +
+    "2️⃣ &nbsp;If the app is installed it opens directly to your load<br/>" +
+    "3️⃣ &nbsp;If not installed yet, you'll see instructions to get it<br/>" +
+    "4️⃣ &nbsp;On a computer? Open this email on your phone instead" +
+    "</div>" +
+    "</div>" +
+
+    // Footer
+    "<p style='font-size:11px;color:#8e8ea0;text-align:center;line-height:1.6'>" +
+    "Powered by <strong style='color:#AFA9EC'>Routelo</strong> · " + company +
+    "</p>" +
+    "</div></body></html>";
+
   await ses.send(new SendEmailCommand({
     Source: FROM_EMAIL,
     Destination: { ToAddresses: [driverEmail] },
     Message: {
-      Subject: { Data: "Routelo – Load " + load.loadNumber + " assigned by " + company },
-      Body: {
-        Html: {
-          Data:
-            "<p>Hi <strong>" + (driverName || "Driver") + "</strong>,</p>" +
-            "<p>You have a new load assigned via Routelo by <strong>" + company + "</strong>.</p>" +
-            "<table style='font-family:sans-serif;font-size:14px;'>" +
-            "<tr><td><strong>Load #:</strong></td><td>" + load.loadNumber + "</td></tr>" +
-            "<tr><td><strong>Pickup:</strong></td><td>" + load.pickupAddress + "</td></tr>" +
-            "<tr><td><strong>Delivery:</strong></td><td>" + load.deliveryAddress + "</td></tr>" +
-            "</table>" +
-            "<p style='margin-top:20px;'>" +
-            "<a href='" + appLink + "' style='background:#007AFF;color:#fff;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;display:inline-block;'>📱 Open in App</a>" +
-            "</p>" +
-            "<p style='margin-top:12px;font-size:13px;color:#555;'>" +
-            "Don't have the app? <a href='" + webLink + "' style='color:#007AFF;'>Open in browser instead</a>" +
-            "</p>",
-        },
-      },
+      Subject: { Data: "📦 Load " + (load.loadNumber || "") + " assigned – " + company + " via Routelo" },
+      Body: { Html: { Data: html } },
     },
   }));
 }
@@ -180,7 +233,7 @@ exports.handler = async (event) => {
     const load = unmarshall(res.Item);
 
     // 2. Build tracking links
-    const { webLink, appLink } = buildLinks(event, load.trackingToken, load.id);
+    const { webLink, appLink, openAppUrl } = buildLinks(event, load.trackingToken, load.id);
     const link = webLink; // web fallback used in emails
 
     // ── PING-ONLY path ──────────────────────────────────────────────────────
@@ -194,19 +247,16 @@ exports.handler = async (event) => {
             Source: FROM_EMAIL,
             Destination: { ToAddresses: [load.assignedDriverEmail] },
             Message: {
-              Subject: { Data: "Action needed – Routelo Load " + load.loadNumber + " (" + (load.companyName || "Routelo") + ")" },
+              Subject: { Data: "📍 Location update needed – Load " + load.loadNumber + " (" + (load.companyName || "Routelo") + ")" },
               Body: {
                 Html: {
                   Data:
-                    "<p>Hi <strong>" + (load.assignedDriverName || "Driver") + "</strong>,</p>" +
-                    "<p>Your dispatcher at <strong>" + (load.companyName || "Routelo") + "</strong> is requesting an updated location for Load <strong>" +
-                    load.loadNumber + "</strong>. Please reopen the tracking app:</p>" +
-                    "<p style='margin-top:16px;'>" +
-                    "<a href='" + appLink + "' style='background:#FF9500;color:#fff;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;display:inline-block;'>📱 Reopen in App</a>" +
-                    "</p>" +
-                    "<p style='margin-top:12px;font-size:13px;color:#555;'>" +
-                    "Don't have the app? <a href='" + link + "' style='color:#FF9500;'>Open in browser instead</a>" +
-                    "</p>",
+                    "<div style='max-width:480px;margin:0 auto;padding:28px 20px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;background:#0f0f1a;'>" +
+                    "<p style='font-size:16px;color:#fff;margin:0 0 8px'>Hi <strong>" + (load.assignedDriverName || "Driver") + "</strong>,</p>" +
+                    "<p style='font-size:14px;color:#8e8ea0;margin:0 0 20px'>Your dispatcher at <strong style='color:#fff'>" + (load.companyName || "Routelo") + "</strong> needs a location update for Load <strong style='color:#fff'>" + load.loadNumber + "</strong>.</p>" +
+                    "<a href='" + openAppUrl + "' style='display:block;background:#FF9500;color:#fff;text-align:center;padding:17px;border-radius:14px;font-size:17px;font-weight:700;text-decoration:none;margin-bottom:12px'>📱 Reopen in App</a>" +
+                    "<p style='font-size:12px;color:#8e8ea0;text-align:center;margin-top:10px'>Open on your phone — tap to reopen Routelo directly to your load.</p>" +
+                    "</div>",
                 },
               },
             },
@@ -229,7 +279,7 @@ exports.handler = async (event) => {
 
     // 3. Send email to driver (if email on file)
     try {
-      await sendDriverEmail(load.assignedDriverEmail, load.assignedDriverName, load, webLink, appLink);
+      await sendDriverEmail(load.assignedDriverEmail, load.assignedDriverName, load, webLink, appLink, openAppUrl);
     } catch (e) {
       console.warn("Driver email failed:", e.message);
     }

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+  <meta name="theme-color" content="#0f0f1a"/>
+  <title>Routelo – Opening your load…</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--blue:#007AFF;--green:#34C759;--orange:#FF9500;--bg:#0f0f1a;--card:#1c1c2e;--border:#2c2c3e;--text:#fff;--muted:#8e8ea0}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 20px;text-align:center}
+    .logo{margin-bottom:32px}
+    .logo-name{font-size:28px;font-weight:700;color:#fff;letter-spacing:-0.5px}
+    .logo-sub{font-size:10px;color:var(--muted);letter-spacing:2.5px;text-transform:uppercase;margin-top:3px}
+    .card{width:100%;max-width:400px;background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px 24px;margin-bottom:16px}
+    h1{font-size:20px;font-weight:700;margin-bottom:8px;line-height:1.3}
+    .sub{font-size:14px;color:var(--muted);line-height:1.5;margin-bottom:24px}
+    .btn{display:block;width:100%;padding:16px;border:none;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;text-decoration:none;margin-bottom:12px;transition:opacity .15s,transform .1s;-webkit-tap-highlight-color:transparent}
+    .btn:active{opacity:.85;transform:scale(.98)}
+    .btn-blue{background:var(--blue);color:#fff}
+    .btn-outline{background:transparent;border:1px solid var(--border);color:var(--text);font-size:15px}
+    .step{display:flex;align-items:flex-start;gap:12px;text-align:left;margin-bottom:16px}
+    .step-num{width:28px;height:28px;min-width:28px;border-radius:50%;background:var(--blue);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+    .step-text{font-size:14px;color:var(--text);line-height:1.4;padding-top:4px}
+    .step-text strong{display:block;margin-bottom:2px}
+    .step-text span{color:var(--muted);font-size:13px}
+    .divider{height:1px;background:var(--border);margin:20px 0}
+    .desktop-msg{display:none;font-size:13px;color:var(--muted);line-height:1.6;margin-top:8px}
+    .badge-info{display:inline-flex;align-items:center;gap:6px;background:rgba(0,122,255,.12);border:1px solid rgba(0,122,255,.25);border-radius:20px;padding:5px 14px;font-size:13px;font-weight:600;color:var(--blue);margin-bottom:20px}
+    #spinner{font-size:32px;animation:spin 1s linear infinite;display:block;margin:0 auto 16px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    /* Show desktop message on non-mobile */
+    @media(min-width:768px){
+      .mobile-only{display:none!important}
+      .desktop-msg{display:block}
+      #spinner{display:none}
+    }
+  </style>
+</head>
+<body>
+
+<div class="logo">
+  <div class="logo-name">Routelo</div>
+  <div class="logo-sub">Live Tracking</div>
+</div>
+
+<!-- MOBILE VIEW: trying to open app -->
+<div class="card" id="card-trying" style="display:none">
+  <span id="spinner">⏳</span>
+  <h1>Opening Routelo…</h1>
+  <p class="sub">If the app doesn't open automatically, tap the button below.</p>
+  <a id="btn-open-app" href="#" class="btn btn-blue mobile-only">📱 Open in Routelo App</a>
+  <a id="btn-browser" href="#" class="btn btn-outline">🌐 Continue in Browser</a>
+</div>
+
+<!-- MOBILE VIEW: app not installed -->
+<div class="card" id="card-no-app" style="display:none">
+  <div class="badge-info">📦 You have a load assigned</div>
+  <h1>Get the Routelo App</h1>
+  <p class="sub">Your dispatcher sent you a load via Routelo. Follow these steps to get started:</p>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-text">
+      <strong>Download the Routelo app</strong>
+      <span>Ask your dispatcher for the download link — the app is currently invite-only.</span>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-text">
+      <strong>Sign in with your driver account</strong>
+      <span>Use the credentials your dispatcher provided.</span>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-text">
+      <strong>Tap the button in this email again</strong>
+      <span>The app will open directly to your load card.</span>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:14px">In the meantime, you can view your load details in the browser:</p>
+  <a id="btn-browser-2" href="#" class="btn btn-outline">🌐 View Load in Browser</a>
+</div>
+
+<!-- DESKTOP VIEW -->
+<div class="card" id="card-desktop" style="display:none">
+  <h1>📱 Open this on your phone</h1>
+  <p class="sub">Routelo is a mobile app. Open this link on your iPhone to view your assigned load and start tracking.</p>
+  <div class="divider"></div>
+  <p class="desktop-msg">You can also view load details in your browser on this device:</p>
+  <a id="btn-browser-desktop" href="#" class="btn btn-outline" style="margin-top:16px">🌐 View Load Details</a>
+</div>
+
+<script>
+  // Parse query params: token, loadId, webLink (base64-encoded fallback URL)
+  var params = new URLSearchParams(location.search);
+  var token   = params.get('token')  || '';
+  var loadId  = params.get('loadId') || '';
+  var webLink = params.get('web')    || '';
+  // Decode base64 web link if present
+  try { if (webLink) webLink = atob(webLink); } catch(e) {}
+
+  var appScheme = 'cmptracking://load?token=' + encodeURIComponent(token) + '&loadId=' + encodeURIComponent(loadId);
+
+  // Set all browser fallback hrefs
+  document.getElementById('btn-browser').href          = webLink || '#';
+  document.getElementById('btn-browser-2').href        = webLink || '#';
+  document.getElementById('btn-browser-desktop').href  = webLink || '#';
+  document.getElementById('btn-open-app').href         = appScheme;
+
+  var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  var isIOS    = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  if (!isMobile) {
+    // Desktop — just show the desktop card
+    document.getElementById('card-desktop').style.display = 'block';
+  } else {
+    // Mobile — show "trying" card and attempt deep link
+    document.getElementById('card-trying').style.display = 'block';
+
+    var appOpened = false;
+    var startTime = Date.now();
+
+    // Listen for page hide/blur — means the app opened
+    function onVisibilityChange() {
+      if (document.hidden || document.visibilityState === 'hidden') {
+        appOpened = true;
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', function() { appOpened = true; });
+    window.addEventListener('blur',     function() { appOpened = true; });
+
+    // Attempt to open the app
+    setTimeout(function() {
+      window.location.href = appScheme;
+    }, 300);
+
+    // After 2.5 seconds, if still here, assume app not installed
+    setTimeout(function() {
+      if (!appOpened && (Date.now() - startTime) < 4000) {
+        document.getElementById('card-trying').style.display = 'none';
+        document.getElementById('card-no-app').style.display = 'block';
+      }
+    }, 2500);
+  }
+</script>
+</body>
+</html>
