@@ -6,7 +6,7 @@
 
 import SwiftUI
 
-private let PEEK:   CGFloat = 64
+private let PEEK:   CGFloat = 60   // how many pts each bg card peeks below the active card
 private let SCALE:  CGFloat = 0.03
 private let CORNER: CGFloat = 20
 
@@ -17,7 +17,7 @@ struct WalletCardStack: View {
     var onTrack:  (WalletEntry) -> Void
     var onAccept: (WalletEntry) -> Void
 
-    @State private var activeH: CGFloat = 420
+    @State private var activeH: CGFloat = 440
 
     var body: some View {
         let cards = wallet.cards
@@ -31,39 +31,40 @@ struct WalletCardStack: View {
         }()
 
         let bgCount = sorted.count - 1
+        // Total visible height: full active card + each bg card peeking PEEK pts
         let totalH  = activeH + CGFloat(bgCount) * PEEK
 
         return AnyView(
-            ZStack(alignment: .topLeading) {
+            // A fixed-height container. Each child is sized to totalH and
+            // aligned to .top so the active card sits at y=0. Background cards
+            // use padding(.top) to push them to their peek position — this moves
+            // the layout frame (not just visuals), so hit-testing is correct.
+            ZStack(alignment: .top) {
 
-                // ── Background cards ─────────────────────────────────────────
-                // Each is placed inside a VStack whose top spacer pushes it to
-                // exactly the right Y — so the layout frame (and thus hit-test)
-                // is at the visible position, not at y=0.
+                // ── Background cards (rendered first = visually behind) ───────
                 ForEach(Array(sorted.dropFirst().enumerated()), id: \.element.id) { i, entry in
-                    let depth  = i + 1
-                    let topGap = activeH - 24 + CGFloat(i) * PEEK
-                    let sc     = 1.0 - CGFloat(depth) * SCALE
+                    let depth   = i + 1
+                    let sc      = 1.0 - CGFloat(depth) * SCALE
+                    // This padding pushes the card's layout frame to peek position
+                    let topPad  = activeH - 20 + CGFloat(i) * PEEK
 
-                    VStack(spacing: 0) {
-                        Color.clear.frame(height: topGap)   // pushes card to correct Y
-                        Button {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) {
-                                wallet.activate(id: entry.id)
-                            }
-                        } label: {
-                            WalletCard(
-                                entry: entry, isActive: false, depth: depth,
-                                onTap:     { },
-                                onDismiss: { withAnimation(.spring()) { wallet.remove(id: entry.id) } },
-                                onTrack:   { onTrack(entry) },
-                                onAccept:  { onAccept(entry) }
-                            )
-                            .scaleEffect(x: sc, anchor: .top)
+                    WalletCard(
+                        entry: entry, isActive: false, depth: depth,
+                        onTap:     { },
+                        onDismiss: { withAnimation(.spring()) { wallet.remove(id: entry.id) } },
+                        onTrack:   { onTrack(entry) },
+                        onAccept:  { onAccept(entry) }
+                    )
+                    .scaleEffect(x: sc, anchor: .top)
+                    .padding(.top, topPad)
+                    // contentShape after padding so the full peek area is tappable
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) {
+                            wallet.activate(id: entry.id)
                         }
-                        .buttonStyle(.plain)
                     }
-                    .frame(maxWidth: .infinity, alignment: .top)
+                    .frame(maxWidth: .infinity, maxHeight: totalH, alignment: .top)
                     .zIndex(Double(bgCount - i))
                 }
 
@@ -81,10 +82,11 @@ struct WalletCardStack: View {
                             .onAppear            { activeH = g.size.height }
                             .onChange(of: g.size.height) { _, h in activeH = h }
                     })
+                    .frame(maxWidth: .infinity, alignment: .top)
                     .zIndex(Double(sorted.count))
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: totalH, alignment: .top)
+            .frame(height: totalH, alignment: .top)
             .padding(.horizontal, 16)
             .animation(.spring(response: 0.4, dampingFraction: 0.78), value: activeId)
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: activeH)
