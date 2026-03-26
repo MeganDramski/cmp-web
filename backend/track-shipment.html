@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#1a1a2e" />
-  <title>Routelo – Track Your Shipment</title>
+  <title>Track Your Shipment</title>
   <link rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -107,7 +107,7 @@
 </head>
 <body>
 
-  <p class="logo">Routelo</p>
+  <p class="logo" id="company-name">Loading…</p>
 
   <div id="error-banner" class="error-banner"></div>
 
@@ -234,7 +234,7 @@
       if (!API_BASE) {
         showError(
           "Tracking is temporarily unavailable (configuration error). " +
-          "Please contact CMP Logistics for assistance."
+          "Please contact support for assistance."
         );
         console.error(
           "CMP: API base URL is not configured. " +
@@ -329,6 +329,7 @@
         }
         const data = await res.json();
 
+        document.getElementById("company-name").textContent = data.companyName || "CMP Logistics";
         document.getElementById("load-number").textContent = data.loadNumber || "—";
         document.getElementById("load-desc").textContent   = data.description || "";
         document.getElementById("pickup").textContent      = data.pickupAddress || "—";
