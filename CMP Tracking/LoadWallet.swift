@@ -94,9 +94,7 @@ final class LoadWallet: ObservableObject {
     // MARK: - Activate (bring a card to front)
 
     func activate(id: String) {
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-            activeId = id
-        }
+        activeId = id
     }
 
     // MARK: - Build from DriverDeepLink + server JSON

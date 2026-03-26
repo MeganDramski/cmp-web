@@ -43,15 +43,23 @@ final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate,
 // Used when a new driver link arrives while the app is already in the driver flow.
 final class DeepLinkFetcher {
     private let link: DriverDeepLink
+    // Retain all in-flight fetchers until they complete
+    private static var active: Set<DeepLinkFetcher> = []
 
     init(link: DriverDeepLink) { self.link = link }
 
     func fetch() {
+        DeepLinkFetcher.active.insert(self)
         let base = AWSConfig.baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard !base.isEmpty, !base.contains("REPLACE"),
-              let url = URL(string: "\(base)/track/\(link.token)") else { return }
+              let url = URL(string: "\(base)/track/\(link.token)") else {
+            DeepLinkFetcher.active.remove(self)
+            return
+        }
         URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
-            guard let self, let data,
+            guard let self else { return }
+            defer { DispatchQueue.main.async { DeepLinkFetcher.active.remove(self) } }
+            guard let data,
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
             let entry = LoadWallet.entry(from: json, link: self.link)
             DispatchQueue.main.async {
@@ -59,6 +67,11 @@ final class DeepLinkFetcher {
             }
         }.resume()
     }
+}
+
+extension DeepLinkFetcher: Hashable {
+    static func == (lhs: DeepLinkFetcher, rhs: DeepLinkFetcher) -> Bool { lhs === rhs }
+    func hash(into hasher: inout Hasher) { hasher.combine(ObjectIdentifier(self)) }
 }
 
 @main
@@ -155,12 +168,7 @@ struct CMP_TrackingApp: App {
             let newLink = DriverDeepLink(token: qToken, loadId: qLoadId)
             DispatchQueue.main.async {
                 if self.driverLink != nil || !LoadWallet.shared.cards.isEmpty {
-                    // Already in driver wallet flow — fetch and add the new load to wallet
-                    // Create a temporary VM just to fetch and upsert the new entry
-                    let fetcher = DeepLinkFetcher(link: newLink)
-                    fetcher.fetch()
-                    // Hold reference so it isn't deallocated before fetch completes
-                    self._pendingFetchers.append(fetcher)
+                    DeepLinkFetcher(link: newLink).fetch()
                 } else {
                     self.driverLink = newLink
                 }
@@ -188,16 +196,11 @@ struct CMP_TrackingApp: App {
             let newLink = DriverDeepLink(token: qToken, loadId: qLoadId)
             DispatchQueue.main.async {
                 if self.driverLink != nil || !LoadWallet.shared.cards.isEmpty {
-                    let fetcher = DeepLinkFetcher(link: newLink)
-                    fetcher.fetch()
-                    self._pendingFetchers.append(fetcher)
+                    DeepLinkFetcher(link: newLink).fetch()
                 } else {
                     self.driverLink = newLink
                 }
             }
         }
     }
-
-    // Temporary storage for in-flight fetchers so ARC doesn't kill them
-    private var _pendingFetchers: [DeepLinkFetcher] = []
 }
