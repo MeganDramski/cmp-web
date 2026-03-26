@@ -22,27 +22,31 @@ struct WalletCardStack: View {
     var onTrack:  (WalletEntry) -> Void
     var onAccept: (WalletEntry) -> Void
 
+    // Measured height of the active (front) card
+    @State private var activeCardHeight: CGFloat = 420
+
     var body: some View {
-        let cards = wallet.cards
+        let cards    = wallet.cards
         let activeId = wallet.activeId ?? cards.first?.id
 
-        // We lay out cards as a real vertical stack:
-        // active card on top, then each background card shifted down by peekHeight.
-        // Using ZStack + padding(.top) means each card occupies real layout space
-        // proportional to its peek offset → no clipping.
-        ZStack(alignment: .top) {
-            ForEach(Array(cards.enumerated()), id: \.element.id) { index, entry in
+        // Active card first, then remaining in original order
+        let sorted: [WalletEntry] = {
+            var result = cards.filter { $0.id == activeId }
+            result += cards.filter { $0.id != activeId }
+            return result
+        }()
+
+        VStack(spacing: 0) {
+            ForEach(Array(sorted.enumerated()), id: \.element.id) { depth, entry in
                 let isActive = entry.id == activeId
-                let depth    = depthFrom(activeId: activeId, entryId: entry.id, cards: cards)
                 let cappedD  = min(depth, WalletLayout.maxVisible - 1)
-                let scale    = isActive ? 1.0 : max(1.0 - CGFloat(cappedD) * WalletLayout.scaleStep, 0.88)
-                let topPad   = isActive ? 0.0 : CGFloat(cappedD) * WalletLayout.peekHeight
+                let scale    = 1.0 - CGFloat(cappedD) * WalletLayout.scaleStep
 
                 WalletCard(
                     entry:     entry,
                     isActive:  isActive,
                     depth:     cappedD,
-                    onTap:     {
+                    onTap: {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) {
                             wallet.activate(id: entry.id)
                         }
@@ -55,24 +59,34 @@ struct WalletCardStack: View {
                     onTrack:  { onTrack(entry)  },
                     onAccept: { onAccept(entry) }
                 )
-                .scaleEffect(x: scale, y: scale, anchor: .top)
-                .padding(.top, topPad)
-                // hide cards beyond the visible limit
+                // Measure active card height so we know how much to overlap
+                .background(
+                    isActive
+                        ? GeometryReader { geo in
+                            Color.clear.preference(key: CardHeightKey.self, value: geo.size.height)
+                          }
+                        : nil
+                )
+                .scaleEffect(x: scale, y: 1.0, anchor: .top)
+                // Pull each background card up so only peekHeight is visible below active
+                .padding(.top, depth == 0 ? 0 : -(activeCardHeight - WalletLayout.peekHeight))
+                .zIndex(Double(sorted.count - depth))
                 .opacity(cappedD >= WalletLayout.maxVisible ? 0 : 1)
-                .zIndex(isActive ? 100 : Double(cards.count - depth))
                 .animation(.spring(response: 0.4, dampingFraction: 0.78), value: isActive)
-                .animation(.spring(response: 0.4, dampingFraction: 0.78), value: depth)
+                .animation(.spring(response: 0.4, dampingFraction: 0.78), value: activeCardHeight)
             }
+        }
+        .onPreferenceChange(CardHeightKey.self) { h in
+            if h > 0 { activeCardHeight = h }
         }
         .padding(.horizontal, 16)
     }
+}
 
-    private func depthFrom(activeId: String?, entryId: String, cards: [WalletEntry]) -> Int {
-        guard let aId = activeId,
-              let aIdx = cards.firstIndex(where: { $0.id == aId }),
-              let eIdx = cards.firstIndex(where: { $0.id == entryId }) else { return 0 }
-        if entryId == aId { return 0 }
-        return abs(eIdx - aIdx)
+private struct CardHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 
@@ -92,7 +106,7 @@ struct WalletCard: View {
 
     private var cardColor: Color {
         let base = 0.13 + Double(depth) * 0.025
-        return Color(red: base, green: base, blue: base + 0.075)
+        return Color(red: base, green: base, blue: base + 0.07)
     }
 
     var body: some View {
@@ -149,7 +163,8 @@ struct WalletCard: View {
                         Spacer()
                         if entry.companyName.isEmpty { statusPill(entry.status) }
                     }
-                    .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, entry.description.isEmpty ? 10 : 4)
+                    .padding(.horizontal, 16).padding(.top, 14)
+                    .padding(.bottom, entry.description.isEmpty ? 10 : 4)
 
                     if !entry.description.isEmpty {
                         Text(entry.description)
@@ -161,7 +176,7 @@ struct WalletCard: View {
 
                     // Route rows
                     routeRow(icon: "circle.fill",        color: .green, label: "PICKUP",   address: entry.pickupAddress)
-                    routeConnector
+                    Rectangle().fill(Color.white.opacity(0.1)).frame(width: 1.5, height: 12).padding(.leading, 34)
                     routeRow(icon: "mappin.circle.fill", color: .red,   label: "DELIVERY", address: entry.deliveryAddress)
 
                     // Dates + weight
@@ -223,7 +238,7 @@ struct WalletCard: View {
                     Image(systemName: "chevron.up")
                         .font(.system(size: 11, weight: .semibold)).foregroundColor(.secondary)
                 }
-                .padding(.horizontal, 16).padding(.vertical, 16)
+                .padding(.horizontal, 16).padding(.vertical, 18)
                 .contentShape(Rectangle())
                 .onTapGesture { onTap() }
             }
@@ -231,33 +246,25 @@ struct WalletCard: View {
         .background(
             RoundedRectangle(cornerRadius: WalletLayout.cornerRadius)
                 .fill(cardColor)
-                .shadow(color: .black.opacity(isActive ? 0.4 : 0.2),
-                        radius: isActive ? 18 : 6, x: 0, y: isActive ? 8 : 2)
+                .shadow(color: .black.opacity(isActive ? 0.45 : 0.25),
+                        radius: isActive ? 20 : 8, x: 0, y: isActive ? 8 : 3)
         )
         .overlay(
             RoundedRectangle(cornerRadius: WalletLayout.cornerRadius)
-                .stroke(Color.white.opacity(isActive ? 0.12 : 0.05), lineWidth: 1)
+                .stroke(Color.white.opacity(isActive ? 0.13 : 0.06), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: WalletLayout.cornerRadius))
+        .onTapGesture { if !isActive { onTap() } }
     }
 
-    // MARK: - Sub-views
+    // MARK: - Rows
 
-    @ViewBuilder
-    private var routeConnector: some View {
-        Rectangle().fill(Color.white.opacity(0.1))
-            .frame(width: 1.5, height: 14)
-            .padding(.leading, 34)
-    }
-
-    @ViewBuilder
-    private var actionRow: some View {
+    @ViewBuilder private var actionRow: some View {
         if entry.isComplete {
             HStack {
                 Image(systemName: entry.status == "Delivered" ? "checkmark.seal.fill" : "xmark.circle.fill")
                     .foregroundColor(entry.status == "Delivered" ? .green : .red)
-                Text(entry.status == "Delivered" ? "Delivered" : "Cancelled")
-                    .font(.subheadline).fontWeight(.semibold)
+                Text(entry.status).font(.subheadline).fontWeight(.semibold)
                     .foregroundColor(entry.status == "Delivered" ? .green : .red)
                 Spacer()
                 Label("Swipe up to remove", systemImage: "arrow.up")
