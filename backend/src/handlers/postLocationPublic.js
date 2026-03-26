@@ -96,4 +96,4 @@ exports.handler = async (event) => {
     console.error("postLocationPublic error:", err);
     return respond(500, { error: "Internal server error." });
   }
-};};
+};

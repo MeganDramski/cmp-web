@@ -993,6 +993,14 @@ function bgPollLoads(){
                 b.textContent=selLoad.status;
               }
             });
+            // Start map if status became trackable and map isn't running yet
+            if((selLoad.status==='In Transit'||selLoad.status==='Accepted'||selLoad.status==='Assigned') && !_dispPollTimer){
+              if(!document.getElementById('disp-map-section')){
+                renderDetail();
+              } else {
+                startDispatcherMap(selLoad);
+              }
+            }
           }
         }
       })
@@ -1043,6 +1051,27 @@ function checkStatusChange(l){
         b.textContent=l.status;
       }
     });
+    // If status just became trackable and map isn't running yet, start it.
+    // Also update the map section header text and placeholder.
+    if((l.status==='In Transit'||l.status==='Accepted'||l.status==='Assigned') && !_dispPollTimer){
+      // Update the map section header to reflect new status
+      var mapHeader = document.querySelector('#disp-map-section .map-header span:last-child');
+      if(mapHeader){
+        if(l.status==='In Transit'){
+          mapHeader.style.color='var(--green)';
+          mapHeader.textContent='● Tracking active';
+        } else {
+          mapHeader.style.color='var(--muted)';
+          mapHeader.textContent='Waiting for driver to start';
+        }
+      }
+      // If the map section doesn't exist yet, re-render the detail to add it
+      if(!document.getElementById('disp-map-section')){
+        renderDetail();
+      } else {
+        startDispatcherMap(l);
+      }
+    }
   }
 }
 
@@ -1383,6 +1412,9 @@ var _dispMap=null, _dispMarker=null, _dispTrail=null, _dispTrailPts=[], _dispPol
 var _lastGpsTimestamp=null; // actual timestamp of driver's last GPS fix
 // Track which load the dispatcher map is currently showing.
 var _dispMapLoadId=null;
+// Guard: true while Leaflet is in the middle of its async init (the 50ms setTimeout).
+// Prevents a second poll response from wiping el.innerHTML and killing the pending init.
+var _dispMapInitializing=false;
 
 // Update the "Last update" stat — shows "Just now" / "30s ago" etc.
 // Called on every successful poll AND by the stale timer between polls.
@@ -1400,7 +1432,12 @@ function updateLastSeenLabel(){
 function stopDispatcherMap(){
   if(_dispPollTimer){clearInterval(_dispPollTimer);_dispPollTimer=null;}
   if(_dispStaleTimer){clearInterval(_dispStaleTimer);_dispStaleTimer=null;}
+  // Must call .remove() before nulling so Leaflet releases its hold on the
+  // container div — otherwise the next L.map() call throws
+  // "Map container is already initialized".
+  if(_dispMap){try{_dispMap.remove();}catch(e){}}
   _dispMap=null; _dispMarker=null; _dispTrail=null; _dispTrailPts=[]; _lastLocTimestamp=null; _lastGpsTimestamp=null;
+  _dispMapInitializing=false;
   _dispMapLoadId=null;
 }
 
@@ -1588,18 +1625,35 @@ function renderDispatcherMapLocation(loc, history){
       var lat=loc.latitude, lng=loc.longitude;
 
       if(!_dispMap){
+        // If Leaflet is already mid-init (async 50ms gap), don't wipe innerHTML again —
+        // that would destroy the div the pending setTimeout is about to use.
+        if(_dispMapInitializing) return;
+        _dispMapInitializing=true;
         el.innerHTML='<div id="disp-map" style="width:100%;height:260px"></div>';
         // Use setTimeout so the div is in the DOM and has dimensions before Leaflet init
         setTimeout(function(){
           var mapEl = document.getElementById('disp-map');
-          if(!mapEl) return;
-          _dispMap=L.map('disp-map',{zoomControl:true,attributionControl:false}).setView([lat,lng],13);
+          // If the element was removed while we were waiting (user switched loads), bail.
+          if(!mapEl){ _dispMapInitializing=false; return; }
+          try{
+            _dispMap=L.map('disp-map',{zoomControl:true,attributionControl:false}).setView([lat,lng],13);
+          }catch(e){
+            // "Map container is already initialized" — should not happen now that
+            // stopDispatcherMap calls .remove(), but guard just in case.
+            console.warn('Leaflet init error:',e);
+            _dispMapInitializing=false;
+            return;
+          }
+          _dispMapInitializing=false;
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(_dispMap);
           var truckIcon=L.divIcon({html:'<div style="font-size:26px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">🚛</div>',className:'',iconSize:[32,32],iconAnchor:[16,16]});
           _dispMarker=L.marker([lat,lng],{icon:truckIcon}).addTo(_dispMap);
           _dispTrail=L.polyline([],{color:'#007AFF',weight:4,opacity:.85,lineJoin:'round',lineCap:'round'}).addTo(_dispMap);
-          // Force Leaflet to recalculate size after DOM is painted
-          setTimeout(function(){ if(_dispMap) _dispMap.invalidateSize(); }, 100);
+          // Force Leaflet to recalculate size after DOM is fully painted.
+          // 250ms covers CSS transitions on the detail panel sliding in.
+          // A second call at 600ms catches any remaining layout shifts.
+          setTimeout(function(){ if(_dispMap) _dispMap.invalidateSize(); }, 250);
+          setTimeout(function(){ if(_dispMap) _dispMap.invalidateSize(); }, 600);
 
           // Update stats immediately after map init
           var statsEl=document.getElementById('disp-map-stats');
