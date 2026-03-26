@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import MapKit
 
 struct DispatcherView: View {
     @EnvironmentObject var appState: AppState
@@ -576,6 +577,8 @@ struct LoadDetailView: View {
     @State private var sentBannerMessage = ""
     @State private var notifyCustomerByEmail = true
     @State private var isSendingLink = false
+    @State private var pickupPin: CLLocationCoordinate2D? = nil
+    @State private var deliveryPin: CLLocationCoordinate2D? = nil
 
     var body: some View {
         List {
@@ -603,6 +606,30 @@ struct LoadDetailView: View {
                 LabeledContent("Est. Delivery", value: load.deliveryDate.formatted(date: .abbreviated, time: .shortened))
             } header: {
                 Text("Details")
+            }
+
+            // ── Map ──────────────────────────────────────────────────────────
+            Section {
+                if let location = load.lastLocation {
+                    // Live location available — show live tracking map
+                    TrackingMapView(
+                        loadId: load.id,
+                        initialLocation: location,
+                        loadNumber: load.loadNumber
+                    )
+                    .frame(height: 220)
+                    .cornerRadius(10)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowBackground(Color.clear)
+                } else {
+                    RouteMapView(pickupCoord: pickupPin, deliveryCoord: deliveryPin)
+                        .frame(height: 220)
+                        .cornerRadius(10)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .listRowBackground(Color.clear)
+                }
+            } header: {
+                Text(load.lastLocation != nil ? "Live Location" : "Route")
             }
 
             // ── Driver ───────────────────────────────────────────────────────
@@ -649,7 +676,7 @@ struct LoadDetailView: View {
                     LabeledContent("Speed", value: "\(Int(location.speed)) mph")
                     LabeledContent("Updated", value: location.timestamp.formatted(date: .omitted, time: .shortened))
                     Button(action: { showMap = true }) {
-                        Label("View on Map", systemImage: "map.fill")
+                        Label("View Full Screen", systemImage: "arrow.up.left.and.arrow.down.right")
                     }
                 } header: {
                     Text("Last Known Location")
@@ -734,6 +761,7 @@ struct LoadDetailView: View {
         }
         .navigationTitle(load.loadNumber)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { geocodeAddresses() }
         .sheet(isPresented: $showStatusPicker) {
             StatusPickerSheet(currentStatus: load.status) { newStatus in
                 viewModel.updateLoadStatus(load: load, newStatus: newStatus)
@@ -751,6 +779,21 @@ struct LoadDetailView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
                     .padding(.top, 8)
                     .animation(.spring(response: 0.4, dampingFraction: 0.8), value: showSentBanner)
+            }
+        }
+    }
+
+    // MARK: – Geocoding for route map
+    private func geocodeAddresses() {
+        let geocoder = CLGeocoder()
+        geocoder.geocodeAddressString(load.pickupAddress) { placemarks, _ in
+            guard let coord = placemarks?.first?.location?.coordinate else { return }
+            DispatchQueue.main.async { self.pickupPin = coord }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            geocoder.geocodeAddressString(load.deliveryAddress) { placemarks, _ in
+                guard let coord = placemarks?.first?.location?.coordinate else { return }
+                DispatchQueue.main.async { self.deliveryPin = coord }
             }
         }
     }
