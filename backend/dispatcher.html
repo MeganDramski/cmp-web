@@ -1541,7 +1541,14 @@ function routeFallback(pts, callback){
 }
 
 function pollDispatcherMap(token){
-  var pollStart = Date.now();
+  // ── Immediate render from already-loaded load data ───────────────────────
+  // The load list already contains lastLocation — use it right away so the
+  // map shows something while the live poll is in flight.
+  var knownLoad = loads.find(function(l){ return l.trackingToken === token; });
+  if(knownLoad && knownLoad.lastLocation && knownLoad.lastLocation.latitude != null){
+    renderDispatcherMapLocation(knownLoad.lastLocation, [knownLoad.lastLocation]);
+  }
+
   fetch(API+'/track/'+token+'?live=1')
     .then(function(r){
       if(!r.ok){ console.warn('pollDispatcherMap HTTP '+r.status); return null; }
@@ -1549,30 +1556,37 @@ function pollDispatcherMap(token){
     })
     .then(function(data){
       if(!data){ console.warn('pollDispatcherMap: no data returned'); return; }
-      var el=document.getElementById('disp-map-inner');
-      if(!el)return;
 
-      // Sort all history ascending so newest is last. No 24-hr cutoff —
-      // we want every point from the current trip regardless of age.
+      console.log('pollDispatcherMap response — status:', data.status,
+        '| lastLocation:', data.lastLocation,
+        '| historyLen:', (data.locationHistory||[]).length);
+
       var history = Array.isArray(data.locationHistory) ? data.locationHistory.slice() : [];
       history.sort(function(a,b){
         return new Date(a.timestamp||0).getTime() - new Date(b.timestamp||0).getTime();
       });
 
-      // Best position: newest history point, then lastLocation on the load.
-      // Never bail just because history is empty — lastLocation is always fresh.
+      // Best position: newest history point → lastLocation on load → lastLocation in poll response
       var loc = history.length
         ? history[history.length-1]
-        : (data.lastLocation || null);
+        : (data.lastLocation || (knownLoad && knownLoad.lastLocation) || null);
 
       if(!loc || loc.latitude==null || loc.longitude==null){
-        console.warn('pollDispatcherMap: no usable location yet');
+        console.warn('pollDispatcherMap: no usable location yet. data.lastLocation=',data.lastLocation);
         return;
       }
 
+      renderDispatcherMapLocation(loc, history);
+    })
+    .catch(function(err){ console.error('pollDispatcherMap fetch error:', err); });
+}
+
+function renderDispatcherMapLocation(loc, history){
+      var el=document.getElementById('disp-map-inner');
+      if(!el)return;
+
       var lat=loc.latitude, lng=loc.longitude;
 
-      // Build map container first time we have a location
       if(!_dispMap){
         el.innerHTML='<div id="disp-map"></div>';
         _dispMap=L.map('disp-map',{zoomControl:true,attributionControl:false}).setView([lat,lng],13);
@@ -1585,8 +1599,7 @@ function pollDispatcherMap(token){
         _dispMap.panTo([lat,lng]);
       }
 
-      // Trail
-      if(history.length>=2){
+      if(history && history.length>=2){
         snapToRoads(history, function(roadPts){
           if(roadPts && roadPts.length>=2){
             _dispTrail.setLatLngs(roadPts);
@@ -1598,23 +1611,18 @@ function pollDispatcherMap(token){
         if(_dispTrail) _dispTrail.setLatLngs([]);
       }
 
-      // Show stats bar
       var statsEl=document.getElementById('disp-map-stats');
       if(statsEl){
         statsEl.style.display='flex';
         document.getElementById('dms-speed').textContent=loc.speed!=null?Math.round(loc.speed):'0';
         document.getElementById('dms-lat').textContent=lat.toFixed(5);
         document.getElementById('dms-lng').textContent=lng.toFixed(5);
-        // Use server receive time for staleness check — driver phone clock may drift.
-        // Show the GPS timestamp in the label but base "X ago" on when we got the data.
         var receiveTime = Date.now();
-        _lastGpsTimestamp = receiveTime;  // "ago" counts from when dispatcher received it
+        _lastGpsTimestamp = receiveTime;
         _lastLocTimestamp = receiveTime;
         updateLastSeenLabel();
         checkStaleSignal();
       }
-    })
-    .catch(function(err){ console.error('pollDispatcherMap fetch error:', err); });
 }
 
 /* ── PING DRIVER ─────────────────────────────────────────────────────────── */
