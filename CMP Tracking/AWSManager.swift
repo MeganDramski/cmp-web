@@ -68,14 +68,18 @@ class AWSManager {
                   phone: String,
                   password: String,
                   role: String,
+                  tenantId: String? = nil,
                   completion: @escaping (Result<AWSUser, Error>) -> Void) {
         guard isConfigured else {
             completion(.failure(AWSError.notConfigured)); return
         }
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "name": name, "email": email, "phone": phone,
             "password": password, "role": role
         ]
+        if let tenantId = tenantId, !tenantId.isEmpty {
+            body["tenantId"] = tenantId
+        }
         request(path: "/users/register", method: "POST", body: body, auth: false) { result in
             self.decode(result, key: "user", completion: completion)
         }

@@ -57,7 +57,7 @@ class NetworkManager: NSObject, ObservableObject {
 
     func notifyDispatcherLoadAccepted(load: Load, driverName: String,
                                       completion: @escaping (Result<Void, Error>) -> Void) {
-        guard let url = URL(string: "\(NetworkManager.baseURL)/api/loads/\(load.id)/accept") else { return }
+        guard let url = URL(string: "\(NetworkManager.baseURL)/loads/\(load.id)/accept") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -92,21 +92,16 @@ class NetworkManager: NSObject, ObservableObject {
     //
     func notifyTrackingStarted(load: Load, driverName: String,
                                completion: @escaping (Result<Void, Error>) -> Void) {
-        guard let url = URL(string: "\(NetworkManager.baseURL)/api/loads/\(load.id)/notify-tracking-started") else { return }
+        guard let url = URL(string: "\(NetworkManager.baseURL)/track/\(load.trackingToken)/start") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 10
 
-        let payload: [String: String] = [
+        let payload: [String: Any] = [
             "loadId":          load.id,
-            "loadNumber":      load.loadNumber,
-            "trackingToken":   load.trackingToken,
-            "trackingURL":     load.customerTrackingURL,   // web link — customers don't have the app
-            "driverName":      driverName,
-            "customerName":    load.customerName,
-            "customerEmail":   load.customerEmail,
-            "customerPhone":   load.customerPhone   // server uses this to send SMS
+            "dispatcherEmail": load.dispatcherEmail ?? "",
+            "notifyCustomer":  load.notifyCustomer,
         ]
         request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
 

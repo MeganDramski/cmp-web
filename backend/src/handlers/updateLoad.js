@@ -33,7 +33,7 @@ exports.handler = async (event) => {
       "loadNumber","description","weight","pickupAddress","deliveryAddress",
       "pickupDate","deliveryDate","status","assignedDriverId","assignedDriverName",
       "assignedDriverEmail","assignedDriverPhone","customerName","customerEmail",
-      "customerPhone","notifyCustomer","notes","dispatcherEmail"
+      "customerPhone","notifyCustomer","notes","dispatcherEmail","companyName"
     ];
 
     const expParts  = ["updatedAt = :updatedAt"];

@@ -1,6 +1,7 @@
 // src/handlers/createLoad.js
 // POST /loads
 // Requires: Authorization: Bearer <token>  (dispatcher only)
+// Body: Load object (see Models.swift)
 
 const { DynamoDBClient, PutItemCommand } = require("@aws-sdk/client-dynamodb");
 const { marshall } = require("@aws-sdk/util-dynamodb");
@@ -18,8 +19,7 @@ exports.handler = async (event) => {
     }
 
     const body = JSON.parse(event.body || "{}");
-
-    const required = ["pickupAddress", "deliveryAddress"];
+    const required = ["pickupAddress", "deliveryAddress", "customerName"];
     for (const field of required) {
       if (!body[field]) return respond(400, { error: `${field} is required.` });
     }
@@ -27,27 +27,27 @@ exports.handler = async (event) => {
     const load = {
       id:                  body.id            || crypto.randomUUID(),
       tenantId:            user.tenantId      || null,
-      loadNumber:          body.loadNumber    || null,
-      description:         body.description   || null,
-      weight:              body.weight        || 0,
+      loadNumber:          body.loadNumber,
+      description:         body.description,
+      weight:              body.weight         || 0,
       pickupAddress:       body.pickupAddress,
       deliveryAddress:     body.deliveryAddress,
-      pickupDate:          body.pickupDate    || new Date().toISOString(),
-      deliveryDate:        body.deliveryDate  || new Date(Date.now() + 86400000).toISOString(),
-      status:              body.status        || "Pending",
+      pickupDate:          body.pickupDate     || new Date().toISOString(),
+      deliveryDate:        body.deliveryDate   || new Date(Date.now() + 86400000).toISOString(),
+      status:              body.status         || "Pending",
       assignedDriverId:    body.assignedDriverId    || null,
       assignedDriverName:  body.assignedDriverName  || null,
       assignedDriverEmail: body.assignedDriverEmail || null,
       assignedDriverPhone: body.assignedDriverPhone || null,
-      trackingToken:       body.trackingToken || crypto.randomUUID(),
-      customerName:        body.customerName  || null,
-      customerEmail:       body.customerEmail || null,
-      customerPhone:       body.customerPhone || null,
-      notes:               body.notes         || "",
+      trackingToken:       body.trackingToken  || crypto.randomUUID(),
+      customerName:        body.customerName,
+      customerEmail:       body.customerEmail  || "",
+      customerPhone:       body.customerPhone  || "",
+      notes:               body.notes          || "",
       dispatcherEmail:     body.dispatcherEmail || user.email,
-      companyName:         user.companyName   || null,
-      notifyCustomer:      body.notifyCustomer || false,
-      createdAt:           body.createdAt     || new Date().toISOString(),
+      companyName:         user.companyName    || body.companyName || null,
+      notifyCustomer:      body.notifyCustomer  || false,
+      createdAt:           new Date().toISOString(),
       createdBy:           user.email,
     };
 
