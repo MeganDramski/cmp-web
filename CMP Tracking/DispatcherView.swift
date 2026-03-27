@@ -786,7 +786,7 @@ struct LoadDetailView: View {
         }
         .sheet(isPresented: $showMap) {
             if let location = load.lastLocation {
-                TrackingMapView(loadId: load.id, initialLocation: location, loadNumber: load.loadNumber)
+                TrackingMapView(loadId: load.id, initialLocation: location, loadNumber: load.loadNumber, destinationCoordinate: deliveryPin)
             }
         }
         .overlay(alignment: .top) {

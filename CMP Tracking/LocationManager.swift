@@ -20,6 +20,11 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// Fires true when driver appears to have stopped near the delivery address
     @Published var deliveryReminderTriggered: Bool = false
 
+    /// Publisher that emits whenever currentLocation changes — for use in SwiftUI onReceive.
+    var currentLocationPublisher: AnyPublisher<CLLocation?, Never> {
+        $currentLocation.eraseToAnyPublisher()
+    }
+
     // MARK: - Private
     private let clManager = CLLocationManager()
     private var currentLoadId: String?
@@ -99,6 +104,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
 
         clManager.startUpdatingLocation()
+        clManager.requestLocation() // immediate fix so map updates at once
         isTracking = true
     }
 

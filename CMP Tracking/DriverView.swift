@@ -622,6 +622,15 @@ struct DriverView: View {
                     self.statusMessage = "Sent at \(update.timestamp.formatted(date: .omitted, time: .shortened))"
                 }
             }
+            // Always request a fresh location so map snaps to driver immediately
+            locationManager.requestCurrentLocation()
+            if let coord = locationManager.currentLocation?.coordinate {
+                mapRegion = MKCoordinateRegion(
+                    center: coord,
+                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                )
+                hasSetInitialRegion = true
+            }
             statusMessage = "Tracking started"
             notificationBannerMessage = "🚛 Tracking started — dispatcher can see your location live"
             showNotificationBanner = true
@@ -658,6 +667,16 @@ struct DriverView: View {
             DispatchQueue.main.async {
                 self.statusMessage = "Sent at \(update.timestamp.formatted(date: .omitted, time: .shortened))"
             }
+        }
+        // Always request a fresh location immediately so the map snaps to the
+        // driver's real position without waiting for the 10-second interval
+        locationManager.requestCurrentLocation()
+        if let coord = locationManager.currentLocation?.coordinate {
+            mapRegion = MKCoordinateRegion(
+                center: coord,
+                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+            )
+            hasSetInitialRegion = true
         }
         statusMessage = "Tracking started"
         notificationBannerMessage = "🚛 Tracking \(entry.loadNumber) — dispatcher can see your location"

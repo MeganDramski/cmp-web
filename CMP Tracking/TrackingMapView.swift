@@ -195,10 +195,11 @@ struct TrackingMapView: View {
     @State private var isArrived = false
     @Environment(\.dismiss) var dismiss
 
-    init(loadId: String, initialLocation: LocationUpdate, loadNumber: String) {
+    init(loadId: String, initialLocation: LocationUpdate, loadNumber: String, destinationCoordinate: CLLocationCoordinate2D? = nil) {
         self.loadId = loadId
         self.initialLocation = initialLocation
         self.loadNumber = loadNumber
+        self.destinationCoordinate = destinationCoordinate
         _mapRegion = State(initialValue: MKCoordinateRegion(
             center: initialLocation.coordinate,
             span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)

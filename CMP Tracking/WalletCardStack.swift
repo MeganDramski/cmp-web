@@ -4,59 +4,77 @@
 
 import SwiftUI
 import MapKit
+import Combine
 
 private let CORNER: CGFloat = 18
 
 // MARK: - WalletCardStack
+// Observes LocationManager directly so the whole stack re-renders on every GPS update.
 
 struct WalletCardStack: View {
     @ObservedObject var wallet: LoadWallet
-    var locationManager: LocationManager? = nil
+    @ObservedObject var lm: LocationManager
     var onTrack:  (WalletEntry) -> Void
     var onAccept: (WalletEntry) -> Void
 
+    init(wallet: LoadWallet,
+         locationManager: LocationManager? = nil,
+         onTrack:  @escaping (WalletEntry) -> Void,
+         onAccept: @escaping (WalletEntry) -> Void) {
+        // Use _property = ObservedObject(wrappedValue:) — the ONLY correct way
+        // to assign @ObservedObject inside a custom init.
+        _wallet  = ObservedObject(wrappedValue: wallet)
+        _lm      = ObservedObject(wrappedValue: locationManager ?? LocationManager())
+        self.onTrack  = onTrack
+        self.onAccept = onAccept
+    }
+
     var body: some View {
         let activeId = wallet.activeId ?? wallet.cards.first?.id
+        // Show driver location whenever we have one, regardless of isTracking state
+        let driverCoord = lm.currentLocation?.coordinate
+        let trail       = lm.isTracking ? lm.routeTrail : []
+
         VStack(spacing: 12) {
             ForEach(wallet.cards) { entry in
                 LoadCard(
-                    entry:           entry,
-                    isActive:        entry.id == activeId,
-                    locationManager: locationManager,
-                    onTap:    { withAnimation(.easeInOut(duration: 0.2)) { wallet.activate(id: entry.id) } },
-                    onTrack:  { onTrack(entry) },
-                    onAccept: { onAccept(entry) },
-                    onDismiss:{ wallet.remove(id: entry.id) }
+                    entry:       entry,
+                    isActive:    entry.id == activeId,
+                    driverCoord: driverCoord,
+                    trail:       trail,
+                    onTap:     { withAnimation(.easeInOut(duration: 0.2)) { wallet.activate(id: entry.id) } },
+                    onTrack:   { onTrack(entry) },
+                    onAccept:  { onAccept(entry) },
+                    onDismiss: { wallet.remove(id: entry.id) }
                 )
             }
         }
         .padding(.horizontal, 16)
+        .onAppear {
+            // If any load is In Transit, get a fresh GPS fix immediately
+            if wallet.cards.contains(where: { $0.status == "In Transit" }) {
+                lm.requestCurrentLocation()
+            }
+        }
     }
 }
 
 // MARK: - LoadCard
+// Pure value-type view — no observation needed. Parent re-renders supply fresh values.
 
 private struct LoadCard: View {
-    let entry:           WalletEntry
-    let isActive:        Bool
-    var locationManager: LocationManager?
-    let onTap:           () -> Void
-    let onTrack:         () -> Void
-    let onAccept:        () -> Void
-    let onDismiss:       () -> Void
+    let entry:       WalletEntry
+    let isActive:    Bool
+    let driverCoord: CLLocationCoordinate2D?          // nil when not tracking
+    let trail:       [CLLocationCoordinate2D]
+    let onTap:       () -> Void
+    let onTrack:     () -> Void
+    let onAccept:    () -> Void
+    let onDismiss:   () -> Void
 
-    @State private var pickupCoord:   CLLocationCoordinate2D? = nil
+    @State private var pickupCoord:  CLLocationCoordinate2D? = nil
     @State private var deliveryCoord: CLLocationCoordinate2D? = nil
     @State private var geocoded = false
-
-    // Live driver location (only when this card's load is being tracked)
-    private var driverCoord: CLLocationCoordinate2D? {
-        guard let lm = locationManager,
-              lm.isTracking,
-              entry.status == "In Transit"
-        else { return nil }
-        return lm.currentLocation?.coordinate
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -70,7 +88,9 @@ private struct LoadCard: View {
         .shadow(color: .black.opacity(isActive ? 0.45 : 0.2),
                 radius: isActive ? 18 : 5, x: 0, y: isActive ? 8 : 2)
         .onTapGesture { if !isActive { onTap() } }
-        .onAppear     { if isActive  { geocode() } }
+        .onAppear {
+            if isActive { geocode() }
+        }
         .onChange(of: isActive) { _, active in if active { geocode() } }
     }
 
@@ -80,42 +100,28 @@ private struct LoadCard: View {
             RoundedRectangle(cornerRadius: 3)
                 .fill(statusColor(entry.status))
                 .frame(width: 4, height: 40)
-                .padding(.leading, 14)
-                .padding(.trailing, 12)
-
+                .padding(.leading, 14).padding(.trailing, 12)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 8) {
                     Text(entry.loadNumber)
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white)
+                        .font(.system(size: 16, weight: .bold)).foregroundColor(.white)
                     Spacer()
                     statusPill(entry.status)
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 11, weight: .semibold)).foregroundColor(.secondary)
                 }
                 if !entry.companyName.isEmpty {
                     Text(entry.companyName)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(Color(red: 0.68, green: 0.47, blue: 1.0))
-                        .lineLimit(1)
+                        .foregroundColor(Color(red: 0.68, green: 0.47, blue: 1.0)).lineLimit(1)
                 }
-                Text(shortRoute)
-                    .font(.system(size: 12))
-                    .foregroundColor(Color(white: 0.5))
-                    .lineLimit(1)
+                Text(shortRoute).font(.system(size: 12)).foregroundColor(Color(white: 0.5)).lineLimit(1)
             }
             .padding(.vertical, 14)
-
-            // Remove button
             Button(action: onDismiss) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(Color(white: 0.3))
+                Image(systemName: "xmark.circle.fill").font(.system(size: 20)).foregroundColor(Color(white: 0.3))
             }
-            .buttonStyle(.plain)
-            .padding(.trailing, 14)
-            .padding(.leading, 8)
+            .buttonStyle(.plain).padding(.trailing, 14).padding(.leading, 8)
         }
         .contentShape(Rectangle())
     }
@@ -123,12 +129,9 @@ private struct LoadCard: View {
     // MARK: Expanded card
     private var expandedContent: some View {
         VStack(spacing: 0) {
-
-            // Header
             if !entry.companyName.isEmpty {
                 HStack(spacing: 8) {
-                    Image(systemName: "building.2.fill")
-                        .font(.system(size: 12))
+                    Image(systemName: "building.2.fill").font(.system(size: 12))
                         .foregroundColor(Color(red: 0.68, green: 0.47, blue: 1.0))
                     Text(entry.companyName.uppercased())
                         .font(.system(size: 11, weight: .bold)).tracking(1.0)
@@ -141,77 +144,65 @@ private struct LoadCard: View {
             }
 
             HStack(alignment: .center, spacing: 12) {
-                Image(systemName: "shippingbox.fill")
-                    .font(.system(size: 20)).foregroundColor(.white)
+                Image(systemName: "shippingbox.fill").font(.system(size: 20)).foregroundColor(.white)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(entry.loadNumber)
-                        .font(.system(size: 22, weight: .heavy)).foregroundColor(.white)
+                    Text(entry.loadNumber).font(.system(size: 22, weight: .heavy)).foregroundColor(.white)
                     if !entry.description.isEmpty {
-                        Text(entry.description)
-                            .font(.system(size: 14)).foregroundColor(Color(white: 0.6))
+                        Text(entry.description).font(.system(size: 14)).foregroundColor(Color(white: 0.6))
                     }
                 }
                 Spacer()
                 if entry.companyName.isEmpty { statusPill(entry.status) }
-                // Remove card button
                 Button(action: onDismiss) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 22))
+                    Image(systemName: "xmark.circle.fill").font(.system(size: 22))
                         .foregroundColor(Color(white: 0.28))
                 }
                 .buttonStyle(.plain)
             }
             .padding(.horizontal, 16)
-            .padding(.top, entry.companyName.isEmpty ? 16 : 12)
-            .padding(.bottom, 14)
+            .padding(.top, entry.companyName.isEmpty ? 16 : 12).padding(.bottom, 14)
 
             divider
 
-            // Embedded Map
+            // Map — receives driverCoord + trail as plain values from parent render
             ZStack(alignment: .bottomTrailing) {
                 CardMapView(
                     pickupCoord:   pickupCoord,
                     deliveryCoord: deliveryCoord,
                     driverCoord:   driverCoord,
-                    trail:         locationManager?.isTracking == true && entry.status == "In Transit"
-                                   ? (locationManager?.routeTrail ?? []) : []
+                    trail:         trail,
+                    isInTransit:   entry.status == "In Transit"
                 )
                 .frame(height: 190)
 
-                if entry.status == "In Transit" {
+                if driverCoord != nil {
                     HStack(spacing: 5) {
                         Circle().fill(Color.green).frame(width: 7, height: 7)
                         Text("LIVE").font(.system(size: 10, weight: .bold)).foregroundColor(.green)
                     }
                     .padding(.horizontal, 8).padding(.vertical, 5)
-                    .background(.ultraThinMaterial).cornerRadius(8)
-                    .padding(10)
+                    .background(.ultraThinMaterial).cornerRadius(8).padding(10)
                 }
             }
 
             divider
 
-            // Route
             routeRow(icon: "circle.fill",       color: .green, label: "PICKUP",   value: entry.pickupAddress)
-            HStack { Spacer().frame(width: 38)
-                Rectangle().fill(Color.white.opacity(0.15)).frame(width: 2, height: 14) }
+            HStack { Spacer().frame(width: 38); Rectangle().fill(Color.white.opacity(0.15)).frame(width: 2, height: 14) }
             routeRow(icon: "mappin.circle.fill", color: .red,   label: "DELIVERY", value: entry.deliveryAddress)
 
             divider
 
-            // Date / weight grid
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 0) {
-                if !entry.pickupDate.isEmpty   { metaCell(icon: "calendar",             color: .green,                                   label: "PICKUP DATE",   value: entry.pickupDate) }
-                if !entry.deliveryDate.isEmpty { metaCell(icon: "calendar.badge.clock", color: Color(red:1,green:0.58,blue:0),           label: "EST. DELIVERY", value: entry.deliveryDate) }
-                if !entry.weight.isEmpty       { metaCell(icon: "scalemass.fill",       color: .blue,                                    label: "WEIGHT",        value: entry.weight) }
-                if !entry.notes.isEmpty        { metaCell(icon: "note.text",            color: Color(red:1,green:0.84,blue:0),           label: "NOTES",         value: entry.notes) }
+                if !entry.pickupDate.isEmpty   { metaCell(icon: "calendar",             color: .green,                         label: "PICKUP DATE",   value: entry.pickupDate) }
+                if !entry.deliveryDate.isEmpty { metaCell(icon: "calendar.badge.clock", color: Color(red:1,green:0.58,blue:0), label: "EST. DELIVERY", value: entry.deliveryDate) }
+                if !entry.weight.isEmpty       { metaCell(icon: "scalemass.fill",       color: .blue,                          label: "WEIGHT",        value: entry.weight) }
+                if !entry.notes.isEmpty        { metaCell(icon: "note.text",            color: Color(red:1,green:0.84,blue:0), label: "NOTES",         value: entry.notes) }
             }
 
             divider
 
-            // Action button
-            actionButton
-                .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 18)
+            actionButton.padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 18)
         }
     }
 
@@ -234,8 +225,7 @@ private struct LoadCard: View {
                 Label("Accept Load", systemImage: "checkmark.circle.fill")
                     .font(.system(size: 17, weight: .bold))
                     .frame(maxWidth: .infinity).padding(.vertical, 16)
-                    .background(Color(red:0.59,green:0.33,blue:0.97))
-                    .foregroundColor(.white).cornerRadius(14)
+                    .background(Color(red:0.59,green:0.33,blue:0.97)).foregroundColor(.white).cornerRadius(14)
             }.buttonStyle(.plain)
         } else {
             Button(action: onTrack) {
@@ -250,7 +240,7 @@ private struct LoadCard: View {
         }
     }
 
-    // MARK: Helper views
+    // MARK: Helpers
     private func routeRow(icon: String, color: Color, label: String, value: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon).foregroundColor(color).font(.system(size: 14))
@@ -291,22 +281,20 @@ private struct LoadCard: View {
 
     private func statusColor(_ s: String) -> Color {
         switch s {
-        case "Assigned":   return Color(red:0.27,green:0.60,blue:1.0)
-        case "Accepted":   return Color(red:0.68,green:0.47,blue:1.0)
-        case "In Transit": return Color(red:1.0, green:0.58,blue:0.0)
-        case "Delivered":  return Color(red:0.20,green:0.78,blue:0.35)
-        case "Cancelled":  return Color(red:1.0, green:0.23,blue:0.19)
-        default:           return Color(white:0.5)
+        case "Assigned":   return Color(red:0.27, green:0.60, blue:1.0)
+        case "Accepted":   return Color(red:0.68, green:0.47, blue:1.0)
+        case "In Transit": return Color(red:1.0,  green:0.58, blue:0.0)
+        case "Delivered":  return Color(red:0.20, green:0.78, blue:0.35)
+        case "Cancelled":  return Color(red:1.0,  green:0.23, blue:0.19)
+        default:           return Color(white: 0.5)
         }
     }
 
-    private var divider: some View {
-        Divider().background(Color.white.opacity(0.08))
-    }
+    private var divider: some View { Divider().background(Color.white.opacity(0.08)) }
 
     private var shortRoute: String {
-        let p = entry.pickupAddress.split(separator:",").first.map(String.init) ?? entry.pickupAddress
-        let d = entry.deliveryAddress.split(separator:",").first.map(String.init) ?? entry.deliveryAddress
+        let p = entry.pickupAddress.split(separator: ",").first.map(String.init) ?? entry.pickupAddress
+        let d = entry.deliveryAddress.split(separator: ",").first.map(String.init) ?? entry.deliveryAddress
         return "\(p) → \(d)"
     }
 
@@ -331,17 +319,17 @@ private struct CardMapView: UIViewRepresentable {
     let deliveryCoord: CLLocationCoordinate2D?
     var driverCoord:   CLLocationCoordinate2D? = nil
     var trail:         [CLLocationCoordinate2D] = []
+    var isInTransit:   Bool = false   // when true, don't snap to geocoded address while waiting for GPS
 
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()
-        map.isUserInteractionEnabled = false
+        map.delegate = context.coordinator
+        map.isUserInteractionEnabled = true
+        map.isZoomEnabled = true
+        map.isScrollEnabled = true
         map.mapType = .standard
         map.pointOfInterestFilter = .excludingAll
         map.showsUserLocation = false
-        map.setRegion(MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: 39.5, longitude: -98.35),
-            span: MKCoordinateSpan(latitudeDelta: 30, longitudeDelta: 30)
-        ), animated: false)
         return map
     }
 
@@ -351,17 +339,44 @@ private struct CardMapView: UIViewRepresentable {
 
         var pins: [MKPointAnnotation] = []
 
-        // Driver position (highest priority — center on this when tracking)
         if let d = driverCoord {
+            // Driver pin
             let a = MKPointAnnotation(); a.coordinate = d; a.title = "Driver"
             pins.append(a)
-            map.setRegion(MKCoordinateRegion(
-                center: d,
-                span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012)
-            ), animated: true)
+            // Delivery pin
+            if let dest = deliveryCoord {
+                let dp = MKPointAnnotation(); dp.coordinate = dest; dp.title = "Delivery"
+                pins.append(dp)
+            }
+
+            // Only re-center when driver coordinate actually changed
+            let prev = context.coordinator.lastDriverCoord
+            let firstFix = prev == nil
+            let moved = prev.map {
+                abs($0.latitude  - d.latitude)  > 0.00005 ||
+                abs($0.longitude - d.longitude) > 0.00005
+            } ?? true
+
+            if firstFix || moved {
+                context.coordinator.lastDriverCoord = d
+                map.setRegion(MKCoordinateRegion(
+                    center: d,
+                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                ), animated: !firstFix)
+            }
+
         } else {
-            // No driver yet — show route overview
-            if let p = pickupCoord { let a = MKPointAnnotation(); a.coordinate = p; a.title = "Pickup";   pins.append(a) }
+            // No live GPS yet
+            context.coordinator.lastDriverCoord = nil
+
+            // Only snap to geocoded addresses if NOT in transit.
+            // When in transit, hold the current map position while waiting for GPS.
+            guard !isInTransit else {
+                map.addAnnotations(pins)
+                return
+            }
+
+            if let p = pickupCoord  { let a = MKPointAnnotation(); a.coordinate = p; a.title = "Pickup";   pins.append(a) }
             if let d = deliveryCoord { let a = MKPointAnnotation(); a.coordinate = d; a.title = "Delivery"; pins.append(a) }
 
             if let p = pickupCoord, let d = deliveryCoord {
@@ -369,8 +384,8 @@ private struct CardMapView: UIViewRepresentable {
                 let minLng = min(p.longitude, d.longitude), maxLng = max(p.longitude, d.longitude)
                 map.setRegion(MKCoordinateRegion(
                     center: CLLocationCoordinate2D(latitude: (minLat+maxLat)/2, longitude: (minLng+maxLng)/2),
-                    span:   MKCoordinateSpan(latitudeDelta: max((maxLat-minLat)*1.6, 0.05),
-                                            longitudeDelta: max((maxLng-minLng)*1.6, 0.05))
+                    span: MKCoordinateSpan(latitudeDelta: max((maxLat-minLat)*1.6, 0.05),
+                                          longitudeDelta: max((maxLng-minLng)*1.6, 0.05))
                 ), animated: true)
             } else if let c = pickupCoord ?? deliveryCoord {
                 map.setRegion(MKCoordinateRegion(center: c,
@@ -379,8 +394,6 @@ private struct CardMapView: UIViewRepresentable {
         }
 
         map.addAnnotations(pins)
-
-        // Route trail polyline
         if trail.count >= 2 {
             map.addOverlay(MKPolyline(coordinates: trail, count: trail.count))
         }
@@ -389,11 +402,12 @@ private struct CardMapView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     class Coordinator: NSObject, MKMapViewDelegate {
+        var lastDriverCoord: CLLocationCoordinate2D? = nil
+
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let poly = overlay as? MKPolyline {
                 let r = MKPolylineRenderer(polyline: poly)
-                r.strokeColor = UIColor.systemBlue
-                r.lineWidth = 3
+                r.strokeColor = UIColor.systemBlue; r.lineWidth = 3
                 return r
             }
             return MKOverlayRenderer(overlay: overlay)
@@ -401,26 +415,25 @@ private struct CardMapView: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
             guard let title = annotation.title else { return nil }
-            if title == "Driver" {
+            switch title {
+            case "Driver":
                 let v = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: "driver")
                 v.markerTintColor = .systemBlue
                 v.glyphImage = UIImage(systemName: "truck.box.fill")
                 v.displayPriority = .required
                 return v
-            }
-            if title == "Pickup" {
+            case "Pickup":
                 let v = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: "pickup")
                 v.markerTintColor = .systemGreen
                 v.glyphImage = UIImage(systemName: "arrow.up.circle.fill")
                 return v
-            }
-            if title == "Delivery" {
+            case "Delivery":
                 let v = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: "delivery")
                 v.markerTintColor = .systemRed
                 v.glyphImage = UIImage(systemName: "mappin")
                 return v
+            default: return nil
             }
-            return nil
         }
     }
 }

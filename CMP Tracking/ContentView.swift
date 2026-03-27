@@ -49,44 +49,10 @@ struct DriverWaitingView: View {
                     Text("📱 Check your SMS").font(.caption).foregroundColor(.secondary)
                 }
                 Spacer()
-                #if DEBUG
-                Button(action: injectTestLoad) {
-                    Label("Load Test Data (Simulator)", systemImage: "hammer.fill")
-                        .font(.caption).fontWeight(.semibold)
-                        .padding(.horizontal, 16).padding(.vertical, 8)
-                        .background(Color.orange.opacity(0.15)).foregroundColor(.orange)
-                        .cornerRadius(10)
-                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.orange.opacity(0.4), lineWidth: 1))
-                }
-                .padding(.bottom, 8)
-                #endif
             }
         }
     }
 
-    #if DEBUG
-    private func injectTestLoad() {
-        let testDriver = Driver(id: "test-driver-001", name: "Test Driver",
-                                phone: "5550001234", email: "testdriver@routelo.app", role: .driver)
-        let testLoad = Load(
-            id: "test-load-001", loadNumber: "CMP-TEST-001",
-            description: "Test Load — Electronics", weight: 12000,
-            pickupAddress: "123 Warehouse Blvd, Chicago, IL 60601",
-            deliveryAddress: "456 Distribution Ave, Dallas, TX 75201",
-            pickupDate: Date(), deliveryDate: Date().addingTimeInterval(86400),
-            status: .assigned,
-            assignedDriverId: testDriver.id, assignedDriverName: testDriver.name,
-            assignedDriverEmail: testDriver.email, assignedDriverPhone: testDriver.phone,
-            trackingToken: "test-token-abc123",
-            customerName: "Acme Corp", customerEmail: "logistics@acme.com",
-            customerPhone: "5550009999", dispatcherEmail: "dispatcher@routelo.app",
-            notifyCustomer: false, lastLocation: nil,
-            notes: "Handle with care. Simulator test load.", completedAt: nil
-        )
-        LoadStore.shared.upsert(testLoad)
-        appState.login(as: testDriver)
-    }
-    #endif
 }
 
 // MARK: - Auth View (3 tabs: Sign In / Create Account / New Company)
