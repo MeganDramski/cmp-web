@@ -30,13 +30,6 @@ struct DriverLinkView: View {
                 // ── Header ────────────────────────────────────────────────
                 HStack(spacing: 12) {
                     RouteloLogo(size: 36)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Routelo").font(.headline).foregroundColor(.white)
-                        Text("LIVE TRACKING")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .kerning(2)
-                    }
                     Spacer()
                     if wallet.cards.count > 1 {
                         Text("\(wallet.cards.count) loads")
