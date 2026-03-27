@@ -1,12 +1,11 @@
 // WalletCardStack.swift
 // Apple Wallet-style stacked load cards.
-// Active card fully expanded; background cards fan beneath it with negative
-// spacing so they overlap — but their layout frames sit at the correct Y
-// positions, meaning tap targets work without any offset tricks.
+// Active card fully expanded on top; background cards fan below it,
+// each peeking PEEK pts lower than the previous.
 
 import SwiftUI
 
-private let PEEK:   CGFloat = 60   // how many pts each bg card peeks below the active card
+private let PEEK:   CGFloat = 56   // how many pts each bg card peeks below the active card
 private let SCALE:  CGFloat = 0.03
 private let CORNER: CGFloat = 20
 
@@ -24,6 +23,7 @@ struct WalletCardStack: View {
         guard !cards.isEmpty else { return AnyView(EmptyView()) }
 
         let activeId = wallet.activeId ?? cards.first!.id
+        // Active card first, then background cards in order
         let sorted: [WalletEntry] = {
             var r = cards.filter { $0.id == activeId }
             r += cards.filter { $0.id != activeId }
@@ -31,62 +31,63 @@ struct WalletCardStack: View {
         }()
 
         let bgCount = sorted.count - 1
-        // Total visible height: full active card + each bg card peeking PEEK pts
+        // Total height = active card + each bg card peeking PEEK pts below it
         let totalH  = activeH + CGFloat(bgCount) * PEEK
 
         return AnyView(
-            // A fixed-height container. Each child is sized to totalH and
-            // aligned to .top so the active card sits at y=0. Background cards
-            // use padding(.top) to push them to their peek position — this moves
-            // the layout frame (not just visuals), so hit-testing is correct.
-            ZStack(alignment: .top) {
+            // Use padding(.top) on each bg card — this physically moves the
+            // layout frame downward so the ZStack natural height grows to fit
+            // all cards, tap targets are correct, AND .offset() isn't needed
+            // (which avoids the clipping issue where offset cards fall outside
+            // the parent's bounds and get cut off).
+            VStack(spacing: 0) {
+                ZStack(alignment: .top) {
+                    // ── Background cards (rendered first = visually behind) ──
+                    ForEach(Array(sorted.dropFirst().enumerated()), id: \.element.id) { i, entry in
+                        let depth  = i + 1
+                        let sc     = 1.0 - CGFloat(depth) * SCALE
+                        // padding(.top) moves the layout frame — so tap area is
+                        // at the peeked position and ZStack grows to include it
+                        let topPad = activeH - 20 + CGFloat(i) * PEEK
 
-                // ── Background cards (rendered first = visually behind) ───────
-                ForEach(Array(sorted.dropFirst().enumerated()), id: \.element.id) { i, entry in
-                    let depth   = i + 1
-                    let sc      = 1.0 - CGFloat(depth) * SCALE
-                    // This padding pushes the card's layout frame to peek position
-                    let topPad  = activeH - 20 + CGFloat(i) * PEEK
-
-                    WalletCard(
-                        entry: entry, isActive: false, depth: depth,
-                        onTap:     { },
-                        onDismiss: { withAnimation(.spring()) { wallet.remove(id: entry.id) } },
-                        onTrack:   { onTrack(entry) },
-                        onAccept:  { onAccept(entry) }
-                    )
-                    .scaleEffect(x: sc, anchor: .top)
-                    .padding(.top, topPad)
-                    // contentShape after padding so the full peek area is tappable
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) {
-                            wallet.activate(id: entry.id)
+                        WalletCard(
+                            entry: entry, isActive: false, depth: depth,
+                            onTap:     { },
+                            onDismiss: { withAnimation(.spring()) { wallet.remove(id: entry.id) } },
+                            onTrack:   { onTrack(entry) },
+                            onAccept:  { onAccept(entry) }
+                        )
+                        .scaleEffect(x: sc, anchor: .top)
+                        .padding(.top, topPad)
+                        .frame(maxWidth: .infinity, alignment: .top)
+                        .zIndex(Double(bgCount - depth + 1))
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) {
+                                wallet.activate(id: entry.id)
+                            }
                         }
                     }
-                    .frame(maxWidth: .infinity, maxHeight: totalH, alignment: .top)
-                    .zIndex(Double(bgCount - i))
-                }
 
-                // ── Active card (on top) ──────────────────────────────────────
-                if let active = sorted.first {
-                    WalletCard(
-                        entry: active, isActive: true, depth: 0,
-                        onTap:     { },
-                        onDismiss: { withAnimation(.spring()) { wallet.remove(id: active.id) } },
-                        onTrack:   { onTrack(active) },
-                        onAccept:  { onAccept(active) }
-                    )
-                    .background(GeometryReader { g in
-                        Color.clear
-                            .onAppear            { activeH = g.size.height }
-                            .onChange(of: g.size.height) { _, h in activeH = h }
-                    })
-                    .frame(maxWidth: .infinity, alignment: .top)
-                    .zIndex(Double(sorted.count))
+                    // ── Active card (on top) ──────────────────────────────────
+                    if let active = sorted.first {
+                        WalletCard(
+                            entry: active, isActive: true, depth: 0,
+                            onTap:     { },
+                            onDismiss: { withAnimation(.spring()) { wallet.remove(id: active.id) } },
+                            onTrack:   { onTrack(active) },
+                            onAccept:  { onAccept(active) }
+                        )
+                        .background(GeometryReader { g in
+                            Color.clear
+                                .onAppear            { activeH = g.size.height }
+                                .onChange(of: g.size.height) { _, h in activeH = h }
+                        })
+                        .frame(maxWidth: .infinity, alignment: .top)
+                        .zIndex(Double(sorted.count))
+                    }
                 }
+                .frame(height: totalH, alignment: .top)
             }
-            .frame(height: totalH, alignment: .top)
             .padding(.horizontal, 16)
             .animation(.spring(response: 0.4, dampingFraction: 0.78), value: activeId)
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: activeH)
