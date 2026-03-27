@@ -1060,6 +1060,9 @@ function checkStatusChange(l){
         if(l.status==='In Transit'){
           mapHeader.style.color='var(--green)';
           mapHeader.textContent='● Tracking active';
+          // Also update the placeholder text inside the map area
+          var placeholderEl = document.querySelector('#disp-map-inner .map-no-loc span');
+          if(placeholderEl) placeholderEl.innerHTML = 'Loading driver location\u2026';
         } else {
           mapHeader.style.color='var(--muted)';
           mapHeader.textContent='Waiting for driver to start';
@@ -1610,6 +1613,17 @@ function pollDispatcherMap(token){
 
       if(!loc || loc.latitude==null || loc.longitude==null){
         console.warn('pollDispatcherMap: no usable location yet. data.lastLocation=',data.lastLocation);
+        // Update placeholder so dispatcher sees the right message for an In Transit load
+        var placeholderEl = document.querySelector('#disp-map-inner .map-no-loc span');
+        if(placeholderEl && data.status === 'In Transit'){
+          placeholderEl.innerHTML = '⏳ Waiting for first GPS ping from driver…';
+        }
+        // Also update the map section header badge
+        var mapHeaderBadge = document.querySelector('#disp-map-section .map-header span:last-child');
+        if(mapHeaderBadge && data.status === 'In Transit'){
+          mapHeaderBadge.style.color = 'var(--orange)';
+          mapHeaderBadge.textContent = '⏳ Waiting for GPS';
+        }
         return;
       }
 

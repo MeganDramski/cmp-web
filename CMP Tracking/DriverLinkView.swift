@@ -292,13 +292,6 @@ class DriverLinkVM: NSObject, ObservableObject, CLLocationManagerDelegate {
     private var updateInterval: TimeInterval = 10
     private var lastSentTime: Date = .distantPast
 
-    private lazy var bgSession: URLSession = {
-        let cfg = URLSessionConfiguration.background(withIdentifier: "com.routelo.driverlink")
-        cfg.isDiscretionary = false
-        cfg.sessionSendsLaunchEvents = true
-        return URLSession(configuration: cfg)
-    }()
-
     var canTrack: Bool {
         locationStatus == .authorizedAlways || locationStatus == .authorizedWhenInUse
     }
@@ -551,7 +544,16 @@ class DriverLinkVM: NSObject, ObservableObject, CLLocationManagerDelegate {
             "loadId":    lid
         ]
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
-        bgSession.dataTask(with: req).resume()
+        // URLSession.shared works correctly: DriverLinkView stays alive while the
+        // CLLocationManager is active. Background URLSession + dataTask is silently
+        // dropped on device because background sessions only support upload/download tasks.
+        URLSession.shared.dataTask(with: req) { _, _, error in
+            if let error = error {
+                print("📍 DriverLinkView location post failed: \(error.localizedDescription)")
+            } else {
+                print("📍 DriverLinkView location posted → \(loc.coordinate.latitude), \(loc.coordinate.longitude)")
+            }
+        }.resume()
     }
 
     // MARK: - Helpers
