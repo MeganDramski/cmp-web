@@ -43,8 +43,11 @@ exports.handler = async (event) => {
       }));
       if (getResult.Item) {
         const candidate = unmarshall(getResult.Item);
-        // Verify token matches to prevent spoofing
-        if (!candidate.trackingToken || candidate.trackingToken === token) {
+        // Verify token matches to prevent spoofing.
+        // If the load has no token or the token is different, skip the fast-path
+        // and fall through to the GSI query below — which will find the correct
+        // load by token, or return 404 if the token is invalid.
+        if (candidate.trackingToken && candidate.trackingToken === token) {
           load = candidate;
         }
       }
