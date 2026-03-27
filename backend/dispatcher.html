@@ -1258,6 +1258,10 @@ function closeDetailPanel(){
 function renderDetail(){
   var load=null; for(var i=0;i<loads.length;i++){if(loads[i].id===selId){load=loads[i];break;}}
   if(!load)return;
+  // Always tear down the live map before rebuilding HTML — otherwise _dispMap
+  // points to a removed DOM node and startDispatcherMap's "already running" guard
+  // prevents re-initialization, leaving the placeholder visible.
+  stopDispatcherMap();
   document.getElementById('dph').style.display='none';
   var el=document.getElementById('dc'); el.style.display='block';
   var base=window.location.origin+window.location.pathname.replace('dispatcher.html','');
@@ -1450,7 +1454,8 @@ function startDispatcherMap(load){
     return;
   }
   // Already running for this load — don't tear it down, just let the poll continue.
-  if(_dispMapLoadId===load.id && _dispMap && _dispPollTimer) return;
+  // But only skip if the map container still exists in the DOM.
+  if(_dispMapLoadId===load.id && _dispMap && _dispPollTimer && document.getElementById('disp-map')) return;
   stopDispatcherMap();
   _dispMapLoadId=load.id;
   // Seed last-loc timestamp to NOW so the stale timer doesn't fire immediately
