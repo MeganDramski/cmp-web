@@ -85,9 +85,6 @@ struct DriverLinkView: View {
                                 }
                             )
 
-                            // ── Map (follows active card) ─────────────────
-                            mapCard
-
                             // ── Tracking stats (when tracking active entry) ─
                             if let active = wallet.activeCard,
                                active.status == "In Transit" {
