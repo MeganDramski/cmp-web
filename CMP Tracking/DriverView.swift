@@ -94,29 +94,6 @@ struct DriverView: View {
                             noLoadCard
                         }
 
-                        // ── Live section (accepted or in-transit) ────────────
-                        let isActive = assignedLoad.map {
-                            $0.status == .accepted || $0.status == .inTransit
-                        } ?? false
-
-                        if isActive {
-                            liveLocationCard
-                            trackingButton
-
-                            if let load = assignedLoad {
-                                SendTrackingView(
-                                    load: load,
-                                    dispatcherEmail: appState.currentUser?.email ?? ""
-                                ) { bannerMsg in
-                                    notificationBannerMessage = bannerMsg
-                                    showNotificationBanner = true
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
-                                        showNotificationBanner = false
-                                    }
-                                }
-                            }
-                        }
-
                         Spacer(minLength: 40)
                     }
                     .padding(.horizontal, 16)
@@ -472,208 +449,6 @@ struct DriverView: View {
         .padding(.bottom, 16)
     }
 
-    // MARK: - Live Location Card
-
-    private var liveLocationCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "location.fill").foregroundColor(.dkBlue)
-                Text("Current Location")
-                    .font(.headline).fontWeight(.semibold)
-                    .foregroundColor(.white)
-            }
-            .padding(.horizontal, 16).padding(.top, 14)
-
-            Divider().background(Color.dkBorder).padding(.horizontal, 16)
-
-            if let loc = locationManager.currentLocation {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        coordLabel(label: "Lat", value: loc.coordinate.latitude)
-                        coordLabel(label: "Lng", value: loc.coordinate.longitude)
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 6) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "speedometer").foregroundColor(.dkMuted)
-                            Text("\(Int(max(loc.speed, 0) * 2.23694)) mph")
-                                .foregroundColor(.white)
-                        }
-                        .font(.subheadline)
-                        HStack(spacing: 5) {
-                            Image(systemName: "scope").foregroundColor(.dkMuted)
-                            Text("±\(Int(loc.horizontalAccuracy))m")
-                                .foregroundColor(.dkMuted)
-                        }
-                        .font(.caption)
-                    }
-                }
-                .padding(.horizontal, 16)
-
-                if let update = locationManager.latestUpdate {
-                    Text("Last sent \(update.timestamp, style: .relative) ago")
-                        .font(.caption)
-                        .foregroundColor(.dkMuted)
-                        .padding(.horizontal, 16)
-                }
-            } else {
-                HStack(spacing: 8) {
-                    ProgressView().tint(.dkMuted).scaleEffect(0.8)
-                    Text("Waiting for GPS signal…")
-                        .font(.subheadline)
-                        .foregroundColor(.dkMuted)
-                }
-                .padding(.horizontal, 16)
-            }
-
-            Spacer(minLength: 14)
-        }
-        .background(Color.dkSurface)
-        .cornerRadius(16)
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.dkBorder, lineWidth: 1))
-    }
-
-    private func coordLabel(label: String, value: Double) -> some View {
-        HStack(spacing: 6) {
-            Text(label + ":")
-                .font(.caption)
-                .foregroundColor(.dkMuted)
-            Text(String(format: "%.5f", value))
-                .font(.system(.body, design: .monospaced))
-                .foregroundColor(.white)
-        }
-    }
-
-    // MARK: - Map Preview Card
-
-    private var mapPreviewCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "map.fill").foregroundColor(.dkBlue)
-                Text("Map")
-                    .font(.headline).fontWeight(.semibold)
-                    .foregroundColor(.white)
-                Spacer()
-                if locationManager.isTracking {
-                    HStack(spacing: 5) {
-                        Circle().fill(Color.dkGreen).frame(width: 7, height: 7)
-                        Text("Live").font(.caption).foregroundColor(.dkGreen)
-                    }
-                }
-            }
-            .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 10)
-
-            ZStack(alignment: .bottomTrailing) {
-                // Priority:
-                // 1. Actively tracking → LiveMapView with GPS trail
-                // 2. Route pins geocoded → RouteMapView showing pickup/delivery
-                // 3. GPS fix available but no pins yet → LiveMapView centered on driver
-                // 4. Nothing yet → placeholder
-                if locationManager.isTracking {
-                    LiveMapView(
-                        region: mapRegion,
-                        userLocation: locationManager.currentLocation?.coordinate,
-                        trail: locationManager.routeTrail
-                    )
-                    .frame(height: 220)
-                    .cornerRadius(12)
-                    .padding(.horizontal, 12)
-                } else if pickupPin != nil || deliveryPin != nil {
-                    RouteMapView(pickupCoord: pickupPin, deliveryCoord: deliveryPin)
-                        .frame(height: 220)
-                        .cornerRadius(12)
-                        .padding(.horizontal, 12)
-                } else if let loc = locationManager.currentLocation {
-                    LiveMapView(
-                        region: MKCoordinateRegion(
-                            center: loc.coordinate,
-                            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-                        ),
-                        userLocation: loc.coordinate,
-                        trail: []
-                    )
-                    .frame(height: 220)
-                    .cornerRadius(12)
-                    .padding(.horizontal, 12)
-                } else {
-                    // Fallback: plain map centered on US until GPS/geocoding resolves
-                    LiveMapView(
-                        region: MKCoordinateRegion(
-                            center: CLLocationCoordinate2D(latitude: 39.5, longitude: -98.35),
-                            span: MKCoordinateSpan(latitudeDelta: 30, longitudeDelta: 30)
-                        ),
-                        userLocation: nil,
-                        trail: []
-                    )
-                    .frame(height: 220)
-                    .cornerRadius(12)
-                    .padding(.horizontal, 12)
-                    .overlay(
-                        VStack(spacing: 6) {
-                            Image(systemName: "location.slash.fill")
-                                .font(.system(size: 22))
-                                .foregroundColor(.dkMuted)
-                            Text("Waiting for GPS…")
-                                .font(.caption)
-                                .foregroundColor(.dkMuted)
-                        }
-                    )
-                }
-
-                Button(action: recenterDriverMap) {
-                    Image(systemName: "location.fill")
-                        .font(.system(size: 14))
-                        .padding(10)
-                        .background(Color.dkSurface2)
-                        .foregroundColor(.dkBlue)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.dkBorder, lineWidth: 1))
-                        .shadow(color: .black.opacity(0.4), radius: 4)
-                }
-                .padding(.trailing, 20).padding(.bottom, 10)
-            }
-            .padding(.bottom, 12)
-        }
-        .background(Color.dkSurface)
-        .cornerRadius(16)
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.dkBorder, lineWidth: 1))
-    }
-
-    private func recenterDriverMap() {
-        guard let loc = locationManager.currentLocation else { return }
-        withAnimation {
-            mapRegion = MKCoordinateRegion(
-                center: loc.coordinate,
-                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-            )
-        }
-    }
-
-    // MARK: - Tracking Button
-
-    private var trackingButton: some View {
-        Button(action: toggleTracking) {
-            HStack(spacing: 10) {
-                if isSendingNotification {
-                    ProgressView().tint(.white).scaleEffect(0.85)
-                    Text("Notifying…").fontWeight(.semibold)
-                } else {
-                    Image(systemName: locationManager.isTracking ? "stop.fill" : "play.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                    Text(locationManager.isTracking ? "Stop Tracking" : "Start Tracking")
-                        .font(.body).fontWeight(.bold)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(locationManager.isTracking ? Color.dkRed : Color.dkGreen)
-            .foregroundColor(.white)
-            .cornerRadius(14)
-            .shadow(color: (locationManager.isTracking ? Color.dkRed : Color.dkGreen).opacity(0.4),
-                    radius: 8, x: 0, y: 4)
-        }
-    }
-
     // MARK: - Route Map Helpers
 
     private func geocodeLoadAddresses(_ load: Load) {
@@ -755,20 +530,34 @@ struct DriverView: View {
         let driverEmail = driver.email.lowercased()
         let driverPhone = driver.phone.filter { $0.isNumber }
         let driverName  = driver.name.lowercased().trimmingCharacters(in: .whitespaces)
-        let allLoads = LoadStore.shared.load()
+        let allLoads    = LoadStore.shared.load()
         let activeStatuses: Set<LoadStatus> = [.assigned, .accepted, .inTransit]
 
-        // Find ALL matching loads (not just first) to populate wallet
-        let matches = allLoads.filter {
-            guard activeStatuses.contains($0.status) else { return false }
-            let phoneMatch = !driverPhone.isEmpty &&
-                ($0.assignedDriverPhone?.filter { $0.isNumber } == driverPhone ||
-                 $0.assignedDriverId?.filter    { $0.isNumber } == driverPhone)
-            let emailMatch = !driverEmail.isEmpty &&
-                ($0.assignedDriverEmail?.lowercased() == driverEmail)
-            let nameMatch = !driverName.isEmpty &&
-                ($0.assignedDriverName?.lowercased().trimmingCharacters(in: .whitespaces) == driverName)
-            return phoneMatch || emailMatch || nameMatch
+        let matches = allLoads.filter { load in
+            guard activeStatuses.contains(load.status) else { return false }
+
+            let loadName  = (load.assignedDriverName  ?? "").lowercased().trimmingCharacters(in: .whitespaces)
+            let loadEmail = (load.assignedDriverEmail ?? "").lowercased().trimmingCharacters(in: .whitespaces)
+            let loadPhone = (load.assignedDriverPhone ?? load.assignedDriverId ?? "").filter { $0.isNumber }
+
+            // Email is the strongest identifier — match on email alone
+            if !driverEmail.isEmpty && !loadEmail.isEmpty && loadEmail == driverEmail {
+                return true
+            }
+
+            // Phone + name together (avoid false matches when many test loads share a phone)
+            let phoneMatch = !driverPhone.isEmpty && !loadPhone.isEmpty && loadPhone == driverPhone
+            let nameMatch  = !driverName.isEmpty  && !loadName.isEmpty  && loadName  == driverName
+
+            if phoneMatch && nameMatch { return true }
+
+            // If the load has no name set, phone alone is enough
+            if phoneMatch && loadName.isEmpty { return true }
+
+            // Name alone (no phone on the load)
+            if nameMatch && loadPhone.isEmpty { return true }
+
+            return false
         }
 
         // Sync into wallet

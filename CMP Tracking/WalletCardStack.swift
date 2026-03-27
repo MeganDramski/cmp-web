@@ -93,7 +93,6 @@ private struct LoadCard: View {
                     Image(systemName: "chevron.down")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.secondary)
-                        .padding(.trailing, 14)
                 }
                 if !entry.companyName.isEmpty {
                     Text(entry.companyName)
@@ -107,6 +106,16 @@ private struct LoadCard: View {
                     .lineLimit(1)
             }
             .padding(.vertical, 14)
+
+            // Remove button
+            Button(action: onDismiss) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(Color(white: 0.3))
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, 14)
+            .padding(.leading, 8)
         }
         .contentShape(Rectangle())
     }
@@ -144,6 +153,13 @@ private struct LoadCard: View {
                 }
                 Spacer()
                 if entry.companyName.isEmpty { statusPill(entry.status) }
+                // Remove card button
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundColor(Color(white: 0.28))
+                }
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, 16)
             .padding(.top, entry.companyName.isEmpty ? 16 : 12)
