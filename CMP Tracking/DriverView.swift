@@ -63,6 +63,7 @@ struct DriverView: View {
                             // Multiple loads → show Apple Wallet stack
                             WalletCardStack(
                                 wallet: wallet,
+                                locationManager: locationManager,
                                 onTrack: { entry in
                                     // Sync wallet tracking action with locationManager
                                     if locationManager.isTracking &&
@@ -92,9 +93,6 @@ struct DriverView: View {
                         } else {
                             noLoadCard
                         }
-
-                        // ── Map — always visible once a load exists ───────────
-                        mapPreviewCard
 
                         // ── Live section (accepted or in-transit) ────────────
                         let isActive = assignedLoad.map {
@@ -189,7 +187,14 @@ struct DriverView: View {
             }
             .onReceive(locationManager.$currentLocation) { location in
                 guard let loc = location else { return }
-                if !hasSetInitialRegion {
+                // While actively tracking, always follow the driver at street zoom
+                if locationManager.isTracking {
+                    mapRegion = MKCoordinateRegion(
+                        center: loc.coordinate,
+                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                    )
+                    hasSetInitialRegion = true
+                } else if !hasSetInitialRegion {
                     mapRegion = MKCoordinateRegion(
                         center: loc.coordinate,
                         span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
@@ -696,8 +701,6 @@ struct DriverView: View {
     private func fetchAssignedLoad() {
         guard let driver = appState.currentUser else { return }
         isLoadingLoad = true
-        NSUbiquitousKeyValueStore.default.synchronize()
-        matchLoadForDriver(driver)
         let phone = driver.phone.filter { $0.isNumber }
         let name  = driver.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let email = driver.email.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
@@ -707,6 +710,8 @@ struct DriverView: View {
         if !email.isEmpty { query += "&email=\(email)" }
         guard !base.contains("REPLACE_WITH"),
               let url = URL(string: "\(base)/loads/by-driver?\(query)") else {
+            // No backend — fall back to local store
+            matchLoadForDriver(driver)
             self.isLoadingLoad = false; return
         }
         var request = URLRequest(url: url)
@@ -715,11 +720,25 @@ struct DriverView: View {
             DispatchQueue.main.async {
                 defer { self.isLoadingLoad = false }
                 guard let data = data, error == nil,
-                      (response as? HTTPURLResponse)?.statusCode == 200 else { return }
-                let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
-                guard let serverLoads = try? decoder.decode([Load].self, from: data),
-                      !serverLoads.isEmpty else { return }
+                      (response as? HTTPURLResponse)?.statusCode == 200,
+                      let serverLoads = try?  JSONDecoder().decode([Load].self, from: data) else {
+                    // Network failed — still reconcile from local store
+                    self.matchLoadForDriver(driver)
+                    return
+                }
+                // Upsert server loads into local store
                 for load in serverLoads { LoadStore.shared.upsert(load) }
+                // Remove wallet cards for loads no longer returned by the server
+                // (deleted, cancelled, or reassigned to someone else).
+                // Only keep cards whose ID appears in the fresh server response
+                // AND whose status is still active.
+                let activeStatuses: Set<String> = ["Assigned", "Accepted", "In Transit"]
+                let keepIds = Set(
+                    serverLoads
+                        .filter { activeStatuses.contains($0.status.rawValue) }
+                        .map { $0.id }
+                )
+                LoadWallet.shared.sync(keepingIds: keepIds)
                 self.matchLoadForDriver(driver)
             }
         }.resume()

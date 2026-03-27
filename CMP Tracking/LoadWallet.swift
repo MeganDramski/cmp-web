@@ -91,6 +91,19 @@ final class LoadWallet: ObservableObject {
         persist()
     }
 
+    /// Remove any cards whose IDs are not in the provided set.
+    /// Call this after a fresh server fetch to evict deleted/reassigned loads.
+    func sync(keepingIds ids: Set<String>) {
+        let before = cards.count
+        cards.removeAll { !ids.contains($0.id) }
+        if before != cards.count {
+            if let id = activeId, !cards.contains(where: { $0.id == id }) {
+                activeId = cards.first?.id
+            }
+            persist()
+        }
+    }
+
     // MARK: - Activate (bring a card to front)
 
     func activate(id: String) {
