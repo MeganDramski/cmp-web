@@ -180,3 +180,122 @@ private final class DriverPin: NSObject, MKAnnotation {
     let coordinate: CLLocationCoordinate2D
     init(coordinate: CLLocationCoordinate2D) { self.coordinate = coordinate }
 }
+
+// MARK: - Completed Trail Map
+// Shows the full breadcrumb trail driven by a completed load,
+// with a green start pin, red finish pin, and a blue polyline.
+// Auto-fits the map to show the entire route.
+
+struct CompletedTrailMapView: UIViewRepresentable {
+    let trail: [CLLocationCoordinate2D]
+    var pickupCoord: CLLocationCoordinate2D?
+    var deliveryCoord: CLLocationCoordinate2D?
+
+    func makeUIView(context: Context) -> MKMapView {
+        let map = MKMapView()
+        map.delegate          = context.coordinator
+        map.isScrollEnabled   = true
+        map.isZoomEnabled     = true
+        map.isRotateEnabled   = false
+        map.isPitchEnabled    = false
+        map.showsUserLocation = false
+        map.mapType           = .standard
+        map.pointOfInterestFilter = .excludingAll
+        return map
+    }
+
+    func updateUIView(_ map: MKMapView, context: Context) {
+        map.removeAnnotations(map.annotations)
+        map.removeOverlays(map.overlays)
+
+        // Draw the trail polyline
+        if trail.count >= 2 {
+            var coords = trail
+            let poly = MKPolyline(coordinates: &coords, count: coords.count)
+            map.addOverlay(poly, level: .aboveRoads)
+        }
+
+        // Start pin (green) — use pickupCoord if available, else first trail point
+        let startCoord = pickupCoord ?? trail.first
+        if let start = startCoord {
+            let ann = HistoryPin(coordinate: start, kind: .start)
+            map.addAnnotation(ann)
+        }
+
+        // End pin (red/checkmark) — use deliveryCoord if available, else last trail point
+        let endCoord = deliveryCoord ?? trail.last
+        if let end = endCoord {
+            let ann = HistoryPin(coordinate: end, kind: .end)
+            map.addAnnotation(ann)
+        }
+
+        // Auto-fit to show the full trail
+        let allCoords: [CLLocationCoordinate2D] = trail.isEmpty
+            ? [startCoord, endCoord].compactMap { $0 }
+            : trail
+        if allCoords.count >= 2 {
+            let lats = allCoords.map { $0.latitude }
+            let lons = allCoords.map { $0.longitude }
+            let minLat = lats.min()!, maxLat = lats.max()!
+            let minLon = lons.min()!, maxLon = lons.max()!
+            let center = CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2,
+                                                 longitude: (minLon + maxLon) / 2)
+            let span = MKCoordinateSpan(
+                latitudeDelta:  max((maxLat - minLat) * 1.5, 0.02),
+                longitudeDelta: max((maxLon - minLon) * 1.5, 0.02)
+            )
+            map.setRegion(MKCoordinateRegion(center: center, span: span), animated: false)
+        } else if let only = allCoords.first {
+            map.setRegion(MKCoordinateRegion(center: only,
+                                              span: MKCoordinateSpan(latitudeDelta: 0.03,
+                                                                     longitudeDelta: 0.03)),
+                          animated: false)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    class Coordinator: NSObject, MKMapViewDelegate {
+        func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            guard let pin = annotation as? HistoryPin else { return nil }
+            let id = pin.kind == .start ? "histStart" : "histEnd"
+            let view = mapView.dequeueReusableAnnotationView(withIdentifier: id) as? MKMarkerAnnotationView
+                       ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: id)
+            view.annotation     = annotation
+            view.canShowCallout = true
+            if pin.kind == .start {
+                view.markerTintColor = UIColor.systemGreen
+                view.glyphImage      = UIImage(systemName: "arrow.up.circle.fill")
+                view.titleVisibility = .visible
+            } else {
+                view.markerTintColor = UIColor.systemRed
+                view.glyphImage      = UIImage(systemName: "checkmark.circle.fill")
+                view.titleVisibility = .visible
+            }
+            return view
+        }
+
+        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            guard let poly = overlay as? MKPolyline else { return MKOverlayRenderer(overlay: overlay) }
+            let r = MKPolylineRenderer(polyline: poly)
+            r.strokeColor = UIColor.systemBlue
+            r.lineWidth   = 4
+            r.lineCap     = .round
+            r.lineJoin    = .round
+            return r
+        }
+    }
+}
+
+// MARK: - HistoryPin annotation
+
+private final class HistoryPin: NSObject, MKAnnotation {
+    enum Kind { case start, end }
+    let coordinate: CLLocationCoordinate2D
+    let kind: Kind
+    var title: String? { kind == .start ? "Pickup" : "Delivered" }
+    init(coordinate: CLLocationCoordinate2D, kind: Kind) {
+        self.coordinate = coordinate
+        self.kind       = kind
+    }
+}

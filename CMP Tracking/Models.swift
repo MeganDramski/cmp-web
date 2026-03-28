@@ -114,6 +114,9 @@ struct Load: Identifiable, Codable {
     var notes: String
     /// Set automatically when status transitions to .delivered or .cancelled.
     var completedAt: Date?
+    /// Breadcrumb trail of the completed trip — stored as [[lat, lon]] pairs for Codable compatibility.
+    /// Nil until the load is marked delivered/cancelled.
+    var completedTrail: [[Double]]? = nil
 
     // Deep-link into the iOS app (kept for reference)
     var trackingURL: String {

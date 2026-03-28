@@ -15,10 +15,10 @@ import MapKit
 // MARK: - Tracking MKMapView Wrapper
 
 /// UIViewRepresentable wrapping MKMapView.
-/// Shows truck annotation and optional destination pin only — no trail line.
-struct RoadSnappingMapView: UIViewRepresentable {
+/// Shows truck annotation, destination pin, and a breadcrumb trail polyline.
+struct TrailMapView: UIViewRepresentable {
     let annotations: [TrackAnnotation]
-    let rawTrail: [CLLocationCoordinate2D]   // kept for API compatibility, not drawn
+    let trail: [CLLocationCoordinate2D]
     var destinationCoordinate: CLLocationCoordinate2D?
     @Binding var region: MKCoordinateRegion
 
@@ -51,7 +51,14 @@ struct RoadSnappingMapView: UIViewRepresentable {
         if let dest = destinationCoordinate {
             mv.addAnnotation(DestinationPin(coordinate: dest))
         }
-        // No trail/polyline drawn — truck icon only
+
+        // ── Draw breadcrumb trail polyline ────────────────────────────────
+        mv.removeOverlays(mv.overlays.filter { $0 is MKPolyline })
+        if trail.count >= 2 {
+            var coords = trail
+            let polyline = MKPolyline(coordinates: &coords, count: coords.count)
+            mv.addOverlay(polyline, level: .aboveRoads)
+        }
     }
 
     // MARK: - Coordinator
@@ -96,6 +103,18 @@ struct RoadSnappingMapView: UIViewRepresentable {
                 return view
             }
             return nil
+        }
+
+        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            guard let polyline = overlay as? MKPolyline else {
+                return MKOverlayRenderer(overlay: overlay)
+            }
+            let renderer = MKPolylineRenderer(polyline: polyline)
+            renderer.strokeColor = UIColor.systemBlue
+            renderer.lineWidth   = 4
+            renderer.lineCap     = .round
+            renderer.lineJoin    = .round
+            return renderer
         }
     }
 }
@@ -189,7 +208,7 @@ struct TrackingMapView: View {
     @StateObject private var network = NetworkManager.shared
     @State private var mapRegion: MKCoordinateRegion
     @State private var annotations: [TrackAnnotation] = []
-    @State private var rawTrail: [CLLocationCoordinate2D] = []   // kept for API compat, not drawn
+    @State private var rawTrail: [CLLocationCoordinate2D] = []
     @State private var pollingTimer: Timer?
     @State private var lastUpdate: LocationUpdate?
     @State private var isArrived = false
@@ -206,7 +225,7 @@ struct TrackingMapView: View {
         ))
         _annotations = State(initialValue: [TrackAnnotation(location: initialLocation)])
         _lastUpdate = State(initialValue: initialLocation)
-        _rawTrail = State(initialValue: [])   // no seed — trail not drawn
+        _rawTrail = State(initialValue: [initialLocation.coordinate])
     }
 
     var body: some View {
@@ -214,9 +233,9 @@ struct TrackingMapView: View {
             ZStack(alignment: .bottom) {
 
                 // ── Map — road-following polyline via MKDirections ─────────
-                RoadSnappingMapView(
+                TrailMapView(
                     annotations: annotations,
-                    rawTrail: rawTrail,
+                    trail: rawTrail,
                     destinationCoordinate: destinationCoordinate,
                     region: $mapRegion
                 )
@@ -367,7 +386,10 @@ struct TrackingMapView: View {
         lastUpdate = update
         let coord = update.coordinate
         annotations = [TrackAnnotation(location: update)]
-        rawTrail.append(coord)
+        // Only append if the truck has moved more than ~5 m to avoid duplicate points
+        if rawTrail.last.map({ abs($0.latitude - coord.latitude) > 0.00005 || abs($0.longitude - coord.longitude) > 0.00005 }) ?? true {
+            rawTrail.append(coord)
+        }
 
         // ── Arrival detection ────────────────────────────────────────────
         if !isArrived, let dest = destinationCoordinate {
@@ -554,9 +576,9 @@ struct CustomerTrackingView: View {
 
                 // ── Live Map ─────────────────────────────────────────────────
                 ZStack(alignment: .top) {
-                    RoadSnappingMapView(
+                    TrailMapView(
                         annotations: annotations,
-                        rawTrail: rawTrail,
+                        trail: rawTrail,
                         destinationCoordinate: destinationCoordinate,
                         region: $mapRegion
                     )
@@ -799,7 +821,6 @@ struct CustomerTrackingView: View {
                             center: loc.coordinate,
                             span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
                         )
-                        // No seed in rawTrail — trail not drawn
                     }
                     // Geocode delivery address → destination pin
                     let geocoder = CLGeocoder()

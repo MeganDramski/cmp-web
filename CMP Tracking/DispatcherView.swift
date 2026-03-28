@@ -521,12 +521,15 @@ class DispatcherViewModel: ObservableObject {
         isLoading = false
     }
 
-    func updateLoadStatus(load: Load, newStatus: LoadStatus) {
+    func updateLoadStatus(load: Load, newStatus: LoadStatus, trail: [CLLocationCoordinate2D] = []) {
         if let index = loads.firstIndex(where: { $0.id == load.id }) {
             loads[index].status = newStatus
-            // Stamp completedAt when finishing a load
+            // Stamp completedAt and save trail when finishing a load
             if newStatus == .delivered || newStatus == .cancelled {
                 loads[index].completedAt = Date()
+                if !trail.isEmpty {
+                    loads[index].completedTrail = trail.map { [$0.latitude, $0.longitude] }
+                }
                 store.saveToHistory(loads[index])
                 history = store.loadHistory()
             }
@@ -571,6 +574,7 @@ struct LoadDetailView: View {
     @State var load: Load
     @ObservedObject var viewModel: DispatcherViewModel
     @EnvironmentObject var appState: AppState
+    @StateObject private var network = NetworkManager.shared
     @State private var showStatusPicker = false
     @State private var showMap = false
     @State private var showSentBanner = false
@@ -579,6 +583,9 @@ struct LoadDetailView: View {
     @State private var isSendingLink = false
     @State private var pickupPin: CLLocationCoordinate2D? = nil
     @State private var deliveryPin: CLLocationCoordinate2D? = nil
+    @State private var geocodingReady = false
+    @State private var liveTrail: [CLLocationCoordinate2D] = []
+    @State private var trailTimer: Timer? = nil
 
     var body: some View {
         List {
@@ -611,15 +618,47 @@ struct LoadDetailView: View {
             // ── Map ──────────────────────────────────────────────────────────
             Section {
                 Group {
-                    if let location = load.lastLocation {
-                        // Live location — show driver position
+                    if !geocodingReady {
+                        // Hold off until both geocoding results are ready — prevents flip
+                        Color.clear.frame(height: 220)
+
+                    } else if let savedTrail = load.completedTrail,
+                              !savedTrail.isEmpty,
+                              load.status == .delivered || load.status == .cancelled {
+                        // ── Completed load: replay the full driven route ──────
+                        let coords = savedTrail.compactMap { pair -> CLLocationCoordinate2D? in
+                            guard pair.count == 2 else { return nil }
+                            return CLLocationCoordinate2D(latitude: pair[0], longitude: pair[1])
+                        }
+                        CompletedTrailMapView(
+                            trail: coords,
+                            pickupCoord: pickupPin,
+                            deliveryCoord: deliveryPin
+                        )
+                        .frame(height: 220)
+                        .cornerRadius(10)
+                        .overlay(alignment: .topLeading) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "checkmark.seal.fill")
+                                    .font(.caption2).foregroundColor(.green)
+                                Text("Completed Route")
+                                    .font(.caption2).fontWeight(.semibold).foregroundColor(.green)
+                            }
+                            .padding(.horizontal, 8).padding(.vertical, 5)
+                            .background(.ultraThinMaterial)
+                            .cornerRadius(8)
+                            .padding(8)
+                        }
+
+                    } else if let location = load.lastLocation {
+                        // ── Active load: live driver position + accumulated trail ──
                         let region = MKCoordinateRegion(
                             center: location.coordinate,
                             span: MKCoordinateSpan(latitudeDelta: 0.04, longitudeDelta: 0.04)
                         )
-                        RoadSnappingMapView(
+                        TrailMapView(
                             annotations: [TrackAnnotation(location: location)],
-                            rawTrail: [],
+                            trail: liveTrail,
                             destinationCoordinate: deliveryPin,
                             region: .constant(region)
                         )
@@ -636,7 +675,7 @@ struct LoadDetailView: View {
                             }
                         }
                     } else {
-                        // No live location — show pickup/delivery route
+                        // ── No location at all: show pickup/delivery route ────
                         RouteMapView(pickupCoord: pickupPin, deliveryCoord: deliveryPin)
                             .frame(height: 220)
                             .cornerRadius(10)
@@ -645,7 +684,9 @@ struct LoadDetailView: View {
                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 .listRowBackground(Color.clear)
             } header: {
-                Text(load.lastLocation != nil ? "Live Location" : "Route")
+                let isCompleted = load.status == .delivered || load.status == .cancelled
+                let hasTrail = !(load.completedTrail?.isEmpty ?? true)
+                Text(isCompleted && hasTrail ? "Completed Route" : (load.lastLocation != nil ? "Live Location" : "Route"))
             }
 
             // ── Driver ───────────────────────────────────────────────────────
@@ -777,11 +818,30 @@ struct LoadDetailView: View {
         }
         .navigationTitle(load.loadNumber)
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { geocodeAddresses() }
+        .onAppear {
+            geocodeAddresses()
+            startTrailPolling()
+        }
+        .onDisappear {
+            trailTimer?.invalidate()
+            trailTimer = nil
+        }
+        .onReceive(network.$liveLocation) { update in
+            guard let update = update, update.loadId == load.id else { return }
+            load.lastLocation = update
+            let coord = update.coordinate
+            if liveTrail.last.map({ abs($0.latitude - coord.latitude) > 0.00005 || abs($0.longitude - coord.longitude) > 0.00005 }) ?? true {
+                liveTrail.append(coord)
+            }
+        }
         .sheet(isPresented: $showStatusPicker) {
             StatusPickerSheet(currentStatus: load.status) { newStatus in
-                viewModel.updateLoadStatus(load: load, newStatus: newStatus)
+                viewModel.updateLoadStatus(load: load, newStatus: newStatus, trail: liveTrail)
                 load.status = newStatus
+                // Also persist trail onto the local load copy for immediate display
+                if newStatus == .delivered || newStatus == .cancelled, !liveTrail.isEmpty {
+                    load.completedTrail = liveTrail.map { [$0.latitude, $0.longitude] }
+                }
             }
         }
         .sheet(isPresented: $showMap) {
@@ -802,14 +862,50 @@ struct LoadDetailView: View {
     // MARK: – Geocoding for route map
     private func geocodeAddresses() {
         let geocoder = CLGeocoder()
+        let group = DispatchGroup()
+
+        group.enter()
         geocoder.geocodeAddressString(load.pickupAddress) { placemarks, _ in
-            guard let coord = placemarks?.first?.location?.coordinate else { return }
-            DispatchQueue.main.async { self.pickupPin = coord }
+            if let coord = placemarks?.first?.location?.coordinate {
+                DispatchQueue.main.async { self.pickupPin = coord }
+            }
+            group.leave()
         }
+
+        // CLGeocoder is serial — wait a tick between calls
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            group.enter()
             geocoder.geocodeAddressString(load.deliveryAddress) { placemarks, _ in
-                guard let coord = placemarks?.first?.location?.coordinate else { return }
-                DispatchQueue.main.async { self.deliveryPin = coord }
+                if let coord = placemarks?.first?.location?.coordinate {
+                    DispatchQueue.main.async { self.deliveryPin = coord }
+                }
+                group.leave()
+            }
+        }
+
+        // Only flip geocodingReady once both have finished
+        group.notify(queue: .main) {
+            self.geocodingReady = true
+        }
+    }
+
+    // MARK: – Trail polling (fallback when WebSocket is not live)
+    private func startTrailPolling() {
+        guard load.lastLocation != nil else { return }
+        // Seed trail from the current known location
+        if let initial = load.lastLocation {
+            liveTrail = [initial.coordinate]
+        }
+        trailTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { _ in
+            network.fetchLatestLocation(loadId: load.id) { update, _ in
+                guard let update = update else { return }
+                DispatchQueue.main.async {
+                    load.lastLocation = update
+                    let coord = update.coordinate
+                    if self.liveTrail.last.map({ abs($0.latitude - coord.latitude) > 0.00005 || abs($0.longitude - coord.longitude) > 0.00005 }) ?? true {
+                        self.liveTrail.append(coord)
+                    }
+                }
             }
         }
     }
