@@ -455,6 +455,11 @@ class DispatcherViewModel: ObservableObject {
     private let network  = NetworkManager.shared
     private let store    = LoadStore.shared
     private let firebase = FirebaseManager.shared
+    private var refreshTimer: Timer?
+
+    deinit {
+        refreshTimer?.invalidate()
+    }
 
     /// UserDefaults key — once set, we never auto-seed again (survives reinstall via iCloud KV seeding).
     private let seededKey = "cmp.dispatcher.didSeedOnce"
@@ -491,6 +496,13 @@ class DispatcherViewModel: ObservableObject {
             self.loads   = self.store.load()
             self.history = self.store.loadHistory()
         }
+
+        // Auto-refresh every 15 s so driver status / location changes
+        // appear on the board without the dispatcher needing to pull-to-refresh.
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            Task { await self.refreshLoads() }
+        }
     }
 
     func refreshLoads() async {
@@ -512,8 +524,42 @@ class DispatcherViewModel: ObservableObject {
                     continuation.resume()
                 }
             }
+        } else if AWSManager.shared.isConfigured {
+            // Firebase not configured — pull latest load data directly from
+            // the AWS REST API so driver status changes (In Transit → Delivered etc.)
+            // are reflected on the dispatcher board without needing a manual refresh.
+            await withCheckedContinuation { continuation in
+                AWSManager.shared.fetchLoads { [weak self] result in
+                    guard let self else { continuation.resume(); return }
+                    switch result {
+                    case .success(let remoteLoads) where !remoteLoads.isEmpty:
+                        // Merge: keep local completedTrail / completedAt data that
+                        // the server doesn't know about, but adopt server status & location.
+                        var merged = remoteLoads
+                        for (i, remote) in merged.enumerated() {
+                            if let local = self.loads.first(where: { $0.id == remote.id }) {
+                                if merged[i].completedTrail == nil {
+                                    merged[i].completedTrail = local.completedTrail
+                                }
+                                if merged[i].completedAt == nil {
+                                    merged[i].completedAt = local.completedAt
+                                }
+                            }
+                        }
+                        self.loads = merged
+                        self.store.save(merged)
+                    case .failure(let error):
+                        // Network error — fall back to local store silently
+                        print("DispatcherViewModel: AWS fetch failed, using local store:", error.localizedDescription)
+                        self.loads = self.store.load()
+                    default:
+                        self.loads = self.store.load()
+                    }
+                    continuation.resume()
+                }
+            }
         } else {
-            // Reload from local store (iCloud KV + UserDefaults fallback)
+            // No remote backend — reload from local store (iCloud KV + UserDefaults fallback)
             let persisted = store.load()
             loads = persisted
         }
@@ -833,6 +879,17 @@ struct LoadDetailView: View {
             if liveTrail.last.map({ abs($0.latitude - coord.latitude) > 0.00005 || abs($0.longitude - coord.longitude) > 0.00005 }) ?? true {
                 liveTrail.append(coord)
             }
+        }
+        // Sync this view's load copy whenever the viewModel refreshes from the server.
+        // This is what makes the status badge, map, and location update automatically
+        // while the dispatcher is looking at the detail screen.
+        .onReceive(viewModel.$loads) { updatedLoads in
+            guard let fresh = updatedLoads.first(where: { $0.id == load.id }) else { return }
+            // Preserve locally-accumulated trail and geocodingReady so the map doesn't reset
+            var merged = fresh
+            if merged.completedTrail == nil { merged.completedTrail = load.completedTrail }
+            if merged.completedAt   == nil { merged.completedAt   = load.completedAt   }
+            load = merged
         }
         .sheet(isPresented: $showStatusPicker) {
             StatusPickerSheet(currentStatus: load.status) { newStatus in
