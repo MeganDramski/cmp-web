@@ -53,8 +53,10 @@ function pickOriginNumber(e164) {
   if (!e164 || !e164.startsWith("+1")) return PHONE_CA; // non-NANP: use CA as default
   const areaCode = parseInt(e164.slice(2, 5), 10);
   if (CA_AREA_CODES.has(areaCode)) return PHONE_CA;   // Canadian number → CA long code
-  // US number → use US long code (voice-only fallback until toll-free approved)
-  return PHONE_US_LC;
+  // US number → use toll-free if approved, otherwise fall back to CA long code
+  // (PHONE_US_LC is voice-only and cannot send SMS)
+  if (PHONE_US && PHONE_US !== "+18446233665") return PHONE_US; // custom override set
+  return PHONE_CA; // safe fallback until US toll-free is approved
 }
 
 function buildLinks(event, token, id) {
@@ -310,7 +312,7 @@ exports.handler = async (event) => {
                   "<strong>Driver:</strong> " + (load.assignedDriverName || "Driver") + "<br>" +
                   "<strong>Pickup:</strong> " + load.pickupAddress + "<br>" +
                   "<strong>Delivery:</strong> " + load.deliveryAddress + "</p>" +
-                  "<p>Driver link: <a href='" + link + "'>" + link + "</a></p>",
+                  "<p>Driver link: <a href='" + openAppUrl + "'>" + openAppUrl + "</a></p>",
               },
             },
           },

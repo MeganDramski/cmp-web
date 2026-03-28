@@ -26,7 +26,7 @@ exports.handler = async (event) => {
 
     const load = {
       id:                  body.id            || crypto.randomUUID(),
-      tenantId:            user.tenantId      || null,
+      tenantId:            user.tenantId      || null,   // multi-tenant isolation
       loadNumber:          body.loadNumber,
       description:         body.description,
       weight:              body.weight         || 0,
